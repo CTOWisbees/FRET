@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Settings — FRET{% endblock %}
+{% block page_title %}Settings{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Settings</div>
+    <div class="page-subtitle">Configure company info, letterhead, email & documents</div>
+  </div>
+</div>
+
+<div style="max-width:820px;">
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('company',this)">🏢 Company</button>
+    <button class="tab-btn" onclick="switchTab('email',this)">📧 Email</button>
+    <button class="tab-btn" onclick="switchTab('documents',this)">📎 Documents</button>
+  </div>
+
+  <!-- ── Company Tab ── -->
+  <div id="tab-company" class="tab-panel slide-up">
+    <form method="POST" action="{{ url_for('save_company_settings') }}" enctype="multipart/form-data">
+      <div class="card" style="margin-bottom:16px;">
+        <div style="font-size:0.95rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+          <i class="fas fa-building text-accent"></i> Company Details
+        </div>
+        <div class="form-group">
+          <label class="form-label">Company Name</label>
+          <input type="text" name="company_name" class="form-control" value="{{ company.company_name if company else '' }}"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Registered Address</label>
+          <textarea name="company_address" class="form-control" rows="3" style="resize:vertical;">{{ company.company_address if company else '' }}</textarea>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Company Email</label>
+            <input type="email" name="company_email" class="form-control" value="{{ company.company_email if company else '' }}"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Company Phone</label>
+            <input type="tel" name="company_phone" class="form-control" value="{{ company.company_phone if company else '' }}"/>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Company Settings</button>
+        </div>
+      </div>
+    </form>
+
+    <!-- Letterhead upload — separate card for clarity -->
+    <form method="POST" action="{{ url_for('save_company_settings') }}" enctype="multipart/form-data" id="lhForm">
+      <div class="card">
+        <div style="font-size:0.95rem;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+          <i class="fas fa-image text-accent"></i> Company Letterhead
+          <span style="font-size:0.72rem;font-weight:400;color:var(--text3);margin-left:4px;">Used as background on every offer letter PDF</span>
+        </div>
+
+        {% if company and company.letterhead_path %}
+        <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:12px 14px;margin:14px 0;display:flex;align-items:center;gap:10px;font-size:0.83rem;color:#6ee7b7;">
+          <i class="fas fa-check-circle"></i>
+          <span>Letterhead uploaded and active. <strong>All offer letter PDFs</strong> will use this as the background.</span>
+        </div>
+        <!-- Preview thumbnail -->
+        <div style="margin-bottom:14px;">
+          <div style="font-size:0.78rem;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.05em;">Current Letterhead</div>
+          <img src="{{ url_for('serve_letterhead') }}" alt="Letterhead preview"
+               style="max-height:160px;border-radius:8px;border:1px solid var(--border);background:#fff;padding:4px;"/>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
+          <label class="form-label">
+            {% if company and company.letterhead_path %}Replace Letterhead{% else %}Upload Letterhead{% endif %}
+          </label>
+          <div style="border:2px dashed var(--border);border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;"
+               id="lhDropZone" >
+            <input type="file" id="lhFile" name="letterhead_file" accept="image/*"
+                   style="position:absolute;inset:0;opacity:0;cursor:pointer;"
+                   onchange="previewLH(event)"/>
+            <div id="lhContent">
+              <div style="font-size:2.2rem;margin-bottom:8px;">🖼️</div>
+              <div style="font-weight:600;color:var(--text2);font-size:0.9rem;">Click or drag to upload letterhead</div>
+              <div style="font-size:0.78rem;color:var(--text3);margin-top:4px;">PNG, JPG — A4 size recommended (2480 × 3508 px) · Max 5MB</div>
+              <div style="font-size:0.75rem;color:var(--text3);margin-top:3px;">Upload once — reused for all future offer letters automatically</div>
+            </div>
+            <img id="lhPreview" style="display:none;max-height:120px;margin:0 auto;border-radius:6px;border:1px solid var(--border);background:#fff;padding:4px;" src="" alt="Preview"/>
+          </div>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;background:var(--bg3);border-radius:8px;padding:12px 14px;font-size:0.82rem;color:var(--text2);">
+          <i class="fas fa-lightbulb" style="color:var(--yellow);"></i>
+          <span>Tip: Use a PNG with transparent content area so the text sits cleanly on top. The letterhead will be stretched to fill the full A4 page.</span>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-upload"></i> Upload &amp; Save Letterhead</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Email Tab ── -->
+  <div id="tab-email" class="tab-panel slide-up" style="display:none">
+    <form method="POST" action="{{ url_for('save_email_config') }}">
+      <div class="card">
+        <div style="font-size:0.95rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+          <i class="fab fa-windows text-accent"></i> Microsoft Graph API Email Configuration
+        </div>
+        
+        <div style="background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.2);border-radius:10px;padding:14px;margin-bottom:20px;font-size:0.83rem;color:var(--text2);">
+          <i class="fas fa-info-circle text-accent"></i>&nbsp;
+          Requires an App Registration in the <b>Microsoft Entra Admin Center</b> (formerly Azure AD).<br>
+          Ensure the app registration has the application-level permission <b>Mail.Send</b> granted and consented by an admin.
+        </div>
+        
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Sender Email Address *</label>
+            <input type="email" name="sender_email" class="form-control" value="{{ config.sender_email if config else '' }}" placeholder="hr@yourcompany.com" required/>
+          </div>
+          
+          <div class="form-group">
+            <label class="hr-ms-label">Directory (Tenant) ID *</label>
+            <input type="text" name="tenant_id" class="form-control" value="{{ config.tenant_id if config else '' }}" placeholder="00000000-0000-0000-0000-000000000000" required/>
+          </div>
+          
+          <div class="form-group">
+            <label class="hr-ms-label">Application (Client) ID *</label>
+            <input type="text" name="client_id" class="form-control" value="{{ config.client_id if config else '' }}" placeholder="00000000-0000-0000-0000-000000000000" required/>
+          </div>
+          
+          <div class="form-group">
+            <label class="hr-ms-label">Client Secret *</label>
+            <input type="password" name="client_secret" class="form-control" placeholder="Leave blank to keep existing / Enter new secret value"/>
+          </div>
+        </div>
+        
+        <div style="display:flex;justify-content:flex-end;margin-top:20px;">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Microsoft Config</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- ── Documents Tab ── -->
+  <div id="tab-documents" class="tab-panel slide-up" style="display:none">
+    <div class="card">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border);padding-bottom:12px;">
+        <i class="fas fa-folder-open text-accent"></i> Document Storage
+      </div>
+      <div style="display:grid;gap:14px;">
+        <!-- Letterhead status -->
+        <div style="background:var(--bg3);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;">
+          <div style="width:46px;height:46px;background:rgba(99,102,241,0.12);border-radius:10px;display:grid;place-items:center;flex-shrink:0;">
+            <i class="fas fa-image" style="color:var(--accent);font-size:1.2rem;"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:0.9rem;">Company Letterhead</div>
+            <div style="font-size:0.8rem;color:var(--text3);">Background image for all offer letter PDFs</div>
+            {% if company and company.letterhead_path %}
+            <div style="font-size:0.75rem;color:var(--green);margin-top:3px;"><i class="fas fa-check-circle"></i> Uploaded &amp; active</div>
+            {% else %}
+            <div style="font-size:0.75rem;color:var(--yellow);margin-top:3px;"><i class="fas fa-triangle-exclamation"></i> Not uploaded</div>
+            {% endif %}
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="switchTab('company', document.querySelectorAll('.tab-btn')[0])">
+            <i class="fas fa-upload"></i> Manage
+          </button>
+        </div>
+
+        <!-- NDA -->
+        <div style="background:var(--bg3);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;">
+          <div style="width:46px;height:46px;background:rgba(239,68,68,0.12);border-radius:10px;display:grid;place-items:center;flex-shrink:0;">
+            <i class="fas fa-file-pdf" style="color:var(--red);font-size:1.2rem;"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:0.9rem;">NDA Document</div>
+            <div style="font-size:0.8rem;color:var(--text3);">Non-Disclosure Agreement — emailed with offer</div>
+            {% if company and company.nda_path %}
+            <div style="font-size:0.75rem;color:var(--green);margin-top:3px;"><i class="fas fa-check-circle"></i> Uploaded &amp; ready to send</div>
+            {% else %}
+            <div style="font-size:0.75rem;color:var(--yellow);margin-top:3px;"><i class="fas fa-triangle-exclamation"></i> Not uploaded</div>
+            {% endif %}
+          </div>
+          <form method="POST" action="{{ url_for('save_company_settings') }}" enctype="multipart/form-data" style="display:inline;">
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer;margin:0;">
+              <i class="fas fa-upload"></i> {% if company and company.nda_path %}Replace{% else %}Upload{% endif %}
+              <input type="file" name="nda_file" accept=".pdf" style="display:none" onchange="this.form.submit()"/>
+            </label>
+          </form>
+        </div>
+
+        <!-- Offer letters -->
+        <div style="background:var(--bg3);border-radius:12px;padding:18px;display:flex;align-items:center;gap:14px;">
+          <div style="width:46px;height:46px;background:rgba(16,185,129,0.1);border-radius:10px;display:grid;place-items:center;flex-shrink:0;">
+            <i class="fas fa-file-contract" style="color:var(--green);font-size:1.2rem;"></i>
+          </div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:0.9rem;">Offer Letter PDFs</div>
+            <div style="font-size:0.8rem;color:var(--text3);">Generated on-demand · 7 role categories · letterhead + signature</div>
+            <div style="font-size:0.75rem;color:var(--green);margin-top:3px;"><i class="fas fa-check-circle"></i> Dynamic generation active</div>
+          </div>
+          <a href="{{ url_for('offer_letter_page') }}" class="btn btn-secondary btn-sm">
+            <i class="fas fa-external-link-alt"></i> Generate
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).style.display = 'block';
+  if (btn) btn.classList.add('active');
+}
+
+function previewLH(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('lhContent').style.display = 'none';
+    const img = document.getElementById('lhPreview');
+    img.src = ev.target.result;
+    img.style.display = 'block';
+    document.getElementById('lhDropZone').style.borderColor = 'var(--green)';
+  };
+  reader.readAsDataURL(file);
+}
+
+const dz = document.getElementById('lhDropZone');
+if (dz) {
+  dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = 'var(--accent)'; dz.style.background = 'rgba(99,102,241,0.04)'; });
+  dz.addEventListener('dragleave', () => { dz.style.borderColor = 'var(--border)'; dz.style.background = ''; });
+  dz.addEventListener('drop', (e) => {
+    e.preventDefault(); dz.style.borderColor = 'var(--border)'; dz.style.background = '';
+    const dt = e.dataTransfer;
+    if (dt.files.length) {
+      document.getElementById('lhFile').files = dt.files;
+      previewLH({target: {files: dt.files}});
+    }
+  });
+}
+</script>
+{% endblock %}

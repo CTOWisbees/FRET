@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+{% block title %}Offer Letters — FRET{% endblock %}
+{% block page_title %}Offer Letters{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Generate Offer Letter</div>
+    <div class="page-subtitle">PDF with letterhead background · signature auto-applied · role-specific content</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:940px;">
+  <!-- Generator form -->
+  <div class="card slide-up">
+    <div style="font-size:1rem;font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px;">
+      <i class="fas fa-file-pdf text-accent"></i> Generate PDF Letter
+    </div>
+    <div style="font-size:0.82rem;color:var(--text3);margin-bottom:20px;">
+      Select employee and role — PDF downloads instantly with your letterhead &amp; signature.
+    </div>
+
+    {% if not settings or not settings.letterhead_path %}
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.83rem;color:#fbbf24;display:flex;align-items:center;gap:8px;">
+      <i class="fas fa-image"></i>
+      No letterhead uploaded yet.
+      <a href="{{ url_for('settings') }}" style="color:#f59e0b;font-weight:600;margin-left:2px;">Upload in Settings →</a>
+    </div>
+    {% else %}
+    <div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:0.82rem;color:#6ee7b7;display:flex;align-items:center;gap:8px;">
+      <i class="fas fa-check-circle"></i> Letterhead ready — will appear as background on every page.
+    </div>
+    {% endif %}
+
+    {% if not current_user.signature_path %}
+    <div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:8px;padding:12px;margin-bottom:14px;font-size:0.83rem;color:#fbbf24;display:flex;align-items:center;gap:8px;">
+      <i class="fas fa-signature"></i>
+      No signature on file.
+      <a href="{{ url_for('profile') }}" style="color:#f59e0b;font-weight:600;margin-left:2px;">Upload in Profile →</a>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('generate_offer_letter') }}" id="offerForm">
+      <div class="form-group">
+        <label class="form-label">Select Employee *</label>
+        <select name="employee_id" class="form-control" required onchange="loadPreview(this)">
+          <option value="">— Choose an employee —</option>
+          {% for emp in employees %}
+          <option value="{{ emp.id }}"
+            data-name="{{ emp.name }}"
+            data-email="{{ emp.email or '' }}"
+            data-id="{{ emp.emp_id }}"
+            data-salary="{{ emp.salary }}"
+            data-joining="{{ emp.joining_date.strftime('%d %b %Y') if emp.joining_date else 'TBD' }}">
+            {{ emp.name }} · {{ emp.emp_id }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Internship Role / Category *</label>
+        <select name="role_key" class="form-control" required onchange="updateRolePreview(this)">
+          <option value="">— Select role —</option>
+          {% for rk in role_keys %}
+          <option value="{{ rk }}">{{ rk }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Employee preview card -->
+      <div id="empPreview" style="display:none;background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:16px;animation:fadeIn 0.3s ease;">
+        <div style="font-size:0.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;">Employee Preview</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:0.83rem;">
+          <div><span style="color:var(--text3)">Name:</span> <span id="pvName" style="font-weight:600;"></span></div>
+          <div><span style="color:var(--text3)">ID:</span> <code id="pvId" style="color:var(--accent)"></code></div>
+          <div><span style="color:var(--text3)">Salary:</span> <span id="pvSalary" style="color:var(--green);font-weight:600;"></span></div>
+          <div><span style="color:var(--text3)">Joining:</span> <span id="pvJoining"></span></div>
+        </div>
+      </div>
+
+      <!-- Role preview -->
+      <div id="rolePreview" style="display:none;background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:16px;animation:fadeIn 0.3s ease;">
+        <div style="font-size:0.75rem;color:var(--text3);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">Role Content Preview</div>
+        <div id="rpDept" style="font-size:0.8rem;color:var(--text2);margin-bottom:6px;"></div>
+        <div id="rpResponsibilities" style="font-size:0.78rem;color:var(--text3);line-height:1.7;"></div>
+      </div>
+
+      <!-- Signed by -->
+      <div style="background:var(--bg3);border-radius:10px;padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:0.75rem;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;">Signed by</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:0.8rem;color:#fff;flex-shrink:0;">
+            {{ current_user.name[0].upper() }}
+          </div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:0.85rem;">{{ current_user.name }}</div>
+            <div style="color:var(--text3);font-size:0.78rem;">{{ current_user.designation }}</div>
+          </div>
+          {% if current_user.signature_path %}
+          <span class="badge-pill badge-active" style="font-size:0.68rem;"><i class="fas fa-pen-nib"></i> Sig ready</span>
+          {% else %}
+          <span class="badge-pill badge-pending" style="font-size:0.68rem;"><i class="fas fa-times"></i> No sig</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;font-size:0.95rem;">
+        <i class="fas fa-file-pdf"></i> &nbsp;Generate & Download PDF
+      </button>
+    </form>
+  </div>
+
+  <!-- Right panel -->
+  <div style="display:flex;flex-direction:column;gap:16px;">
+
+    <!-- Roles included -->
+    <div class="card slide-up" style="animation-delay:0.08s;">
+      <div style="font-size:0.9rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-list-check text-accent"></i> Available Roles
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        {% for rk in role_keys %}
+        <div style="display:flex;align-items:center;gap:8px;font-size:0.82rem;padding:6px 10px;background:var(--bg3);border-radius:7px;">
+          <i class="fas fa-circle" style="color:var(--accent);font-size:0.4rem;"></i>
+          <span>{{ rk }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- What PDF contains -->
+    <div class="card slide-up" style="animation-delay:0.13s;">
+      <div style="font-size:0.9rem;font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-circle-info text-accent"></i> PDF Contents
+      </div>
+      {% for item in [
+        ('Letterhead as full-page background', 'image'),
+        ('Date & Reference number', 'calendar'),
+        ('Subject line with role name', 'heading'),
+        ('Employee details table', 'table-cells'),
+        ('Role-specific responsibilities', 'list-ul'),
+        ('Eligibility requirements', 'graduation-cap'),
+        ('Terms & conditions', 'scale-balanced'),
+        ('HR name & digital signature', 'pen-nib'),
+        ('Acceptance signature block', 'pen-to-square'),
+      ] %}
+      <div style="display:flex;align-items:center;gap:8px;font-size:0.83rem;color:var(--text2);margin-bottom:5px;">
+        <i class="fas fa-{{ item[1] }}" style="color:var(--green);font-size:0.8rem;width:14px;"></i> {{ item[0] }}
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Send via email -->
+    <div class="card slide-up" style="animation-delay:0.18s;">
+      <div style="font-size:0.9rem;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-paper-plane text-accent"></i> Email Documents
+      </div>
+      <p style="font-size:0.82rem;color:var(--text3);margin-bottom:12px;">Send offer letter + NDA directly to the employee's inbox.</p>
+      <button class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="showEmailModal()">
+        <i class="fas fa-envelope"></i> Open Email Sender
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const ROLE_INFO = {
+  {% for rk in role_keys %}
+  {{ rk|tojson }}: {
+    dept: {{ role_data_depts[rk]|tojson if role_data_depts is defined else '""' }},
+    responsibilities: []
+  },
+  {% endfor %}
+};
+
+function loadPreview(sel) {
+  const opt = sel.options[sel.selectedIndex];
+  const pv = document.getElementById('empPreview');
+  if (!opt.value) { pv.style.display = 'none'; return; }
+  document.getElementById('pvName').textContent = opt.dataset.name;
+  document.getElementById('pvId').textContent = opt.dataset.id;
+  document.getElementById('pvSalary').textContent = '₹' + Number(opt.dataset.salary).toLocaleString('en-IN');
+  document.getElementById('pvJoining').textContent = opt.dataset.joining;
+  pv.style.display = 'block';
+}
+
+function updateRolePreview(sel) {
+  const rp = document.getElementById('rolePreview');
+  if (!sel.value) { rp.style.display = 'none'; return; }
+  // Fetch role details from server
+  fetch(`/api/role-info?role=${encodeURIComponent(sel.value)}`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('rpDept').innerHTML = `<b>Department:</b> ${data.department}`;
+      document.getElementById('rpResponsibilities').innerHTML =
+        data.responsibilities.slice(0,3).map(r => `• ${r}`).join('<br>') +
+        (data.responsibilities.length > 3 ? `<br><span style='color:var(--accent)'>+${data.responsibilities.length-3} more…</span>` : '');
+      rp.style.display = 'block';
+    });
+}
+
+// Animate button on submit
+document.getElementById('offerForm').addEventListener('submit', function(e) {
+  const btn = this.querySelector('button[type=submit]');
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> &nbsp;Generating PDF…';
+  btn.disabled = true;
+  setTimeout(() => {
+    btn.innerHTML = '<i class="fas fa-file-pdf"></i> &nbsp;Generate & Download PDF';
+    btn.disabled = false;
+  }, 5000);
+});
+</script>
+{% endblock %}

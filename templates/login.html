@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Login — FRET</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+<style>
+:root{
+    --bg:#0F141B;
+    --bg2:#161D26;
+    --bg3:#202A36;
+
+    --surface:#161D26;
+
+    --border:rgba(255,255,255,.08);
+
+    --accent:#0E9F6E;
+    --accent2:#0A7A54;
+    --accent3:#2563C9;
+
+    --green:#10B981;
+    --red:#EF4444;
+
+    --text:#F8FAFC;
+    --text2:#CBD5E1;
+    --text3:#94A3B8;
+}
+[data-theme="light"]{
+
+    --bg:#F6F7F9;
+    --bg2:#FFFFFF;
+    --bg3:#EEF1F5;
+
+    --surface:#FFFFFF;
+
+    --border:#E6E9EF;
+
+    --accent:#0E9F6E;
+    --accent2:#0A7A54;
+    --accent3:#2563C9;
+
+    --green:#10B981;
+    --red:#D6452B;
+
+    --text:#0F141B;
+    --text2:#2B333F;
+    --text3:#69707D;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+}
+.theme-btn{
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg3);
+  color: var(--text);
+  cursor: pointer;
+  z-index: 9999;
+  transition: all 0.2s ease;
+}
+
+.theme-btn:hover{
+  transform: translateY(-2px);
+}
+/* Animated background grid */
+.bg-grid {
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(14,159,110,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14,159,110,.035) 1px, transparent 1px);
+  background-size: 40px 40px;
+  animation: gridMove 20s linear infinite;
+}
+@keyframes gridMove {
+  0% { background-position: 0 0, 0 0; }
+  100% { background-position: 40px 40px, 40px 40px; }
+}
+
+.bg-glow {
+  position: fixed;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(14,159,110,0.12) 0%, transparent 70%);
+  border-radius: 50%;
+  top: -200px; left: -200px;
+  animation: glow 6s ease-in-out infinite alternate;
+  z-index: 0;
+}
+.bg-glow-2 {
+  position: fixed;
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(37,99,201,0.10) 0%, transparent 70%);
+  border-radius: 50%;
+  bottom: -200px; right: -100px;
+  animation: glow 8s ease-in-out infinite alternate-reverse;
+  z-index: 0;
+}
+@keyframes glow {
+  from { transform: scale(1) translate(0,0); }
+  to { transform: scale(1.2) translate(30px, 20px); }
+}
+
+.hero-logo{
+    width:160px;
+    height:auto;
+    object-fit:contain;
+    margin-bottom:20px;
+    
+}
+.hero-logo img{
+    width:300px;
+    height:auto;
+}
+
+.logo-icon img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  
+}
+@keyframes logoFloat {
+  0%,100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+/* ---- Layering: keep orbs behind the text ---- */
+
+.left-panel {
+  flex: 1;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 60px 64px;      
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+}
+@media (min-width: 900px) {
+  .left-panel { display: flex; }
+}
+/* ---- Background orbs ---- */
+.panel-orb { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .4; z-index: 0; pointer-events: none; }
+.orb-1 { width: 300px; height: 300px; top: -60px; right: -40px; background: radial-gradient(circle at 30% 30%, var(--accent), transparent 70%); animation: orbFloat 14s ease-in-out infinite; }
+.orb-2 { width: 240px; height: 240px; bottom: 40px; right: 80px; background: radial-gradient(circle at 30% 30%, var(--accent2), transparent 70%); animation: orbFloat 18s ease-in-out infinite reverse; }
+.orb-3 { width: 200px; height: 200px; bottom: -50px; left: -40px; background: radial-gradient(circle at 30% 30%, var(--accent), transparent 70%); animation: orbFloat 16s ease-in-out infinite; }
+@keyframes orbFloat { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-28px,28px) scale(1.12); } }
+
+/* panel content wrapper */
+.panel-content {
+  position: relative;
+  z-index: 1;
+  
+}
+
+
+
+/* headline */
+.panel-headline {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 16px;
+  margin-top: 0;
+  animation: fadeUp .5s ease .08s both;
+}
+.panel-headline em {
+  font-style: normal;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s linear infinite;
+}
+
+/* sub */
+.panel-sub {
+  font-size: .97rem;
+  color: var(--text2);
+  line-height: 1.75;
+  max-width: 400px;
+  margin-bottom: 28px;
+  animation: fadeUp .5s ease .16s both;
+}
+
+/* accent divider */
+.panel-divider {
+  width: 40px; height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius: 2px;
+  margin-bottom: 28px;
+  animation: fadeUp .5s ease .22s both;
+}
+
+/* features */
+.panel-features {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 0;
+}
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  animation: slideRight .5s ease both;
+}
+.feature-item:last-child { border-bottom: none; }
+.feature-item:nth-child(1) { animation-delay: .28s; }
+.feature-item:nth-child(2) { animation-delay: .36s; }
+.feature-item:nth-child(3) { animation-delay: .44s; }
+
+.feature-icon {
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background:rgba(14,159,110,.12);
+  border:1px solid rgba(14,159,110,.25);
+  color:var(--accent);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 15px;
+}
+.feature-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.feature-text {
+  font-size: .88rem;
+  color: var(--text);
+  font-weight: 500;
+}
+.feature-sub {
+  font-size: .76rem;
+  color: var(--text3);
+}
+
+
+.stat-card {
+  flex: 1;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.stat-num {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: 1.4rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.stat-label {
+  font-size: .72rem;
+  color: var(--text3);
+  margin-top: 3px;
+  font-weight: 500;
+}
+
+/* dotPulse reuse */
+@keyframes dotPulse {
+  0%   { transform: scale(1); opacity: .8; }
+  100% { transform: scale(3); opacity: 0; }
+}
+
+/* light mode overrides */
+
+[data-theme="light"] .feature-icon {
+  background: rgba(99,102,241,0.08);
+  border-color: rgba(99,102,241,0.18);
+}
+[data-theme="light"] .stat-card {
+  background: rgba(99,102,241,0.04);
+  border-color: rgba(14,159,110,0.12);
+}
+
+
+/* Right panel — form */
+.right-panel {
+  width: 100%; max-width: 480px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 40px 32px; position: relative; z-index: 1;
+}
+@media (min-width: 900px) { .right-panel { border-left: 1px solid var(--border); } }
+
+.form-card {
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:40px;
+  box-shadow:
+      0 12px 40px rgba(0,0,0,.18);
+  backdrop-filter:blur(18px);
+  width: 100%; max-width: 400px;
+  animation: slideUp 0.5s ease both;
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.form-logo{
+    display:flex;
+    justify-content:center;
+    margin-bottom:24px;
+}
+
+.login-logo{
+    width:110px;
+    height:auto;
+    object-fit:contain;
+}
+.form-logo-icon img {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+}
+.form-logo-text {
+  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 1.3rem;
+}
+.form-logo-text span { color: var(--accent); }
+
+.form-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.6rem; font-weight: 800; margin-bottom: 6px; }
+.form-subtitle { font-size: 0.9rem; color: var(--text3); margin-bottom: 32px; }
+
+.input-group { margin-bottom: 16px; position: relative; }
+.input-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.input-wrap { position: relative; }
+.input-icon {
+  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); font-size: 0.9rem;
+}
+.input-field {
+  width: 100%; padding: 11px 14px 11px 40px;
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text); font-size: 0.9rem;
+  font-family: inherit; outline: none; transition: all 0.2s;
+}
+.input-field:focus{
+    border-color:var(--accent);
+    box-shadow:
+        0 0 0 4px rgba(14,159,110,.15);
+}
+.input-field::placeholder { color: var(--text3); }
+.eye-toggle {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); cursor: pointer; padding: 4px; background: none; border: none;
+  font-size: 0.85rem; transition: color 0.2s;
+}
+.eye-toggle:hover { color: var(--text); }
+
+.submit-btn {
+  width: 100%; padding: 12px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff; border: none; border-radius: 10px;
+  font-size: 0.95rem; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; margin-top: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-family: inherit;
+  box-shadow:0 8px 24px rgba(14,159,110,.28);
+}
+.submit-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(14,159,110,0.35); }
+.submit-btn:active { transform: translateY(0); }
+
+.form-footer { text-align: center; margin-top: 24px; font-size: 0.85rem; color: var(--text3); }
+.form-footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
+.form-footer a:hover { text-decoration: underline; }
+
+.alert-box {
+  background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
+  border-radius: 8px; padding: 10px 14px;
+  color: #fca5a5; font-size: 0.85rem;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 16px;
+}
+.alert-success-box {
+  background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25);
+  border-radius: 8px; padding: 10px 14px;
+  color: #6ee7b7; font-size: 0.85rem;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 16px;
+}
+
+.login-type-selector{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:20px;
+}
+
+.type-btn{
+    padding:12px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--text);
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+    transition:all .2s ease;
+}
+
+.type-btn.active{
+    background:linear-gradient(
+        135deg,
+        #0E9F6E,
+        #0A7A54
+    );
+
+    color:white;
+    border-color:transparent;
+}
+
+.divider-or { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--text3); font-size: 0.8rem; }
+.divider-or::before, .divider-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+
+/* Eyebrow status badge */
+.panel-badge{
+  display:inline-flex; align-items:center; gap:9px;
+  padding:6px 14px; margin-bottom:24px;
+  border-radius:999px;
+  background:rgba(14,159,110,.10);
+  border:1px solid rgba(14,159,110,.22);
+  color:var(--accent);
+  font-size:.72rem; font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase;
+  animation:fadeUp .5s ease both;
+}
+.panel-badge .badge-dot{ position:relative; width:7px; height:7px; border-radius:50%; background:var(--accent); }
+.panel-badge .badge-dot::after{ content:''; position:absolute; inset:0; border-radius:50%; background:var(--accent); animation:dotPulse 2s ease-out infinite; }
+
+/* Stats row (uses your existing .stat-card styles) */
+.panel-stats{ display:flex; gap:12px; margin-top:30px; animation:fadeUp .5s ease .5s both; }
+
+/* Enterprise trust line */
+.panel-trust{ display:flex; align-items:center; gap:9px; margin-top:22px; font-size:.76rem; color:var(--text3); font-weight:500; animation:fadeUp .5s ease .58s both; }
+.panel-trust svg{ color:var(--accent); flex-shrink:0; }
+.panel-trust .dot-sep{ width:3px; height:3px; border-radius:50%; background:var(--text3); opacity:.6; }
+
+/* Keep everything visible on shorter laptop screens */
+@media (max-height: 860px){
+  .left-panel{ padding-top:40px; padding-bottom:40px; }
+  .panel-sub{ margin-bottom:20px; }
+  .panel-divider{ margin-bottom:20px; }
+  .panel-stats{ margin-top:22px; }
+}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="bg-glow-2"></div>
+<button class="theme-btn" onclick="toggleTheme()">
+    <i class="fas fa-sun" id="themeIcon"></i>
+</button>
+
+
+<div class="left-panel">
+  <div class="panel-orb orb-1"></div>
+  <div class="panel-orb orb-2"></div>
+  <div class="panel-orb orb-3"></div>
+
+  <div class="panel-content">
+
+    <div class="hero-logo">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="Company Logo">
+    </div>
+
+    <div class="panel-headline">
+      FRET<br>Human Resource<br><em>Management System</em>
+    </div>
+
+    <p class="panel-sub">Streamline your HR operations — from onboarding to offer letters, all in one intelligent platform built for modern teams.</p>
+
+    <div class="panel-divider"></div>
+
+    <div class="panel-features">
+      <div class="feature-item">
+        <div class="feature-icon">✉</div>
+        <div class="feature-body">
+          <span class="feature-text">Auto-generate offer letters with your signature</span>
+          <span class="feature-sub">One click, fully branded</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">⚡</div>
+        <div class="feature-body">
+          <span class="feature-text">Send emails &amp; NDAs with one click</span>
+          <span class="feature-sub">Automated delivery &amp; tracking</span>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">📊</div>
+        <div class="feature-body">
+          <span class="feature-text">Live dashboards with hiring analytics</span>
+          <span class="feature-sub">Real-time insights at a glance</span>
+        </div>
+      </div>
+    </div>
+
+
+
+  </div>
+</div>
+
+<!-- Right panel -->
+<div class="right-panel">
+  <div class="form-card">
+    <div class="form-logo">
+      <img src="{{ url_for('static', filename='logo.png') }}"
+           alt="Company Logo"
+           class="login-logo">
+    </div>
+    <div class="form-title">Welcome back</div>
+    <div class="form-subtitle">Sign in to your account</div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+      <div class="{% if category == 'success' %}alert-success-box{% else %}alert-box{% endif %}">
+        <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' }}"></i>
+        {{ message }}
+      </div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST">
+      <div class="input-group">
+
+        <div class="login-type-selector">
+
+          <button type="button"
+                  id="hrBtn"
+                  class="type-btn active"
+                  onclick="selectLoginType('hr')">
+              HR
+          </button>
+
+          <button type="button"
+                  id="employeeBtn"
+                  class="type-btn"
+                  onclick="selectLoginType('employee')">
+              Employee
+          </button>
+
+      </div>
+
+      <input type="hidden"
+             name="login_type"
+             id="loginType"
+             value="hr">
+
+        <label class="input-label">Email Address</label>
+        <div class="input-wrap">
+          <i class="fas fa-envelope input-icon"></i>
+          <input type="email" name="email" class="input-field" placeholder="hr@company.com" required autofocus/>
+        </div>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Password</label>
+        <div class="input-wrap">
+          <i class="fas fa-lock input-icon"></i>
+          <input type="password" name="password" id="pwField" class="input-field" placeholder="Enter your password" required/>
+          <button type="button" class="eye-toggle" onclick="togglePw()"><i class="fas fa-eye" id="eyeIcon"></i></button>
+        </div>
+      </div>
+      <button type="submit" class="submit-btn">
+        <i class="fas fa-sign-in-alt"></i> Sign In
+      </button>
+    </form>
+
+    <div class="divider-or">or</div>
+
+    <div class="form-footer">
+      New HR member? <a href="{{ url_for('register') }}">Create account →</a>
+    </div>
+  </div>
+</div>
+
+<script>
+function togglePw() {
+  const f = document.getElementById('pwField');
+  const i = document.getElementById('eyeIcon');
+  if (f.type === 'password') {
+    f.type = 'text'; i.className = 'fas fa-eye-slash';
+  } else {
+    f.type = 'password'; i.className = 'fas fa-eye';
+  }
+}
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') !== 'light';
+
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+
+  document.getElementById('themeIcon').className =
+      isDark ? 'fas fa-moon' : 'fas fa-sun';
+
+  localStorage.setItem('theme', isDark ? 'light' : 'dark');
+}
+
+const savedTheme = localStorage.getItem('theme') || 'dark';
+document.documentElement.setAttribute('data-theme', savedTheme);
+
+const icon = document.getElementById('themeIcon');
+if(icon){
+    icon.className = savedTheme === 'light'
+        ? 'fas fa-moon'
+        : 'fas fa-sun';
+}
+
+function selectLoginType(type){
+
+    document.getElementById('loginType').value = type;
+
+    document
+        .getElementById('hrBtn')
+        .classList
+        .remove('active');
+
+    document
+        .getElementById('employeeBtn')
+        .classList
+        .remove('active');
+
+    if(type === 'hr'){
+        document
+            .getElementById('hrBtn')
+            .classList
+            .add('active');
+    }
+    else{
+        document
+            .getElementById('employeeBtn')
+            .classList
+            .add('active');
+    }
+}
+
+
+</script>
+</body>
+</html>

@@ -1,0 +1,425 @@
+{% extends "base.html" %}
+
+{% block title %}Announcements | FRET{% endblock %}
+
+{% block page_title %}
+Company Announcements
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header slide-up">
+    <div>
+        <h1 class="page-title">
+            <i class="fas fa-bullhorn text-accent"></i>
+            Company Announcements
+        </h1>
+
+        <p class="page-subtitle">
+            Publish announcements for employees and interns.
+        </p>
+    </div>
+
+    <button class="btn btn-primary"
+            onclick="toggleAnnouncementForm()">
+
+        <i class="fas fa-plus"></i>
+
+        New Announcement
+
+    </button>
+</div>
+
+<div id="announcementForm"
+     class="card slide-up"
+     style="display:none; margin-bottom:22px;">
+
+    <div class="card-header">
+
+        <div class="card-title">
+
+            <i class="fas fa-pen"></i>
+
+            Create Announcement
+
+        </div>
+        <br>
+    </div>
+
+    <div class="card-body">
+
+        <form method="POST">
+
+            <div class="form-group">
+
+                <label>Announcement Title</label>
+
+                <input
+                    type="text"
+                    name="title"
+                    class="form-control"
+                    required>
+
+            </div>
+
+            <div class="grid2">
+
+                <div class="form-group">
+
+                    <label>Audience</label>
+
+                    <select
+                        name="audience"
+                        class="form-control">
+
+                        <option value="Everyone">Everyone</option>
+
+                        <option value="Employees">Employees</option>
+
+                        <option value="Interns">Interns</option>
+
+                    </select>
+
+                </div>
+
+                <div class="form-group">
+
+                    <label>Priority</label>
+
+                    <select
+                        name="priority"
+                        class="form-control">
+
+                        <option value="Normal">Normal</option>
+
+                        <option value="Important">Important</option>
+
+                        <option value="Urgent">Urgent</option>
+
+                    </select>
+
+                </div>
+
+            </div>
+
+            <div class="form-group">
+
+                <label>Message</label>
+
+                <textarea
+                    name="message"
+                    rows="6"
+                    class="form-control"
+                    required></textarea>
+
+            </div>
+
+            <button class="btn btn-primary">
+
+                <i class="fas fa-paper-plane"></i>
+
+                Publish Announcement
+
+            </button>
+
+        </form>
+
+    </div>
+
+</div>
+
+<div class="card slide-up">
+
+    <div class="card-header">
+
+        <div class="card-title">
+
+            <i class="fas fa-list"></i>
+
+            Recent Announcements
+
+        </div>
+
+    </div>
+    <br>
+    <div class="card-body">
+
+        {% if active_announcements %}
+
+            {% for announcement in active_announcements %}
+
+            <div class="announcement-card">
+
+                <div class="announcement-left">
+
+                    {% if announcement.priority=="Urgent" %}
+
+                        <div class="priority urgent">
+                            🔴
+                        </div>
+
+                    {% elif announcement.priority=="Important" %}
+
+                        <div class="priority important">
+                            🟡
+                        </div>
+
+                    {% else %}
+
+                        <div class="priority normal">
+                            🔵
+                        </div>
+
+                    {% endif %}
+
+                </div>
+
+                <div class="announcement-content">
+
+                    <div class="announcement-title">
+
+                        {{ announcement.title }}
+
+                    </div>
+
+                    <div class="announcement-meta">
+
+                        {{ announcement.posted_by }}
+
+                        •
+
+                        {{ announcement.audience }}
+
+                        •
+
+                        {{ announcement.created_at.strftime('%d %b %Y') }}
+
+                    </div>
+
+                    <p>
+
+                        {{ announcement.message }}
+
+                    </p>
+
+                </div>
+                <div class="announcement-actions">
+
+                    <form method="POST"
+                        action="{{ url_for('delete_announcement', announcement_id=announcement.id) }}"
+                        onsubmit="return confirm('Delete this announcement?');">
+
+                        <button type="submit" class="delete-announcement-btn">
+
+                            <i class="fas fa-trash-alt"></i>
+
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+
+            {% endfor %}
+
+        {% else %}
+
+        <div class="empty-state">
+
+            <i class="fas fa-bullhorn"></i>
+
+            <h3>No Announcements Yet</h3>
+
+            <p>
+
+                Create your first announcement to notify
+                employees and interns.
+
+            </p>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+<div class="card slide-up" style="margin-top:25px;">
+
+    <div class="card-header">
+
+        <div class="card-title">
+
+            <i class="fas fa-history"></i>
+
+            Announcement History
+
+        </div>
+
+    </div>
+
+    <div class="card-body">
+
+        {% if history_announcements %}
+
+            {% for announcement in history_announcements %}
+
+                <div class="announcement-card">
+
+                    <div class="announcement-content">
+
+                        <div class="announcement-title">
+
+                            {{ announcement.title }}
+
+                        </div>
+
+                        <div class="announcement-meta">
+
+                            {{ announcement.posted_by }}
+
+                            •
+
+                            Expired
+
+                            •
+
+                            {{ announcement.created_at.strftime('%d %b %Y') }}
+
+                        </div>
+
+                        <p>{{ announcement.message }}</p>
+
+                    </div>
+
+                </div>
+
+            {% endfor %}
+
+        {% else %}
+
+            <div class="empty-state">
+
+                <i class="fas fa-history"></i>
+
+                <h3>No Expired Announcements</h3>
+
+            </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_css %}
+
+<style>
+
+.announcement-card{
+
+    display:flex;
+
+    gap:18px;
+
+    padding:18px;
+
+    border:1px solid var(--card-border);
+
+    border-radius:14px;
+
+    margin-bottom:15px;
+
+    background:var(--surface);
+
+}
+
+.announcement-title{
+
+    font-weight:700;
+
+    font-size:1rem;
+
+    margin-bottom:6px;
+
+}
+
+.announcement-meta{
+
+    font-size:.82rem;
+
+    color:var(--text3);
+
+    margin-bottom:10px;
+
+}
+
+.priority{
+
+    width:48px;
+
+    height:48px;
+
+    border-radius:50%;
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:center;
+
+    font-size:20px;
+
+}
+
+.urgent{
+
+    background:#FEE2E2;
+
+}
+
+.important{
+
+    background:#FEF3C7;
+
+}
+
+.normal{
+
+    background:#DBEAFE;
+
+}
+
+#announcementForm{
+
+    transition:.25s;
+
+}
+
+</style>
+
+{% endblock %}
+
+{% block extra_scripts %}
+
+<script>
+
+function toggleAnnouncementForm(){
+
+    const form=document.getElementById("announcementForm");
+
+    form.style.display=
+
+        form.style.display==="none"
+
+        ? "block"
+
+        : "none";
+
+}
+
+</script>
+
+{% endblock %}

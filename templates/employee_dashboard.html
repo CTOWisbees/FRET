@@ -1,0 +1,483 @@
+{% extends "employee_base.html" %}
+
+
+{% block title %}Dashboard{% endblock %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% set status_badge = {
+    'Approved': 'badge-active',
+    'Pending': 'badge-pending',
+    'Rejected': 'badge-inactive'
+} %}
+
+{% block content %}
+
+
+
+
+
+<div class="page-header">
+    <div class="welcome-section">
+
+        <h1 class="welcome-title">
+
+            {% if now_hour < 12 %}
+                Good Morning,
+            {% elif now_hour < 17 %}
+                Good Afternoon,
+            {% else %}
+                Good Evening,
+            {% endif %}
+
+            <span class="employee-highlight">
+                {{ employee.name.split(' ')[0] }}
+            </span>
+
+            👋
+
+        </h1>
+
+        <p class="welcome-subtitle">
+            {{ employee.designation }}
+        </p>
+
+    </div>
+    <a href="{{ url_for('apply_leave') }}" class="btn btn-primary">
+        <i class="fas fa-plane-departure"></i>
+        Apply for Leave
+    </a>
+</div>
+
+<div class="chart-grid" style="margin-bottom:24px;">
+
+    <div class="chart-card">
+        <div class="chart-title">
+            <i class="fas fa-calendar-check text-accent"></i> Attendance Overview
+        </div>
+        <div class="chart-container">
+            <canvas id="attendanceTrend"></canvas>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="chart-title">
+            <i class="fas fa-fingerprint text-accent"></i> Today's Attendance
+        </div>
+
+        <div class="attendance-box">
+            <div class="attendance-status">
+                {% if not today_attendance %}
+                    <span class="badge-pill" style="background: #e53e3e; color: white;">Absent / Not Checked In</span>
+                {% elif today_attendance.check_in and not today_attendance.check_out %}
+                    <span class="badge-pill badge-active">Present (Active)</span>
+                {% else %}
+                    <span class="badge-pill" style="background: #2b6cb0; color: white;">Shift Completed</span>
+                {% endif %}
+            </div>
+
+            <div class="attendance-time">
+                <h2>{{ today_attendance.check_in.strftime('%I:%M %p') if today_attendance and today_attendance.check_in else '--:--' }}</h2>
+                <small>Check In</small>
+            </div>
+
+            <div class="attendance-time">
+                <h2>{{ today_attendance.check_out.strftime('%I:%M %p') if today_attendance and today_attendance.check_out else '--:--' }}</h2>
+                <small>Check Out</small>
+            </div>
+
+            <div class="attendance-actions">
+                {% if not today_attendance %}
+                    <a href="{{ url_for('checkin') }}" class="btn btn-success">
+                        <i class="fas fa-fingerprint"></i> Mark Attendance
+                    </a>
+                {% elif today_attendance.check_in and not today_attendance.check_out %}
+                    <a href="{{ url_for('checkout') }}" class="btn btn-primary">
+                        <i class="fas fa-sign-out-alt"></i> Check Out
+                    </a>
+                {% else %}
+                    <button class="btn btn-success" disabled>
+                        <i class="fas fa-check-circle"></i> Attendance Completed
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- STATS -->
+<div class="stat-grid">
+
+    <div class="stat-card">
+        <div class="stat-label">Attendance This Month</div>
+        <div class="stat-value">
+            {{ attendance_percent }}%
+        </div>
+        <div class="stat-change text-green"><i class="fas fa-arrow-up"></i> On track</div>
+        <div class="stat-icon" style="background:rgba(99,102,241,.15);color:var(--accent);">
+            <i class="fas fa-calendar-check"></i>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Leave Balance</div>
+        <div class="stat-value">
+            {{ leave_balance }} days
+        </div>
+
+        <div class="stat-change">
+            {{ leaves_taken }} taken this year
+        </div>
+        <div class="stat-icon" style="background:rgba(6,182,212,.15);color:var(--accent3);">
+            <i class="fas fa-umbrella-beach"></i>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Awaiting HR approval</div>
+        <div class="stat-value">
+            {{ pending_leaves }}
+        </div>
+        <div class="stat-change text-red"><i class="fas fa-clock"></i> Needs attention</div>
+        <div class="stat-icon" style="background:rgba(245,158,11,.15);color:var(--yellow);">
+            <i class="fas fa-list-check"></i>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">Status</div>
+        <div class="stat-value
+        {% if employee.status == 'Active' %}
+        text-green
+        {% elif employee.status == 'On Leave' %}
+        text-yellow
+        {% else %}
+        text-red
+        {% endif %}
+        ">
+            {{ employee.status }}
+        </div>
+        <div class="stat-change" style="color:var(--text3);">{{ employee.emp_type }}</div>
+        <div class="stat-icon"
+            style="
+            {% if employee.status == 'Active' %}
+                background:rgba(16,185,129,.15);
+                color:var(--green);
+            {% elif employee.status == 'On Leave' %}
+                background:rgba(245,158,11,.15);
+                color:var(--yellow);
+            {% else %}
+                background:rgba(239,68,68,.15);
+                color:#ef4444;
+            {% endif %}
+            ">
+            <i class="fas fa-circle-check"></i>
+        </div>
+    </div>
+
+</div>
+
+<!-- CHARTS -->
+<div class="chart-grid">
+
+    <div class="chart-card">
+        <div class="chart-title"><i class="fas fa-chart-column text-accent"></i> Attendance Trend (Last 6 Months)</div>
+        <div class="chart-container">
+            <canvas id="attendanceChart"></canvas>
+        </div>
+    </div>
+
+    <div class="chart-card">
+        <div class="chart-title"><i class="fas fa-chart-pie text-accent"></i> Leave Balance</div>
+        <div class="chart-container">
+            <canvas id="leaveChart"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<!-- Employee Dashboard Notice Panel -->
+
+<div class="noticeWidget">
+
+    <div class="noticeWidgetHeader">
+
+        <h3 class="noticeWidgetTitle">
+
+            <i class="fas fa-bullhorn"></i>
+
+            Latest Announcements
+
+        </h3>
+
+        <a href="{{ url_for('employee_announcements') }}"
+           class="noticeWidgetLink">
+
+            View All
+
+        </a>
+
+    </div>
+
+    {% if latest_announcements %}
+
+        {% for ann in latest_announcements %}
+
+        <div class="noticeBox">
+
+            <div class="noticeBoxHeader">
+
+                <div class="noticeTags">
+
+                    {% if ann.priority == "Urgent" %}
+
+                        <span class="noticeUrgent">
+                            Urgent
+                        </span>
+
+                    {% elif ann.priority == "Important" %}
+
+                        <span class="noticeImportant">
+                            Important
+                        </span>
+
+                    {% else %}
+
+                        <span class="noticeNormal">
+                            Normal
+                        </span>
+
+                    {% endif %}
+
+                    <span class="noticeAudience">
+
+                        {{ ann.audience }}
+
+                    </span>
+
+                </div>
+
+                <span class="noticeDate">
+
+                    {{ ann.created_at.strftime('%d %b') }}
+
+                </span>
+
+            </div>
+
+            <h4 class="noticeHeading">
+
+                {{ ann.title }}
+
+            </h4>
+
+            <p class="noticeBody">
+
+                {{ ann.message[:90] }}
+
+                {% if ann.message|length > 90 %}
+                    ...
+                {% endif %}
+
+            </p>
+
+            <div class="noticeFooter">
+
+                <i class="fas fa-user-circle"></i>
+
+                {{ ann.posted_by }}
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    {% else %}
+
+        <div class="empty-state">
+
+            <i class="fas fa-bullhorn"></i>
+
+            <h3>No Announcements</h3>
+
+            <p>No announcements available.</p>
+
+        </div>
+
+    {% endif %}
+
+</div>
+<br>
+<!-- RECENT LEAVE REQUESTS -->
+<div class="card" style="margin-bottom:24px;">
+    <div class="card-head">
+        <div class="card-title"><i class="fas fa-plane-departure text-accent"></i> Recent Leave Requests</div>
+        <a href="{{ url_for('apply_leave') }}" class="card-link">View all</a>
+    </div>
+
+    {% if leave_request_list %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>From</th>
+                    <th>To</th>
+                    <th>Days</th>
+                    <th>Applied On</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lr in leave_request_list %}
+                <tr>
+
+                    <td>{{ lr.leave_type }}</td>
+
+                    <td>
+                        {{ lr.from_date.strftime('%d %b %Y') }}
+                    </td>
+
+                    <td>
+                        {{ lr.to_date.strftime('%d %b %Y') }}
+                    </td>
+
+                    <td>
+                        {{ ((lr.to_date - lr.from_date).days + 1) }}
+                    </td>
+
+                    <td>
+                        {{ lr.applied_on.strftime('%d %b %Y') }}
+                    </td>
+
+                    <td>
+                        <span class="badge-pill {{ status_badge.get(lr.status,'badge-pending') }}">
+                            {{ lr.status }}
+                        </span>
+                    </td>
+
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-plane-departure"></i>
+        <p>No leave requests yet</p>
+    </div>
+    {% endif %}
+</div>
+
+
+
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+(function() {
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)';
+  const textColor = isLight ? '#475569' : '#94a3b8';
+
+  // Attendance trend — placeholder series; wire to real monthly attendance data when available
+  new Chart(document.getElementById('attendanceChart'), {
+    type: 'bar',
+    data: {
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+      datasets: [{
+        label: 'Attendance %',
+        data: [92, 95, 90, 97, 94, {{ employee.attendance_percent | default(96) }}],
+        backgroundColor: 'rgba(99,102,241,0.55)',
+        hoverBackgroundColor: '#6366f1',
+        borderRadius: 6,
+        maxBarThickness: 36
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, max: 100, grid: { color: gridColor }, ticks: { color: textColor } },
+        x: { grid: { display: false }, ticks: { color: textColor } }
+      }
+    }
+  });
+
+  // Leave balance breakdown
+  const leaveTotal = {{ employee.leave_total | default(18) }};
+  const leaveTaken = {{ employee.leaves_taken | default(6) }};
+  const leaveLeft = Math.max(leaveTotal - leaveTaken, 0);
+
+  new Chart(document.getElementById('leaveChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Remaining', 'Taken'],
+      datasets: [{
+        data: [leaveLeft, leaveTaken],
+        backgroundColor: ['#6366f1', '#252d3d'],
+        borderWidth: 0
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '72%',
+      plugins: { legend: { display: true, position: 'bottom', labels: { color: textColor, boxWidth: 10, padding: 14 } } }
+    }
+  });
+})();
+
+new Chart(
+document.getElementById('attendanceTrend'),
+{
+    type:'line',
+
+    data:{
+        labels:[
+            'Week 1',
+            'Week 2',
+            'Week 3',
+            'Week 4'
+        ],
+
+        datasets:[{
+            label:'Attendance %',
+            data:[92,95,96,98],
+
+            borderColor:'#6366f1',
+
+            backgroundColor:
+            'rgba(99,102,241,.15)',
+
+            fill:true,
+
+            tension:.4
+        }]
+    },
+
+    options:{
+        responsive:true,
+        maintainAspectRatio:false
+    }
+});
+
+function openModal(modalId) {
+    var targetModal = document.getElementById(modalId);
+    if(targetModal) {
+        targetModal.classList.add('open');
+    }
+}
+
+function closeModal(modalId) {
+    var targetModal = document.getElementById(modalId);
+    if(targetModal) {
+        targetModal.classList.remove('open');
+    }
+}
+
+</script>
+{% endblock %}

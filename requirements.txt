@@ -1,0 +1,12 @@
+flask>=3.0.0
+flask-sqlalchemy>=3.1.0
+flask-login>=0.6.3
+werkzeug>=3.0.0
+python-docx>=1.1.0
+pillow>=10.0.0
+pandas>=2.0.0
+openpyxl>=3.1.0
+msal>=2.0.0
+requests>=2.0.0
+python docx
+reportlab

@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}Add Employee — FRET{% endblock %}
+{% block page_title %}Add Employee{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Add New Employee</div>
+    <div class="page-subtitle">Fill in the details to create an employee record</div>
+  </div>
+  <a href="{{ url_for('employees') }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+</div>
+
+<!-- Step 1: Choose type -->
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="type-selector">
+
+    <button type="button"
+            id="internBtn"
+            class="type-card active"
+            onclick="switchType('Intern')">
+
+      <i class="fas fa-graduation-cap"></i>
+      <span>Intern</span>
+
+    </button>
+
+    <button type="button"
+            id="employeeBtn"
+            class="type-card"
+            onclick="switchType('Normal')">
+
+      <i class="fas fa-briefcase"></i>
+      <span>Employee</span>
+
+    </button>
+
+  </div>
+</div>
+
+<!-- Step 2a: Intern form -->
+<!-- <div id="form-intern" style="display:none;max-width:760px;"> -->
+<div id="form-intern">
+  <form method="POST">
+    
+    <input type="hidden" name="emp_type" value="Intern"/>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-weight:700;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:10px;">
+        <i class="fas fa-user text-accent"></i> Personal Info
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input type="text" name="name" class="form-control" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email *</label>
+          <input type="email" name="email" class="form-control" required/>
+        </div>
+        <div class="hr-select-group">  
+          <label class="hr-select-label">Gender *</label>
+          <div class="hr-select-wrapper">
+            <i class="fas fa-venus-mars hr-select-icon"></i>
+            
+            <select name="gender" class="hr-select-dropdown" required>
+              <option value="" disabled selected hidden>Select Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-weight:700;margin-bottom:16px;border-bottom:1px solid var(--border);padding-bottom:10px;">
+        <i class="fas fa-briefcase text-accent"></i> Job Details
+      </div>
+      <div class="form-group">
+        <label class="form-label">Role *</label>
+        <select name="designation" class="form-control" required id="internRole" onchange="checkOtherRole()">
+          <option value="">— Select role —</option>
+          <option>IT Intern – Web & Automation Developer</option>
+          <option>Equity Research Intern</option>
+          <option>HR Intern</option>
+          <option>Legal Intern</option>
+          <option>Digital Marketing Intern</option>
+          <option>Finance Content Writer Intern</option>
+          <option>Wealth Management Intern</option>
+          <option value="other">Other (please specify)</option>
+        </select>
+      </div>
+      <div class="form-group" id="otherRoleGroup" style="display:none;">
+        <label class="form-label">Specify Role</label>
+        <input type="text" name="designation_other" class="form-control"
+               placeholder="Enter role name"/>
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Joining / Start Date *</label>
+          <input type="date" name="joining_date" class="form-control"
+                 id="intern_joining" onchange="calcInternEnd()"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Duration</label>
+          <select class="form-control" id="intern_duration" onchange="calcInternEnd()">
+            <option value="">— Select —</option>
+            <option value="1">1 month</option>
+            <option value="2">2 months</option>
+            <option value="3">3 months</option>
+            <option value="4">4 months</option>
+            <option value="6">6 months</option>
+            <option value="12">12 months</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">End Date (auto)</label>
+          <input type="date" name="end_date" class="form-control"
+                 id="intern_end" readonly
+                 style="opacity:0.7;cursor:not-allowed;"/>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="resetType()">Back</button>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-user-plus"></i> Add Intern
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Step 2b: Normal employee form -->
+<!-- <div id="form-normal" style="display:none;max-width:760px;"> -->
+<div id="form-normal" style="display:none;">
+  <form method="POST">
+
+    <input type="hidden" name="emp_type" value="Normal"/>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;color:var(--text2);border-bottom:1px solid var(--border);padding-bottom:12px;">
+        <i class="fas fa-user text-accent"></i> Personal Information
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input type="text" name="name" class="form-control" placeholder="Rahul Sharma" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" name="email" class="form-control" placeholder="rahul@company.com"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone Number</label>
+          <input type="tel" name="phone" class="form-control" placeholder="+91 98765 43210"/>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label">Status</label>
+          <select name="status" class="form-control">
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+            <option value="On Leave">On Leave</option>
+            <option value="Probation">Probation</option>
+          </select>
+        </div>
+        <div class="hr-select-group">  
+          <label class="hr-select-label">Gender *</label>
+          <div class="hr-select-wrapper">
+            <i class="fas fa-venus-mars hr-select-icon"></i>
+            
+            <select name="gender" class="hr-select-dropdown" required>
+              <option value="" disabled selected hidden>Select Gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:16px;">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;color:var(--text2);border-bottom:1px solid var(--border);padding-bottom:12px;">
+        <i class="fas fa-briefcase text-accent"></i> Job Details
+      </div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Department *</label>
+          <select name="department" class="form-control" required>
+            <option value="">Select Department</option>
+            <option>Engineering</option>
+            <option>Product</option>
+            <option>Design</option>
+            <option>Marketing</option>
+            <option>Sales</option>
+            <option>Human Resources</option>
+            <option>Finance</option>
+            <option>Operations</option>
+            <option>Customer Success</option>
+            <option>Legal</option>
+            <option>Data & Analytics</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Designation *</label>
+          <input type="text" name="designation" class="form-control" placeholder="Software Engineer" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Annual CTC (₹)</label>
+          <input type="number" name="salary" class="form-control" placeholder="600000" min="0" step="1000"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Joining Date</label>
+          <input type="date" name="joining_date" class="form-control" id="normal_joining"/>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="resetType()">Back</button>
+      <button type="submit" class="btn btn-primary">
+        <i class="fas fa-user-plus"></i> Add Employee
+      </button>
+    </div>
+  </form>
+</div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+
+function switchType(type){
+
+    const internForm =
+        document.getElementById('form-intern');
+
+    const employeeForm =
+        document.getElementById('form-normal');
+
+    const internBtn =
+        document.getElementById('internBtn');
+
+    const employeeBtn =
+        document.getElementById('employeeBtn');
+
+    if(type === 'Intern'){
+
+        internForm.style.display = 'block';
+        employeeForm.style.display = 'none';
+
+        internBtn.classList.add('active');
+        employeeBtn.classList.remove('active');
+
+    } else {
+
+        internForm.style.display = 'none';
+        employeeForm.style.display = 'block';
+
+        employeeBtn.classList.add('active');
+        internBtn.classList.remove('active');
+
+    }
+}
+
+function calcInternEnd() {
+  const start  = document.getElementById('intern_joining').value;
+  const months = parseInt(document.getElementById('intern_duration').value);
+  if (!start || !months) return;
+  const d = new Date(start);
+  d.setMonth(d.getMonth() + months);
+  d.setDate(d.getDate() - 1);
+  document.getElementById('intern_end').value = d.toISOString().split('T')[0];
+}
+
+function checkOtherRole() {
+  const val = document.getElementById('internRole').value;
+  document.getElementById('otherRoleGroup').style.display = 
+    val === 'other' ? 'block' : 'none';
+}
+
+const normalJoining = document.querySelector('#form-normal input[name=joining_date]');
+if (normalJoining) normalJoining.value = new Date().toISOString().split('T')[0];
+</script>
+{% endblock %}

@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — FRET{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<!-- Welcome bar -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:28px;animation:slideUp 0.4s ease both;">
+  <div>
+    <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.6rem;font-weight:800;">
+      Good {{ 'morning' if now_hour < 12 else ('afternoon' if now_hour < 17 else 'evening') }}, {{ current_user.name.split()[0] }} 👋
+    </div>
+    <div style="color:var(--text3);font-size:0.87rem;margin-top:3px;">Here's what's happening with your team today.</div>
+  </div>
+  <div style="font-size:0.8rem;color:var(--text3);text-align:right;">
+    <div id="liveClock" style="font-size:1.1rem;font-weight:600;color:var(--text)"></div>
+    <div id="liveDate"></div>
+  </div>
+</div>
+
+<!-- Stat cards -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Employees</div>
+    <div class="stat-value text-accent" id="cnt-total">{{ total_employees }}</div>
+    <div class="stat-change"><i class="fas fa-users" style="color:var(--accent)"></i> All time hires</div>
+    <div class="stat-icon" style="background:rgba(99,102,241,0.12);color:var(--accent)"><i class="fas fa-users"></i></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Active Employees</div>
+    <div class="stat-value text-green">{{ active_employees }}</div>
+    <div class="stat-change"><i class="fas fa-circle" style="color:var(--green);font-size:0.5rem"></i> Currently active</div>
+    <div class="stat-icon" style="background:rgba(16,185,129,0.12);color:var(--green)"><i class="fas fa-user-check"></i></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">New This Month</div>
+    <div class="stat-value" style="color:var(--accent3)">{{ new_this_month }}</div>
+    <div class="stat-change"><i class="fas fa-calendar-plus" style="color:var(--accent3)"></i> Added this month</div>
+    <div class="stat-icon" style="background:rgba(6,182,212,0.12);color:var(--accent3)"><i class="fas fa-user-plus"></i></div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Offers Sent</div>
+    <div class="stat-value" style="color:var(--yellow)">{{ offers_sent }}</div>
+    <div class="stat-change"><i class="fas fa-envelope" style="color:var(--yellow)"></i> Letters generated</div>
+    <div class="stat-icon" style="background:rgba(245,158,11,0.12);color:var(--yellow)"><i class="fas fa-file-contract"></i></div>
+  </div>
+  <div class="stat-card">
+  <div class="stat-label">Total Interns</div>
+  <div class="stat-value" style="color:var(--accent2)">{{ total_interns }}</div>
+  <div class="stat-change">
+    <i class="fas fa-graduation-cap" style="color:var(--accent2)"></i>
+    Active: {{ active_interns }}
+  </div>
+    <div class="stat-icon" style="background:rgba(139,92,246,0.12);color:var(--accent2)">
+      <i class="fas fa-graduation-cap"></i>
+    </div>
+  </div>
+  
+  <div class="stat-card">
+    <div class="stat-label">Normal Employees</div>
+    <div class="stat-value" style="color:var(--green)">{{ total_normal }}</div>
+    <div class="stat-change">
+      <i class="fas fa-briefcase" style="color:var(--green)"></i>
+      Full-time staff
+    </div>
+    <div class="stat-icon" style="background:rgba(16,185,129,0.12);color:var(--green)">
+      <i class="fas fa-briefcase"></i>
+    </div>
+  </div>
+</div>
+
+
+<!-- Charts row -->
+<div class="chart-grid">
+  <div class="chart-card slide-up" style="animation-delay:0.1s">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="chart-title"><i class="fas fa-chart-line text-accent"></i> Hiring Trend</div>
+      <div class="tab-bar" style="margin:0">
+        <button class="tab-btn active" onclick="switchChart('monthly',this)">Monthly</button>
+        <button class="tab-btn" onclick="switchChart('weekly',this)">Weekly</button>
+      </div>
+    </div>
+    <div class="chart-container"><canvas id="hiringChart"></canvas></div>
+  </div>
+  <div class="chart-card slide-up" style="animation-delay:0.15s">
+    <div class="chart-title"><i class="fas fa-chart-pie text-accent"></i> Departments</div>
+    <div class="chart-container"><canvas id="deptChart"></canvas></div>
+  </div>
+  <div class="chart-card slide-up" style="animation-delay:0.2s">
+    <div class="chart-title">
+      <i class="fas fa-chart-pie text-accent"></i> Intern vs Employee
+    </div>
+    <div class="chart-container"><canvas id="typeChart"></canvas></div>
+  </div>
+</div>
+<br>
+<!-- Bottom row -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+  <!-- Recent hires -->
+  <div class="card slide-up" style="animation-delay:0.2s">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-weight:700;font-size:0.95rem;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-clock-rotate-left text-accent"></i> Recent Hires
+      </div>
+      <a href="{{ url_for('employees') }}" style="font-size:0.8rem;color:var(--accent);text-decoration:none;font-weight:500;">View all →</a>
+    </div>
+    {% if recent_employees %}
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      {% for emp in recent_employees %}
+      <div style="display:flex;align-items:center;gap:12px;padding:10px;background:var(--bg3);border-radius:10px;">
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;font-weight:700;font-size:0.85rem;flex-shrink:0;color:#fff">
+          {{ emp.name[0].upper() }}
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:0.875rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ emp.name }}</div>
+          <div style="font-size:0.75rem;color:var(--text3);">{{ emp.designation }} · {{ emp.department }}</div>
+        </div>
+        <span class="badge-pill {% if emp.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
+          {{ emp.status }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state" style="padding:30px 0;">
+      <i class="fas fa-users-slash"></i>
+      <div>No employees yet</div>
+      <a href="{{ url_for('add_employee') }}" style="color:var(--accent);text-decoration:none;font-size:0.85rem;">Add your first employee →</a>
+    </div>
+    {% endif %}
+  </div>
+
+<!-- Announcements -->
+<div class="card slide-up" style="animation-delay:.25s">
+
+    <div class="dash-ann-header">
+
+        <div class="dash-ann-heading">
+
+            <i class="fas fa-bullhorn text-accent"></i>
+
+            Announcements
+
+        </div>
+
+        <a href="{{ url_for('announcements') }}"
+           class="dash-ann-view">
+
+            View All →
+
+        </a>
+
+    </div>
+
+    {% if active_announcements %}
+
+    <div class="dash-ann-list">
+
+        {% for ann in active_announcements %}
+
+        <div class="dash-ann-card">
+
+            <div class="dash-ann-top">
+
+                {% if ann.priority == "Urgent" %}
+
+                    <span class="dash-priority dash-priority-urgent">
+
+                        Urgent
+
+                    </span>
+
+                {% elif ann.priority == "Important" %}
+
+                    <span class="dash-priority dash-priority-important">
+
+                        Important
+
+                    </span>
+
+                {% else %}
+
+                    <span class="dash-priority dash-priority-normal">
+
+                        Normal
+
+                    </span>
+
+                {% endif %}
+
+                <span class="dash-audience">
+
+                    {{ ann.audience }}
+
+                </span>
+
+            </div>
+
+            <div class="dash-ann-title">
+
+                {{ ann.title }}
+
+            </div>
+
+            <div class="dash-ann-message">
+
+                {{ ann.message[:100] }}
+
+                {% if ann.message|length > 100 %}
+                    ...
+                {% endif %}
+
+            </div>
+
+            <div class="dash-ann-footer">
+
+                <span>
+
+                    <i class="fas fa-user"></i>
+
+                    {{ ann.posted_by }}
+
+                </span>
+
+                <span>
+
+                    <i class="fas fa-clock"></i>
+
+                    {{ ann.created_at.strftime('%d %b') }}
+
+                </span>
+
+            </div>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+    {% else %}
+
+    <div class="empty-state">
+
+        <i class="fas fa-bullhorn"></i>
+
+        <h3>No Announcements Yet</h3>
+
+        <p>Create your first announcement.</p>
+
+    </div>
+
+    {% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const monthlyData = {{ monthly_data|safe }};
+const weeklyData  = {{ weekly_data|safe }};
+const weeklyLabels = {{ weekly_labels|safe }};
+const deptLabels  = {{ dept_labels|safe }};
+const deptData    = {{ dept_data|safe }};
+
+const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const ACCENT = '#6366f1', GREEN = '#10b981', YELLOW = '#f59e0b', CYAN = '#06b6d4';
+const PALETTE = [ACCENT,'#8b5cf6',CYAN,GREEN,YELLOW,'#f97316','#ec4899','#14b8a6'];
+
+Chart.defaults.color = '#64748b';
+Chart.defaults.font.family = 'Inter';
+
+let hiringChart;
+function buildHiringChart(labels, data) {
+  const ctx = document.getElementById('hiringChart').getContext('2d');
+  const grad = ctx.createLinearGradient(0,0,0,220);
+  grad.addColorStop(0,'rgba(99,102,241,0.35)');
+  grad.addColorStop(1,'rgba(99,102,241,0)');
+  if (hiringChart) hiringChart.destroy();
+  hiringChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Hires', data,
+        borderColor: ACCENT, backgroundColor: grad,
+        fill: true, tension: 0.4,
+        pointBackgroundColor: ACCENT, pointRadius: 4, pointHoverRadius: 6,
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: {
+        backgroundColor: '#1e2535', borderColor: 'rgba(255,255,255,0.07)', borderWidth: 1,
+        callbacks: { label: (c) => ` ${c.parsed.y} hire${c.parsed.y !== 1 ? 's' : ''}` }
+      }},
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b' } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#64748b', stepSize: 1 }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+function switchChart(type, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (type === 'monthly') buildHiringChart(months, monthlyData);
+  else buildHiringChart(weeklyLabels, weeklyData);
+}
+
+buildHiringChart(months, monthlyData);
+
+// Doughnut chart
+if (deptData.length > 0) {
+  new Chart(document.getElementById('deptChart').getContext('2d'), {
+    type: 'doughnut',
+    data: { labels: deptLabels, datasets: [{ data: deptData, backgroundColor: PALETTE, borderWidth: 0, hoverOffset: 6 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '68%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 14, font: { size: 11 } } },
+        tooltip: { backgroundColor: '#1e2535', borderColor: 'rgba(255,255,255,0.07)', borderWidth: 1 }
+      }
+    }
+  });
+} else {
+  document.getElementById('deptChart').parentElement.innerHTML = '<div style="display:grid;place-items:center;height:100%;color:var(--text3);font-size:0.85rem">No department data yet</div>';
+}
+
+const typeLabels = {{ type_labels|safe }};
+const typeData   = {{ type_data|safe }};
+
+if (typeData[0] > 0 || typeData[1] > 0) {
+  new Chart(document.getElementById('typeChart').getContext('2d'), {
+    type: 'doughnut',
+    data: {
+      labels: typeLabels,
+      datasets: [{
+        data: typeData,
+        backgroundColor: ['#8b5cf6', '#10b981'],
+        borderWidth: 0,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '68%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 14, font: { size: 11 } } },
+        tooltip: { backgroundColor: '#1e2535', borderColor: 'rgba(255,255,255,0.07)', borderWidth: 1 }
+      }
+    }
+  });
+}
+
+// Live clock
+function updateClock() {
+  const now = new Date();
+  document.getElementById('liveClock').textContent = now.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('liveDate').textContent = now.toLocaleDateString('en-IN', {weekday:'long',day:'numeric',month:'long'});
+}
+updateClock(); setInterval(updateClock, 1000);
+</script>
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "employee_base.html" %}
+
+{% block title %}
+Announcements
+{% endblock %}
+
+{% block page_title %}
+Company Announcements
+{% endblock %}
+
+{% block content %}
+
+<div class="emp-ann-header">
+
+    <div class="emp-ann-info">
+
+        <h2 class="emp-ann-title">
+            <i class="fas fa-bullhorn"></i>
+            Company Announcements
+        </h2>
+
+        <p class="emp-ann-subtitle">
+            Stay updated with the latest notices from HR.
+        </p>
+
+    </div>
+
+    <div class="emp-ann-badge">
+        {{ announcements|length }} Active
+    </div>
+
+</div>
+
+{% if announcements %}
+
+<div class="announcement-list">
+
+{% for ann in announcements %}
+
+<div class="emp-ann-card">
+
+    <div class="emp-ann-header">
+
+        <div class="emp-ann-title">
+
+            {{ ann.title }}
+
+        </div>
+
+        <div class="emp-ann-badges">
+
+            {% if ann.priority == "Urgent" %}
+
+                <span class="badge badge-urgent">
+                    Urgent
+                </span>
+
+            {% elif ann.priority == "Important" %}
+
+                <span class="badge badge-important">
+                    Important
+                </span>
+
+            {% else %}
+
+                <span class="badge badge-normal">
+                    Normal
+                </span>
+
+            {% endif %}
+
+            <span class="badge badge-audience">
+
+                {{ ann.audience }}
+
+            </span>
+
+        </div>
+
+    </div>
+
+    <div class="emp-ann-message">
+
+        {{ ann.message }}
+
+    </div>
+
+    <div class="emp-ann-footer">
+
+        <span>
+
+            <i class="fas fa-user"></i>
+
+            {{ ann.posted_by }}
+
+        </span>
+
+        <span>
+
+            <i class="fas fa-calendar-days"></i>
+
+            {{ ann.created_at.strftime('%d %b %Y') }}
+
+        </span>
+
+    </div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+{% else %}
+
+<div class="empty-state">
+
+    <i class="fas fa-bullhorn"></i>
+
+    <h3>No Announcements</h3>
+
+    <p>
+        There are currently no announcements.
+    </p>
+
+</div>
+
+{% endif %}
+
+{% endblock %}
