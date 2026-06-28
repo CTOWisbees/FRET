@@ -10,6 +10,7 @@ from datetime import datetime, date
 import os
 import json
 import base64
+from io import BytesIO
 import pandas as pd
 from docx import Document
 from pdf_generator import generate_experience_letter_pdf, generate_offer_letter_pdf, ROLE_KEYS
@@ -24,8 +25,17 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'hrms.db')
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
 
-app.config['SECRET_KEY'] = 'hrms-secret-key-2024'
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hrms-secret-key-2024')
+
+# Database: use DATABASE_URL (e.g. Neon Postgres) in production, fall back to local SQLite.
+_db_url = os.environ.get('DATABASE_URL')
+if _db_url:
+    # SQLAlchemy needs the 'postgresql://' scheme; some providers hand out 'postgres://'.
+    if _db_url.startswith('postgres://'):
+        _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = UPLOAD_DIR
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
@@ -47,6 +57,42 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def _materialize(data, path):
+    """Write bytes to the (ephemeral) disk so libraries that need a file path work.
+    Returns the path, or None if there's no data."""
+    if not data:
+        return None
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if not os.path.exists(path):
+        with open(path, 'wb') as f:
+            f.write(data)
+    return path
+
+def hydrate_hr_signature(hr):
+    """Ensure the HR signature exists on disk (from DB bytes) before PDF generation."""
+    if hr is not None and getattr(hr, 'signature_data', None):
+        hr.signature_path = _materialize(
+            hr.signature_data,
+            os.path.join(UPLOAD_DIR, 'signatures', f'sig_{hr.id}.png')
+        )
+    return getattr(hr, 'signature_path', None) if hr is not None else None
+
+def hydrate_company_files(settings):
+    """Ensure letterhead/NDA exist on disk (from DB bytes) before PDF generation."""
+    if settings is None:
+        return
+    if getattr(settings, 'letterhead_data', None):
+        ext = (getattr(settings, 'letterhead_mime', None) or 'png')
+        settings.letterhead_path = _materialize(
+            settings.letterhead_data,
+            os.path.join(UPLOAD_DIR, 'attachments', f'letterhead_{settings.id}.{ext}')
+        )
+    if getattr(settings, 'nda_data', None):
+        settings.nda_path = _materialize(
+            settings.nda_data,
+            os.path.join(UPLOAD_DIR, 'attachments', f'nda_{settings.id}.pdf')
+        )
+
 # ─────────────── MODELS ───────────────
 
 class HR(UserMixin, db.Model):
@@ -57,6 +103,7 @@ class HR(UserMixin, db.Model):
     designation = db.Column(db.String(100), default='HR Manager')
     department = db.Column(db.String(100), default='Human Resources')
     signature_path = db.Column(db.String(200))
+    signature_data = db.Column(db.LargeBinary)  # persistent store (Render free has no disk)
     phone = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -199,6 +246,11 @@ class CompanySettings(db.Model):
     email_template = db.Column(db.Text)
     nda_path = db.Column(db.String(200))
     letterhead_path = db.Column(db.String(200))
+    # Persistent binary stores (Render free tier has no permanent disk)
+    nda_data = db.Column(db.LargeBinary)
+    nda_filename = db.Column(db.String(200))
+    letterhead_data = db.Column(db.LargeBinary)
+    letterhead_mime = db.Column(db.String(20))
 
 class Announcement(db.Model):
     __tablename__ = "announcements"
@@ -560,15 +612,11 @@ def register():
         hr = HR(name=name, email=email, designation=designation, phone=phone)
         hr.set_password(password)
 
-        # Handle signature upload
+        # Handle signature upload (stored in DB so it survives restarts)
         if 'signature' in request.files:
             file = request.files['signature']
-            if file and allowed_file(file.filename):
-                filename = secure_filename(f"sig_{email.split('@')[0]}_{file.filename}")
-                sig_path = os.path.join(UPLOAD_DIR, 'signatures', filename)
-                os.makedirs(os.path.dirname(sig_path), exist_ok=True)
-                file.save(sig_path)
-                hr.signature_path = sig_path
+            if file and file.filename and allowed_file(file.filename):
+                hr.signature_data = file.read()
 
         db.session.add(hr)
         db.session.commit()
@@ -846,6 +894,8 @@ def generate_offer_letter():
         return redirect(url_for('offer_letter_page'))
 
     try:
+        hydrate_hr_signature(current_user)
+        hydrate_company_files(settings)
         buf = generate_offer_letter_pdf(emp, current_user, settings, role_key, custom_notes)
         
 
@@ -882,6 +932,7 @@ def experience_letter(emp_id):
         salutation_prefix = "Ms."
 
     # Pass the prefix to your updated PDF generator function
+    hydrate_company_files(settings)
     buf = generate_experience_letter_pdf(
         employee,
         settings,
@@ -950,9 +1001,12 @@ def send_email_route():
             role_key = data.get('role_key', '')
             if role_key in ROLE_KEYS:
                 try:
+                    sender_hr = HR.query.get(emp.created_by) or HR.query.first()
+                    hydrate_hr_signature(sender_hr)
+                    hydrate_company_files(settings)
                     pdf_buf = generate_offer_letter_pdf(
                         emp,
-                        HR.query.get(emp.created_by) or HR.query.first(),
+                        sender_hr,
                         settings,
                         role_key
                     )
@@ -969,11 +1023,14 @@ def send_email_route():
 
         # Attach NDA
         if email_type in ['nda', 'both']:
-            if settings and settings.nda_path and os.path.exists(settings.nda_path):
+            nda_bytes = None
+            if settings and getattr(settings, 'nda_data', None):
+                nda_bytes = settings.nda_data
+            elif settings and settings.nda_path and os.path.exists(settings.nda_path):
+                with open(settings.nda_path, 'rb') as f:
+                    nda_bytes = f.read()
+            if nda_bytes:
                 try:
-                    with open(settings.nda_path, 'rb') as f:
-                        nda_bytes = f.read()
-
                     attachments.append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
                         "name": f"NDA_{emp.name.replace(' ', '_')}.pdf",
@@ -1120,25 +1177,19 @@ def save_company_settings():
     company.company_email = request.form.get('company_email') or company.company_email
     company.company_phone = request.form.get('company_phone') or company.company_phone
 
-    # Letterhead upload
+    # Letterhead upload (stored in DB so it survives restarts)
     if 'letterhead_file' in request.files:
         file = request.files['letterhead_file']
         if file and file.filename and allowed_file(file.filename):
-            filename = secure_filename(f"letterhead_{file.filename}")
-            lh_path = os.path.join(UPLOAD_DIR, 'attachments', filename)
-            os.makedirs(os.path.dirname(lh_path), exist_ok=True)
-            file.save(lh_path)
-            company.letterhead_path = lh_path
+            company.letterhead_data = file.read()
+            company.letterhead_mime = file.filename.rsplit('.', 1)[-1].lower()
 
-    # NDA upload
+    # NDA upload (stored in DB so it survives restarts)
     if 'nda_file' in request.files:
         file = request.files['nda_file']
         if file and file.filename:
-            filename = secure_filename(f"nda_{file.filename}")
-            nda_path = os.path.join(UPLOAD_DIR, 'attachments', filename)
-            os.makedirs(os.path.dirname(nda_path), exist_ok=True)
-            file.save(nda_path)
-            company.nda_path = nda_path
+            company.nda_data = file.read()
+            company.nda_filename = secure_filename(file.filename)
 
     db.session.commit()
     flash('Company settings saved!', 'success')
@@ -1155,11 +1206,7 @@ def profile():
         if 'signature' in request.files:
             file = request.files['signature']
             if file and file.filename and allowed_file(file.filename):
-                filename = secure_filename(f"sig_{current_user.id}_{file.filename}")
-                sig_path = os.path.join(UPLOAD_DIR, 'signatures', filename)
-                os.makedirs(os.path.dirname(sig_path), exist_ok=True)
-                file.save(sig_path)
-                current_user.signature_path = sig_path
+                current_user.signature_data = file.read()
 
         if request.form.get('new_password'):
             current_user.set_password(request.form.get('new_password'))
@@ -1214,6 +1261,9 @@ def api_employees_list():
 @login_required
 def serve_letterhead():
     settings = CompanySettings.query.first()
+    if settings and getattr(settings, 'letterhead_data', None):
+        mime = settings.letterhead_mime or 'png'
+        return send_file(BytesIO(settings.letterhead_data), mimetype=f'image/{mime}')
     if settings and settings.letterhead_path and os.path.exists(settings.letterhead_path):
         return send_file(settings.letterhead_path)
     return '', 404
@@ -1222,6 +1272,8 @@ def serve_letterhead():
 @login_required
 def serve_signature(hr_id):
     hr = HR.query.get_or_404(hr_id)
+    if getattr(hr, 'signature_data', None):
+        return send_file(BytesIO(hr.signature_data), mimetype='image/png')
     if hr.signature_path and os.path.exists(hr.signature_path):
         return send_file(hr.signature_path)
     return '', 404
@@ -1707,4 +1759,6 @@ def init_db():
 
 if __name__ == '__main__':
     init_db()
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get('PORT', 5000))
+    debug = os.environ.get('FLASK_DEBUG', '1') == '1'
+    app.run(debug=debug, port=port, host='0.0.0.0')
