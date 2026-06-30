@@ -1,4 +1,4 @@
-# WisbeesHR — Human Resource Management System
+# FRET — Human Resource Management System
 
 A modern, full-featured HRMS built with Flask. Dark-mode UI with smooth animations, HR login with signature management, offer letter generation, and automated email sending.
 
