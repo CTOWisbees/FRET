@@ -76,11 +76,20 @@ body {
   min-height: 100vh;
   display: flex;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Interactive Canvas Positioning */
+#interactiveBackgroundCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none; /* Allows clicks to pass through to buttons/inputs */
 }
 
 /* ─── Fine film-grain texture — adds tactility without touching palette ─── */
 .bg-grain{
-  position: fixed; inset: 0; z-index: 0;
+  position: fixed; inset: 0; z-index: 1;
   opacity: .035;
   mix-blend-mode: overlay;
   pointer-events: none;
@@ -112,14 +121,15 @@ body {
 
 /* Animated background grid */
 .bg-grid {
-  position: fixed; inset: 0; z-index: 0;
+  position: fixed; inset: 0; z-index: 1;
   background-image:
-    linear-gradient(rgba(14,159,110,.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(14,159,110,.035) 1px, transparent 1px);
+    linear-gradient(rgba(14,159,110,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(14,159,110,.025) 1px, transparent 1px);
   background-size: 40px 40px;
   animation: gridMove 20s linear infinite;
   -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 40%, transparent 90%);
   mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 40%, transparent 90%);
+  pointer-events: none;
 }
 @keyframes gridMove {
   0% { background-position: 0 0, 0 0; }
@@ -129,20 +139,22 @@ body {
 .bg-glow {
   position: fixed;
   width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(14,159,110,0.12) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(14,159,110,0.08) 0%, transparent 70%);
   border-radius: 50%;
   top: -200px; left: -200px;
   animation: glow 6s ease-in-out infinite alternate;
-  z-index: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 .bg-glow-2 {
   position: fixed;
   width: 500px; height: 500px;
-  background: radial-gradient(circle, rgba(37,99,201,0.10) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(37,99,201,0.06) 0%, transparent 70%);
   border-radius: 50%;
   bottom: -200px; right: -100px;
   animation: glow 8s ease-in-out infinite alternate-reverse;
-  z-index: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 @keyframes glow {
   from { transform: scale(1) translate(0,0); }
@@ -150,7 +162,7 @@ body {
 }
 
 .hero-logo{
-    width: 132px;
+    width: 250px;
     margin-bottom: 28px;
 }
 .hero-logo img{
@@ -182,7 +194,7 @@ body {
   gap: 40px;
   padding: 60px 40px 60px 64px;
   position: relative;
-  z-index: 1;
+  z-index: 2;
   overflow: hidden;
 }
 @media (min-width: 1000px) {
@@ -353,7 +365,7 @@ body {
 .right-panel {
   width: 100%; max-width: 480px;
   display: flex; align-items: center; justify-content: center;
-  padding: 40px 28px; position: relative; z-index: 1;
+  padding: 40px 28px; position: relative; z-index: 2;
   background: transparent;
 }
 @media (min-width: 900px) { .right-panel { border-left: 1px solid var(--border); } }
@@ -399,41 +411,119 @@ body {
 .form-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; text-align: center; }
 .form-subtitle { font-size: 0.88rem; color: var(--text3); margin-bottom: 28px; text-align: center; }
 
-.input-group { margin-bottom: 18px; position: relative; }
-.input-label {
-  display: block; font-size: 0.72rem; font-weight: 700; color: var(--text2);
-  margin-bottom: 8px; text-transform: uppercase; letter-spacing: .07em;
+.input-group { 
+  margin-bottom: 20px; 
+  position: relative; 
 }
-.input-wrap { position: relative; }
+
+.input-label {
+  display: block; 
+  font-size: 0.72rem; 
+  font-weight: 700; 
+  color: var(--text2);
+  margin-bottom: 8px; 
+  text-transform: uppercase; 
+  letter-spacing: .07em;
+}
+
+.input-wrap { 
+  position: relative; 
+}
+
 .input-icon {
-  position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
-  color: var(--text3); font-size: 0.88rem;
-  transition: color 0.25s ease;
+  position: absolute; 
+  left: 15px; 
+  top: 50%; 
+  transform: translateY(-50%);
+  color: var(--text3); 
+  font-size: 0.88rem;
+  transition: color 0.2s ease, transform 0.2s ease;
   pointer-events: none;
 }
+
 .input-field {
-  width: 100%; padding: 13px 14px 13px 42px;
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 11px; color: var(--text); font-size: 0.91rem;
-  font-family: inherit; outline: none;
+  width: 100%; 
+  padding: 14px 14px 14px 44px; 
+  
+  /* Default Dark Mode background */
+  background: color-mix(in srgb, var(--bg3) 40%, transparent); 
+  border: 1px solid var(--border);
+  border-radius: 12px; 
+  
+  color: var(--text); 
+  font-size: 0.95rem; 
+  font-family: inherit; 
+  outline: none;
   transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
 }
-.input-field:hover { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
-.input-wrap:focus-within .input-icon { color: var(--accent); }
+/* ─── FORCE REMOVE BROWSER AUTOFILL GREY BACKGROUNDS ─── */
+.input-field:-webkit-autofill,
+.input-field:-webkit-autofill:hover, 
+.input-field:-webkit-autofill:focus, 
+.input-field:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset !important;
+    -webkit-text-fill-color: var(--text) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
+
+/* For Dark Mode autofill, reset it to match your dark theme background */
+[data-theme="dark"] .input-field:-webkit-autofill,
+[data-theme="dark"] .input-field:-webkit-autofill:hover, 
+[data-theme="dark"] .input-field:-webkit-autofill:focus, 
+[data-theme="dark"] .input-field:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #202A36 inset !important; /* Matches your --bg3 exactly */
+    -webkit-text-fill-color: #F8FAFC !important;
+}
+
+/* ─── LIGHT THEME SPECIFIC OVERRIDE ─── */
+/* This ensures the input stays crisp, pure white in light mode */
+[data-theme="light"] .input-field {
+  background: #FFFFFF;
+  border: 1px solid var(--border-strong); /* Slightly stronger border so white field stands out on white card */
+}
+
+/* Hover states */
+.input-field:hover { 
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); 
+  background: color-mix(in srgb, var(--bg3) 60%, transparent);
+}
+[data-theme="light"] .input-field:hover {
+  background: #FFFFFF;
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border-strong));
+}
+
+/* Active / Focus State */
+.input-wrap:focus-within .input-icon { 
+  color: var(--accent); 
+  transform: translateY(-50%) scale(1.05); 
+}
+
 .input-field:focus {
-    border-color: var(--accent);
-    background: var(--bg2);
-    box-shadow: 0 0 0 4px rgba(14,159,110,.16), 0 4px 14px -6px rgba(14,159,110,.3);
+  border-color: var(--accent);
+  background: var(--bg2); 
+  box-shadow: 0 0 0 4px rgba(14,159,110,.12), 0 4px 12px -4px rgba(14,159,110,.25);
 }
+[data-theme="light"] .input-field:focus {
+  background: #FFFFFF; /* Kept white on focus too */
+  box-shadow: 0 0 0 4px rgba(14,159,110,.15), 0 4px 12px -4px rgba(14,159,110,.15);
+}
+
+/* Error Validation States */
 .input-field:invalid:not(:placeholder-shown):not(:focus) {
-    border-color: var(--red);
-    box-shadow: 0 0 0 4px rgba(239,68,68,.1);
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 4%, var(--bg2));
+  box-shadow: 0 0 0 4px rgba(239,68,68,.08);
 }
+
 .input-field:invalid:not(:placeholder-shown):not(:focus) ~ .input-icon,
 .input-wrap:has(.input-field:invalid:not(:placeholder-shown):not(:focus)) .input-icon {
-    color: var(--red);
+  color: var(--red);
 }
-.input-field::placeholder { color: var(--text3); }
+
+.input-field::placeholder { 
+  color: var(--text3); 
+  opacity: 0.7; 
+}
 .eye-toggle {
   position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
   color: var(--text3); cursor: pointer; padding: 6px; background: none; border: none;
@@ -557,6 +647,10 @@ body {
 </style>
 </head>
 <body>
+
+<!-- New Interactive Anti-Gravity Canvas Element placed at the root base -->
+<canvas id="interactiveBackgroundCanvas"></canvas>
+
 <div class="bg-grain"></div>
 <div class="bg-grid"></div>
 <div class="bg-glow"></div>
@@ -692,6 +786,7 @@ function toggleTheme() {
   localStorage.setItem('theme', isDark ? 'light' : 'dark');
 
   if (window.updateCanvasColors) window.updateCanvasColors();
+  if (window.updateBgCanvasColors) window.updateBgCanvasColors();
 }
 
 const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -788,11 +883,8 @@ document.addEventListener("DOMContentLoaded", function () {
         grid.push(row);
     }
 
-    // Per-row Y is constant across a row (depends only on latitude) — used to link
-    // each orbiting label back to its nearest point on the globe surface.
     const rowYValues = grid.map(row => row[0].y);
 
-    // Wireframe edges: latitudinal rings + longitudinal struts
     const edges = [];
     for (let i = 0; i < numLatitudes; i++) {
         for (let j = 0; j < numLongitudes; j++) {
@@ -802,7 +894,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // ── Orbiting HR feature nodes ──
     const hrItems = ["Recruitment", "Payroll", "Attendance", "Performance", "Analytics"];
     const orbits = hrItems.map((text, index) => ({
         text,
@@ -817,15 +908,13 @@ document.addEventListener("DOMContentLoaded", function () {
     const TRAIL_LENGTH = 16;
     const ROTATION_SPEED = reduceMotion ? 0.0006 : 0.0025;
     const ORBIT_SPEED = reduceMotion ? 0.0012 : 0.005;
-    const TILT_X = -0.35; // fixed ~20° tilt so the globe reads as 3D, not a flat spin
+    const TILT_X = -0.35;
 
     function project(x, y, z, centerX, centerY, fov) {
-        // tilt around X first (gives the globe a viewed-from-above feel)
         const cosT = Math.cos(TILT_X), sinT = Math.sin(TILT_X);
         const ty = y * cosT - z * sinT;
         const tz = y * sinT + z * cosT;
 
-        // then spin around Y
         const cosY = Math.cos(rotationY);
         const sinY = Math.sin(rotationY);
         const rx = x * cosY - tz * sinY;
@@ -845,7 +934,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const centerY = height / 2;
         const fov = 350;
 
-        // Soft core glow so the wireframe reads as a solid sphere, not loose dots
         const coreGlow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, globeRadius * 1.15);
         coreGlow.addColorStop(0, rgba(accentRgb, 0.10));
         coreGlow.addColorStop(1, rgba(accentRgb, 0));
@@ -854,10 +942,8 @@ document.addEventListener("DOMContentLoaded", function () {
         ctx.arc(centerX, centerY, globeRadius * 1.15, 0, Math.PI * 2);
         ctx.fill();
 
-        // Project the full grid once per frame
         const projGrid = grid.map(row => row.map(p => project(p.x, p.y, p.z, centerX, centerY, fov)));
 
-        // Depth-sort and draw wireframe struts first, as a faint structural mesh
         const segs = edges.map(([i1, j1, i2, j2]) => {
             const a = projGrid[i1][j1];
             const b = projGrid[i2][j2];
@@ -875,7 +961,6 @@ document.addEventListener("DOMContentLoaded", function () {
             ctx.stroke();
         });
 
-        // Build combined render queue: grid vertices + orbiting nodes
         let renderQueue = [];
         projGrid.forEach(row => row.forEach(p => renderQueue.push({ type: "point", ...p })));
 
@@ -894,7 +979,7 @@ document.addEventListener("DOMContentLoaded", function () {
         renderQueue.sort((a, b) => b.z - a.z);
 
         renderQueue.forEach(item => {
-            const depth = (fov - item.z) / (fov * 2); // 0 (far) → 1 (near)
+            const depth = (fov - item.z) / (fov * 2);
 
             if (item.type === "point") {
                 const lightDot = Math.max(0, (item.x - centerX) / (globeRadius * 1.4));
@@ -906,11 +991,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 return;
             }
 
-            // ── Orbiting node: dotted travel ring, trailing particles, glowing anchor, label ──
             const o = item.orbit;
             const nodeAlpha = Math.max(0.15, Math.min(1, Math.pow(depth, 1.1)));
 
-            // Dotted orbital ring showing the travel path
             ctx.save();
             ctx.setLineDash([2, 5]);
             ctx.lineWidth = 1;
@@ -925,7 +1008,6 @@ document.addEventListener("DOMContentLoaded", function () {
             ctx.stroke();
             ctx.restore();
 
-            // Trailing particle trace behind the node's current position
             o.trail.forEach((angle, idx) => {
                 const t = idx / o.trail.length;
                 const pr = project(Math.cos(angle) * o.distance, o.yOffset, Math.sin(angle) * o.distance, centerX, centerY, fov);
@@ -935,8 +1017,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 ctx.fill();
             });
 
-            // Connector line back to the nearest point on the globe surface —
-            // ties each floating label visually to the sphere it describes.
             const currentAngle = o.angle + orbitRotation;
             let rowIdx = 0, best = Infinity;
             for (let i = 0; i < rowYValues.length; i++) {
@@ -955,7 +1035,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 ctx.stroke();
             }
 
-            // Multi-layered glowing anchor point
             const r = 5 * item.scale;
             const glowRadius = r * 3.4;
             const glow = ctx.createRadialGradient(item.x, item.y, 0, item.x, item.y, glowRadius);
@@ -976,7 +1055,6 @@ document.addEventListener("DOMContentLoaded", function () {
             ctx.arc(item.x, item.y, r * 0.42, 0, Math.PI * 2);
             ctx.fill();
 
-            // Label — scale and fade pronounced for a strong sense of spatial depth
             const labelAlpha = Math.max(0.06, Math.pow(depth, 1.6));
             const fontSize = Math.max(7, 13 * Math.pow(item.scale, 1.7));
             ctx.fillStyle = rgba(textRgb, labelAlpha);
@@ -992,6 +1070,173 @@ document.addEventListener("DOMContentLoaded", function () {
         requestAnimationFrame(draw);
     }
     draw();
+});
+
+// ─── NEW INTERACTIVE MOUSE BACKGROUND ENGINE (Anti-Gravity Floating Particles) ───
+// ─── UPGRADED ANTI-GRAVITY KINETIC BACKGROUND ENGINE ───
+document.addEventListener("DOMContentLoaded", function () {
+    const canvas = document.getElementById("interactiveBackgroundCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    
+    let width, height;
+    const particles = [];
+    const maxParticles = 110; // Increased count for a richer environment
+    
+    const mouse = { x: null, y: null, radius: 220, active: false };
+    
+    window.addEventListener('mousemove', function(e) {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.active = true;
+    });
+    
+    window.addEventListener('mouseleave', function() {
+        mouse.x = null;
+        mouse.y = null;
+        mouse.active = false;
+    });
+
+    function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    let themeAccent, themeAccent3;
+    window.updateBgCanvasColors = function() {
+        const style = getComputedStyle(document.documentElement);
+        themeAccent = style.getPropertyValue("--accent").trim() || "#0E9F6E";
+        themeAccent3 = style.getPropertyValue("--accent3").trim() || "#2563C9";
+    };
+    updateBgCanvasColors();
+
+    class KineticParticle {
+        constructor() {
+            this.x = Math.random() * width;
+            this.y = Math.random() * height;
+            
+            // Anti-gravity depth: give them completely different sizes/weights
+            this.size = Math.random() * Math.random() * 4.5 + 0.8; 
+            this.density = (this.size * 2); // Bigger particles act heavier
+            
+            // Base ambient velocities (very slow, random wander)
+            this.vx = (Math.random() - 0.5) * 0.3;
+            this.vy = (Math.random() - 0.5) * 0.2 - 0.05; // Gentle upward drift
+            
+            // Friction / Inertia tracking
+            this.fx = 0;
+            this.fy = 0;
+            
+            this.colorType = Math.random() > 0.45 ? 'accent' : 'accent3';
+        }
+        
+        update() {
+            // Apply environment friction (slowly decays explosive movements over time)
+            this.fx *= 0.94;
+            this.fy *= 0.94;
+            
+            // Move particle by both baseline wander and force momentum vectors
+            this.x += this.vx + this.fx;
+            this.y += this.vy + this.fy;
+            
+            // Clean screen wrap edges
+            if (this.x < -10) this.x = width + 10;
+            if (this.x > width + 10) this.x = -10;
+            if (this.y < -10) this.y = height + 10;
+            if (this.y > height + 10) this.y = -10;
+
+            // Elastic Repulsion Physics Calculations
+            if (mouse.active) {
+                let dx = this.x - mouse.x;
+                let dy = this.y - mouse.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < mouse.radius) {
+                    // Force scales exponentially closer to the epicenter
+                    let force = (mouse.radius - distance) / mouse.radius;
+                    let acceleration = (force * 7.5) / this.density; // Heavy ones scatter slower
+                    
+                    let dirX = dx / distance;
+                    let dirY = dy / distance;
+                    
+                    // Add directly into momentum vectors
+                    this.fx += dirX * acceleration;
+                    this.fy += dirY * acceleration;
+                }
+            }
+        }
+        
+        draw() {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            
+            // Depth Layering: Render shadows behind larger particles
+            if (this.size > 2.5) {
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = this.colorType === 'accent' ? themeAccent : themeAccent3;
+            }
+            
+            ctx.fillStyle = this.colorType === 'accent' ? themeAccent + '35' : themeAccent3 + '28';
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    // Generate instances
+    for (let i = 0; i < maxParticles; i++) {
+        particles.push(new KineticParticle());
+    }
+
+    // Dynamic constellational connecting webs
+    function drawKineticWeb() {
+        for (let a = 0; a < particles.length; a++) {
+            for (let b = a + 1; b < particles.length; b++) {
+                let dx = particles[a].x - particles[b].x;
+                let dy = particles[a].y - particles[b].y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Lines form only between nearby proximity points
+                if (distance < 130) {
+                    // Closer vectors create stronger opacity lines
+                    let alpha = (1 - (distance / 130)) * 0.11;
+                    
+                    ctx.beginPath();
+                    ctx.moveTo(particles[a].x, particles[a].y);
+                    ctx.lineTo(particles[b].x, particles[b].y);
+                    
+                    // Create beautiful interactive gradient strokes between mixing particles
+                    let grad = ctx.createLinearGradient(particles[a].x, particles[a].y, particles[b].x, particles[b].y);
+                    let colorA = particles[a].colorType === 'accent' ? themeAccent : themeAccent3;
+                    let colorB = particles[b].colorType === 'accent' ? themeAccent : themeAccent3;
+                    
+                    grad.addColorStop(0, colorA);
+                    grad.addColorStop(1, colorB);
+                    
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.strokeStyle = grad;
+                    ctx.lineWidth = particles[a].size > 3 ? 0.7 : 0.4;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        }
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, width, height);
+        
+        for (let i = 0; i < particles.length; i++) {
+            particles[i].update();
+            particles[i].draw();
+        }
+        drawKineticWeb();
+        requestAnimationFrame(animate);
+    }
+    animate();
 });
 </script>
 </body>
