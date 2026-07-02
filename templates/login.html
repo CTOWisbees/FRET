@@ -16,6 +16,7 @@
     --surface:#161D26;
 
     --border:rgba(255,255,255,.08);
+    --border-strong:rgba(255,255,255,.14);
 
     --accent:#0E9F6E;
     --accent2:#0A7A54;
@@ -27,6 +28,9 @@
     --text:#F8FAFC;
     --text2:#CBD5E1;
     --text3:#94A3B8;
+
+    --card-bg: rgba(22,29,38,.72);
+    --shadow-color: rgba(0,0,0,.45);
 }
 [data-theme="light"]{
 
@@ -37,6 +41,7 @@
     --surface:#FFFFFF;
 
     --border:#E6E9EF;
+    --border-strong:#D8DCE4;
 
     --accent:#0E9F6E;
     --accent2:#0A7A54;
@@ -48,15 +53,40 @@
     --text:#0F141B;
     --text2:#2B333F;
     --text3:#69707D;
+
+    --card-bg: rgba(255,255,255,.82);
+    --shadow-color: rgba(15,20,27,.10);
 }
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { color-scheme: light dark; }
 body {
   font-family: 'Inter', sans-serif;
   background: var(--bg);
   color: var(--text);
   min-height: 100vh;
   display: flex;
+  -webkit-font-smoothing: antialiased;
 }
+
+/* ─── Fine film-grain texture — adds tactility without touching palette ─── */
+.bg-grain{
+  position: fixed; inset: 0; z-index: 0;
+  opacity: .035;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 .theme-btn{
   position: fixed;
   top: 20px;
@@ -69,12 +99,17 @@ body {
   color: var(--text);
   cursor: pointer;
   z-index: 9999;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
-
 .theme-btn:hover{
   transform: translateY(-2px);
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 20px -8px var(--shadow-color);
 }
+.theme-btn:focus-visible{ outline: 2px solid var(--accent); outline-offset: 3px; }
+.theme-btn i{ transition: transform .4s cubic-bezier(.65,0,.35,1); }
+.theme-btn:hover i{ transform: rotate(20deg); }
+
 /* Animated background grid */
 .bg-grid {
   position: fixed; inset: 0; z-index: 0;
@@ -83,6 +118,8 @@ body {
     linear-gradient(90deg, rgba(14,159,110,.035) 1px, transparent 1px);
   background-size: 40px 40px;
   animation: gridMove 20s linear infinite;
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 40%, transparent 90%);
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 40%, transparent 90%);
 }
 @keyframes gridMove {
   0% { background-position: 0 0, 0 0; }
@@ -113,69 +150,129 @@ body {
 }
 
 .hero-logo{
-    width:160px;
-    height:auto;
-    object-fit:contain;
-    margin-bottom:20px;
-    
+    width: 132px;
+    margin-bottom: 28px;
 }
 .hero-logo img{
-    width:300px;
-    height:auto;
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: contain;
 }
 
-.logo-icon img {
-  width: 52px;
-  height: 52px;
-  object-fit: contain;
-  
+/* ─── LOGO DARK/LIGHT THEME VISIBILITY FIX ─── */
+.hero-logo img,
+.login-logo {
+    filter: brightness(0) invert(1);
+    transition: filter 0.3s ease;
 }
-@keyframes logoFloat {
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-/* ---- Layering: keep orbs behind the text ---- */
 
+[data-theme="light"] .hero-logo img,
+[data-theme="light"] .login-logo {
+    filter: none;
+}
+
+/* LEFT PANEL — brand narrative + globe, split flex */
 .left-panel {
   flex: 1;
   display: none;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: center;
   justify-content: center;
-  align-items: flex-start;
-  padding: 60px 64px;      
+  gap: 40px;
+  padding: 60px 40px 60px 64px;
   position: relative;
   z-index: 1;
   overflow: hidden;
 }
-@media (min-width: 900px) {
+@media (min-width: 1000px) {
   .left-panel { display: flex; }
 }
-/* ---- Background orbs ---- */
+
+.eyebrow{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 100px;
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+.eyebrow .dot{
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px rgba(14,159,110,.18);
+  flex-shrink: 0;
+}
+
+.panel-content {
+  position: relative;
+  z-index: 2;
+  flex: 1.2;
+  max-width: 500px;
+}
+
+/* CONTAINER FOR GLOBE INSIDE LEFT PANEL */
+.left-panel-globe-container {
+  flex: 1;
+  max-width: 400px;
+  width: 100%;
+  height: 400px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2;
+  background: transparent;
+  -webkit-mask-image: radial-gradient(circle, black 62%, transparent 92%);
+  mask-image: radial-gradient(circle, black 62%, transparent 92%);
+}
+.globe-halo{
+  position: absolute;
+  inset: 8%;
+  border-radius: 50%;
+  border: 1px dashed color-mix(in srgb, var(--accent) 22%, transparent);
+  animation: haloSpin 40s linear infinite;
+  pointer-events: none;
+}
+.globe-halo::after{
+  content:'';
+  position: absolute; inset: -18%;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(14,159,110,.10) 0%, transparent 68%);
+}
+@keyframes haloSpin{ to { transform: rotate(360deg); } }
+
+#customGlobeCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .panel-orb { position: absolute; border-radius: 50%; filter: blur(60px); opacity: .4; z-index: 0; pointer-events: none; }
 .orb-1 { width: 300px; height: 300px; top: -60px; right: -40px; background: radial-gradient(circle at 30% 30%, var(--accent), transparent 70%); animation: orbFloat 14s ease-in-out infinite; }
 .orb-2 { width: 240px; height: 240px; bottom: 40px; right: 80px; background: radial-gradient(circle at 30% 30%, var(--accent2), transparent 70%); animation: orbFloat 18s ease-in-out infinite reverse; }
 .orb-3 { width: 200px; height: 200px; bottom: -50px; left: -40px; background: radial-gradient(circle at 30% 30%, var(--accent), transparent 70%); animation: orbFloat 16s ease-in-out infinite; }
 @keyframes orbFloat { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-28px,28px) scale(1.12); } }
 
-/* panel content wrapper */
-.panel-content {
-  position: relative;
-  z-index: 1;
-  
-}
-
-
-
-/* headline */
 .panel-headline {
   font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 2.5rem;
+  font-size: clamp(2rem, 1.55rem + 1.6vw, 2.65rem);
   font-weight: 800;
-  line-height: 1.15;
+  line-height: 1.12;
+  letter-spacing: -0.015em;
   color: var(--text);
   margin-bottom: 16px;
   margin-top: 0;
-  animation: fadeUp .5s ease .08s both;
 }
 .panel-headline em {
   font-style: normal;
@@ -184,58 +281,58 @@ body {
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: shimmer 4s linear infinite;
 }
 
-/* sub */
 .panel-sub {
   font-size: .97rem;
   color: var(--text2);
   line-height: 1.75;
-  max-width: 400px;
   margin-bottom: 28px;
-  animation: fadeUp .5s ease .16s both;
+  max-width: 42ch;
 }
 
-/* accent divider */
 .panel-divider {
   width: 40px; height: 2px;
   background: linear-gradient(90deg, var(--accent), var(--accent2));
   border-radius: 2px;
   margin-bottom: 28px;
-  animation: fadeUp .5s ease .22s both;
 }
 
-/* features */
 .panel-features {
   display: flex;
   flex-direction: column;
   gap: 0;
-  margin-top: 0;
 }
 .feature-item {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 12px 0;
+  padding: 13px 10px;
+  margin: 0 -10px;
+  border-radius: 12px;
   border-bottom: 1px solid var(--border);
-  animation: slideRight .5s ease both;
+  transition: background-color .25s ease, border-color .25s ease, transform .25s ease;
 }
 .feature-item:last-child { border-bottom: none; }
-.feature-item:nth-child(1) { animation-delay: .28s; }
-.feature-item:nth-child(2) { animation-delay: .36s; }
-.feature-item:nth-child(3) { animation-delay: .44s; }
+.feature-item:hover{
+  background: var(--bg3);
+  border-color: transparent;
+  transform: translateX(2px);
+}
 
 .feature-icon {
   width: 34px; height: 34px;
   border-radius: 10px;
-  background:rgba(14,159,110,.12);
-  border:1px solid rgba(14,159,110,.25);
-  color:var(--accent);
+  background: rgba(14,159,110,.12);
+  border: 1px solid rgba(14,159,110,.25);
+  color: var(--accent);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
-  font-size: 15px;
+  font-size: 14px;
+  transition: transform .25s ease;
 }
+.feature-item:hover .feature-icon{ transform: scale(1.08); }
+
 .feature-body {
   display: flex;
   flex-direction: column;
@@ -245,246 +342,244 @@ body {
   font-size: .88rem;
   color: var(--text);
   font-weight: 500;
+  line-height: 1.4;
 }
 .feature-sub {
   font-size: .76rem;
   color: var(--text3);
 }
 
-
-.stat-card {
-  flex: 1;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px 16px;
-}
-.stat-num {
-  font-family: 'Plus Jakarta Sans', sans-serif;
-  font-size: 1.4rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--accent), var(--accent2));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.stat-label {
-  font-size: .72rem;
-  color: var(--text3);
-  margin-top: 3px;
-  font-weight: 500;
-}
-
-/* dotPulse reuse */
-@keyframes dotPulse {
-  0%   { transform: scale(1); opacity: .8; }
-  100% { transform: scale(3); opacity: 0; }
-}
-
-/* light mode overrides */
-
-[data-theme="light"] .feature-icon {
-  background: rgba(99,102,241,0.08);
-  border-color: rgba(99,102,241,0.18);
-}
-[data-theme="light"] .stat-card {
-  background: rgba(99,102,241,0.04);
-  border-color: rgba(14,159,110,0.12);
-}
-
-
 /* Right panel — form */
 .right-panel {
   width: 100%; max-width: 480px;
   display: flex; align-items: center; justify-content: center;
-  padding: 40px 32px; position: relative; z-index: 1;
+  padding: 40px 28px; position: relative; z-index: 1;
+  background: transparent;
 }
 @media (min-width: 900px) { .right-panel { border-left: 1px solid var(--border); } }
 
 .form-card {
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:20px;
-  padding:40px;
-  box-shadow:
-      0 12px 40px rgba(0,0,0,.18);
-  backdrop-filter:blur(18px);
   width: 100%; max-width: 400px;
-  animation: slideUp 0.5s ease both;
+  animation: cardIn 0.6s cubic-bezier(.2,.8,.2,1) both;
+  background: var(--card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 40px 34px 34px;
+  box-shadow: 0 24px 60px -20px var(--shadow-color), 0 2px 8px rgba(0,0,0,.06);
+  position: relative;
+  overflow: hidden;
 }
-@keyframes slideUp {
-  from { opacity: 0; transform: translateY(24px); }
-  to { opacity: 1; transform: translateY(0); }
+.form-card::before{
+  content:'';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--accent), var(--accent3), transparent);
+  background-size: 200% auto;
+  animation: sheen 6s linear infinite;
 }
+@keyframes sheen{ to { background-position: -200% 0; } }
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(20px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 .form-logo{
-    display:flex;
-    justify-content:center;
-    margin-bottom:24px;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 22px;
 }
-
 .login-logo{
-    width:110px;
-    height:auto;
-    object-fit:contain;
+    width: 100px;
+    height: auto;
+    object-fit: contain;
 }
-.form-logo-icon img {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-}
-.form-logo-text {
-  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 1.3rem;
-}
-.form-logo-text span { color: var(--accent); }
 
-.form-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.6rem; font-weight: 800; margin-bottom: 6px; }
-.form-subtitle { font-size: 0.9rem; color: var(--text3); margin-bottom: 32px; }
+.form-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.01em; text-align: center; }
+.form-subtitle { font-size: 0.88rem; color: var(--text3); margin-bottom: 28px; text-align: center; }
 
-.input-group { margin-bottom: 16px; position: relative; }
-.input-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; }
+.input-group { margin-bottom: 18px; position: relative; }
+.input-label {
+  display: block; font-size: 0.72rem; font-weight: 700; color: var(--text2);
+  margin-bottom: 8px; text-transform: uppercase; letter-spacing: .07em;
+}
 .input-wrap { position: relative; }
 .input-icon {
-  position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
-  color: var(--text3); font-size: 0.9rem;
+  position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); font-size: 0.88rem;
+  transition: color 0.25s ease;
+  pointer-events: none;
 }
 .input-field {
-  width: 100%; padding: 11px 14px 11px 40px;
+  width: 100%; padding: 13px 14px 13px 42px;
   background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 10px; color: var(--text); font-size: 0.9rem;
-  font-family: inherit; outline: none; transition: all 0.2s;
+  border-radius: 11px; color: var(--text); font-size: 0.91rem;
+  font-family: inherit; outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
 }
-.input-field:focus{
-    border-color:var(--accent);
-    box-shadow:
-        0 0 0 4px rgba(14,159,110,.15);
+.input-field:hover { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.input-wrap:focus-within .input-icon { color: var(--accent); }
+.input-field:focus {
+    border-color: var(--accent);
+    background: var(--bg2);
+    box-shadow: 0 0 0 4px rgba(14,159,110,.16), 0 4px 14px -6px rgba(14,159,110,.3);
+}
+.input-field:invalid:not(:placeholder-shown):not(:focus) {
+    border-color: var(--red);
+    box-shadow: 0 0 0 4px rgba(239,68,68,.1);
+}
+.input-field:invalid:not(:placeholder-shown):not(:focus) ~ .input-icon,
+.input-wrap:has(.input-field:invalid:not(:placeholder-shown):not(:focus)) .input-icon {
+    color: var(--red);
 }
 .input-field::placeholder { color: var(--text3); }
 .eye-toggle {
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
-  color: var(--text3); cursor: pointer; padding: 4px; background: none; border: none;
-  font-size: 0.85rem; transition: color 0.2s;
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  color: var(--text3); cursor: pointer; padding: 6px; background: none; border: none;
+  border-radius: 7px; font-size: 0.82rem; transition: color 0.2s ease, background-color 0.2s ease;
 }
-.eye-toggle:hover { color: var(--text); }
+.eye-toggle:hover { color: var(--accent); background: rgba(14,159,110,.1); }
+.eye-toggle:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .submit-btn {
-  width: 100%; padding: 12px;
+  width: 100%; padding: 13.5px;
   background: linear-gradient(135deg, var(--accent), var(--accent2));
-  color: #fff; border: none; border-radius: 10px;
-  font-size: 0.95rem; font-weight: 700; cursor: pointer;
-  transition: all 0.2s; margin-top: 8px;
+  color: #fff; border: none; border-radius: 11px;
+  font-size: 0.94rem; font-weight: 700; cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  margin-top: 10px;
   display: flex; align-items: center; justify-content: center; gap: 10px;
   font-family: inherit;
-  box-shadow:0 8px 24px rgba(14,159,110,.28);
+  letter-spacing: .01em;
+  box-shadow: 0 10px 26px -8px rgba(14,159,110,.45);
 }
-.submit-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(14,159,110,0.35); }
-.submit-btn:active { transform: translateY(0); }
+.submit-btn:hover { transform: translateY(-1px); box-shadow: 0 12px 30px -6px rgba(14,159,110,.5); filter: brightness(1.04); }
+.submit-btn:active { transform: translateY(0); filter: brightness(0.98); }
+.submit-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.form-footer { text-align: center; margin-top: 24px; font-size: 0.85rem; color: var(--text3); }
-.form-footer a { color: var(--accent); text-decoration: none; font-weight: 600; }
-.form-footer a:hover { text-decoration: underline; }
+.secure-note{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: .74rem;
+  color: var(--text3);
+  letter-spacing: .01em;
+}
+.secure-note i{ color: var(--accent); font-size: .72rem; }
+
+.form-footer-divider{
+  height: 1px;
+  background: var(--border);
+  margin: 26px 0 20px;
+}
+.form-footer { text-align: center; font-size: 0.85rem; color: var(--text3); }
+.form-footer a { color: var(--accent); text-decoration: none; font-weight: 600; transition: color .2s ease; }
+.form-footer a:hover { color: var(--accent2); text-decoration: underline; }
+.form-footer a .fa-arrow-right{ transition: transform .2s ease; display: inline-block; }
+.form-footer a:hover .fa-arrow-right{ transform: translateX(3px); }
 
 .alert-box {
   background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
-  border-radius: 8px; padding: 10px 14px;
+  border-radius: 10px; padding: 11px 14px;
   color: #fca5a5; font-size: 0.85rem;
   display: flex; align-items: center; gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 .alert-success-box {
   background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25);
-  border-radius: 8px; padding: 10px 14px;
+  border-radius: 10px; padding: 11px 14px;
   color: #6ee7b7; font-size: 0.85rem;
   display: flex; align-items: center; gap: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .login-type-selector{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:10px;
-    margin-bottom:20px;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0;
+    padding: 4px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    margin-bottom: 22px;
+}
+.login-type-selector::before{
+    content:'';
+    position: absolute;
+    top: 4px; left: 4px;
+    width: calc(50% - 4px);
+    height: calc(100% - 8px);
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    transition: transform .35s cubic-bezier(.65,0,.35,1);
+    box-shadow: 0 6px 16px -4px rgba(14,159,110,.45);
+    z-index: 0;
+}
+.login-type-selector:has(#employeeBtn.active)::before{
+    transform: translateX(100%);
 }
 
 .type-btn{
-    padding:12px;
-    border:1px solid var(--border);
-    background:var(--surface);
-    color:var(--text);
-    border-radius:10px;
-    cursor:pointer;
-    font-weight:600;
-    transition:all .2s ease;
+    position: relative;
+    z-index: 1;
+    padding: 11px;
+    border: none;
+    background: transparent;
+    color: var(--text3);
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: .86rem;
+    letter-spacing: .02em;
+    font-family: inherit;
+    transition: color .3s ease;
+}
+.type-btn:hover{ color: var(--text); }
+.type-btn.active{ color: #fff; }
+.type-btn:focus-visible{
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
 }
 
-.type-btn.active{
-    background:linear-gradient(
-        135deg,
-        #0E9F6E,
-        #0A7A54
-    );
-
-    color:white;
-    border-color:transparent;
-}
-
-.divider-or { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--text3); font-size: 0.8rem; }
-.divider-or::before, .divider-or::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-
-/* Eyebrow status badge */
-.panel-badge{
-  display:inline-flex; align-items:center; gap:9px;
-  padding:6px 14px; margin-bottom:24px;
-  border-radius:999px;
-  background:rgba(14,159,110,.10);
-  border:1px solid rgba(14,159,110,.22);
-  color:var(--accent);
-  font-size:.72rem; font-weight:600;
-  letter-spacing:.08em; text-transform:uppercase;
-  animation:fadeUp .5s ease both;
-}
-.panel-badge .badge-dot{ position:relative; width:7px; height:7px; border-radius:50%; background:var(--accent); }
-.panel-badge .badge-dot::after{ content:''; position:absolute; inset:0; border-radius:50%; background:var(--accent); animation:dotPulse 2s ease-out infinite; }
-
-/* Stats row (uses your existing .stat-card styles) */
-.panel-stats{ display:flex; gap:12px; margin-top:30px; animation:fadeUp .5s ease .5s both; }
-
-/* Enterprise trust line */
-.panel-trust{ display:flex; align-items:center; gap:9px; margin-top:22px; font-size:.76rem; color:var(--text3); font-weight:500; animation:fadeUp .5s ease .58s both; }
-.panel-trust svg{ color:var(--accent); flex-shrink:0; }
-.panel-trust .dot-sep{ width:3px; height:3px; border-radius:50%; background:var(--text3); opacity:.6; }
-
-/* Keep everything visible on shorter laptop screens */
 @media (max-height: 860px){
-  .left-panel{ padding-top:40px; padding-bottom:40px; }
-  .panel-sub{ margin-bottom:20px; }
-  .panel-divider{ margin-bottom:20px; }
-  .panel-stats{ margin-top:22px; }
+  .left-panel{ padding-top: 40px; padding-bottom: 40px; }
+  .panel-sub{ margin-bottom: 20px; }
+  .panel-divider{ margin-bottom: 20px; }
+}
+@media (max-width: 480px){
+  .form-card{ padding: 32px 24px 26px; border-radius: 16px; }
+  .right-panel{ padding: 28px 16px; }
 }
 </style>
 </head>
 <body>
+<div class="bg-grain"></div>
 <div class="bg-grid"></div>
 <div class="bg-glow"></div>
 <div class="bg-glow-2"></div>
-<button class="theme-btn" onclick="toggleTheme()">
+<button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle color theme">
     <i class="fas fa-sun" id="themeIcon"></i>
 </button>
-
 
 <div class="left-panel">
   <div class="panel-orb orb-1"></div>
   <div class="panel-orb orb-2"></div>
   <div class="panel-orb orb-3"></div>
 
+  <!-- Left Column: Content info -->
   <div class="panel-content">
-
     <div class="hero-logo">
       <img src="{{ url_for('static', filename='logo.png') }}" alt="Company Logo">
     </div>
 
+    <span class="eyebrow"><span class="dot"></span> Enterprise HR Platform</span>
+
     <div class="panel-headline">
-      FRET<br>Human Resource<br><em>Management System</em>
+      FRET<br><em>Management System</em>
     </div>
 
     <p class="panel-sub">Streamline your HR operations — from onboarding to offer letters, all in one intelligent platform built for modern teams.</p>
@@ -514,9 +609,12 @@ body {
         </div>
       </div>
     </div>
+  </div>
 
-
-
+  <!-- Right Column Inside Left Panel: The Transparent Canvas Environment -->
+  <div class="left-panel-globe-container">
+      <div class="globe-halo"></div>
+      <canvas id="customGlobeCanvas"></canvas>
   </div>
 </div>
 
@@ -524,9 +622,7 @@ body {
 <div class="right-panel">
   <div class="form-card">
     <div class="form-logo">
-      <img src="{{ url_for('static', filename='logo.png') }}"
-           alt="Company Logo"
-           class="login-logo">
+      <img src="{{ url_for('static', filename='logo.png') }}" alt="Company Logo" class="login-logo">
     </div>
     <div class="form-title">Welcome back</div>
     <div class="form-subtitle">Sign in to your account</div>
@@ -542,29 +638,12 @@ body {
 
     <form method="POST">
       <div class="input-group">
-
         <div class="login-type-selector">
+          <button type="button" id="hrBtn" class="type-btn active" onclick="selectLoginType('hr')">HR</button>
+          <button type="button" id="employeeBtn" class="type-btn" onclick="selectLoginType('employee')">Employee</button>
+        </div>
 
-          <button type="button"
-                  id="hrBtn"
-                  class="type-btn active"
-                  onclick="selectLoginType('hr')">
-              HR
-          </button>
-
-          <button type="button"
-                  id="employeeBtn"
-                  class="type-btn"
-                  onclick="selectLoginType('employee')">
-              Employee
-          </button>
-
-      </div>
-
-      <input type="hidden"
-             name="login_type"
-             id="loginType"
-             value="hr">
+        <input type="hidden" name="login_type" id="loginType" value="hr">
 
         <label class="input-label">Email Address</label>
         <div class="input-wrap">
@@ -577,18 +656,19 @@ body {
         <div class="input-wrap">
           <i class="fas fa-lock input-icon"></i>
           <input type="password" name="password" id="pwField" class="input-field" placeholder="Enter your password" required/>
-          <button type="button" class="eye-toggle" onclick="togglePw()"><i class="fas fa-eye" id="eyeIcon"></i></button>
+          <button type="button" class="eye-toggle" onclick="togglePw()" aria-label="Show password"><i class="fas fa-eye" id="eyeIcon"></i></button>
         </div>
       </div>
       <button type="submit" class="submit-btn">
         <i class="fas fa-sign-in-alt"></i> Sign In
       </button>
+      <div class="secure-note"><i class="fas fa-shield-halved"></i> Your credentials are encrypted in transit</div>
     </form>
 
-    <div class="divider-or">or</div>
+    <div class="form-footer-divider"></div>
 
     <div class="form-footer">
-      New HR member? <a href="{{ url_for('register') }}">Create account →</a>
+      New HR member? <a href="{{ url_for('register') }}">Create account <i class="fas fa-arrow-right"></i></a>
     </div>
   </div>
 </div>
@@ -603,16 +683,15 @@ function togglePw() {
     f.type = 'password'; i.className = 'fas fa-eye';
   }
 }
+
 function toggleTheme() {
   const html = document.documentElement;
   const isDark = html.getAttribute('data-theme') !== 'light';
-
   html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-
-  document.getElementById('themeIcon').className =
-      isDark ? 'fas fa-moon' : 'fas fa-sun';
-
+  document.getElementById('themeIcon').className = isDark ? 'fas fa-moon' : 'fas fa-sun';
   localStorage.setItem('theme', isDark ? 'light' : 'dark');
+
+  if (window.updateCanvasColors) window.updateCanvasColors();
 }
 
 const savedTheme = localStorage.getItem('theme') || 'dark';
@@ -620,40 +699,300 @@ document.documentElement.setAttribute('data-theme', savedTheme);
 
 const icon = document.getElementById('themeIcon');
 if(icon){
-    icon.className = savedTheme === 'light'
-        ? 'fas fa-moon'
-        : 'fas fa-sun';
+    icon.className = savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
 }
 
 function selectLoginType(type){
-
     document.getElementById('loginType').value = type;
-
-    document
-        .getElementById('hrBtn')
-        .classList
-        .remove('active');
-
-    document
-        .getElementById('employeeBtn')
-        .classList
-        .remove('active');
+    document.getElementById('hrBtn').classList.remove('active');
+    document.getElementById('employeeBtn').classList.remove('active');
 
     if(type === 'hr'){
-        document
-            .getElementById('hrBtn')
-            .classList
-            .add('active');
-    }
-    else{
-        document
-            .getElementById('employeeBtn')
-            .classList
-            .add('active');
+        document.getElementById('hrBtn').classList.add('active');
+    } else {
+        document.getElementById('employeeBtn').classList.add('active');
     }
 }
 
+// ─── CANVAS 3D ENGINE: node-network globe ───
+document.addEventListener("DOMContentLoaded", function () {
+    const canvas = document.getElementById("customGlobeCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const reduceMotion = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+    let width, height, dpr;
+    function resize() {
+        dpr = window.devicePixelRatio || 1;
+        width = canvas.parentElement.clientWidth;
+        height = canvas.parentElement.clientHeight;
+        canvas.width = Math.max(1, Math.floor(width * dpr));
+        canvas.height = Math.max(1, Math.floor(height * dpr));
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener("resize", resize);
+
+    // ── Mouse parallax state ──
+    let targetTiltY = 0, currentTiltY = 0;
+    if (!reduceMotion) {
+        canvas.parentElement.addEventListener("mousemove", (e) => {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const nx = (e.clientX - rect.left - rect.width / 2) / rect.width;
+            targetTiltY = Math.max(-1, Math.min(1, nx)) * 0.4;
+        });
+        canvas.parentElement.addEventListener("mouseleave", () => { targetTiltY = 0; });
+    }
+
+    // ── Theme-reactive color state ──
+    function hexToRgb(hex) {
+        hex = (hex || "").trim();
+        if (hex[0] === "#") {
+            let h = hex.slice(1);
+            if (h.length === 3) h = h.split("").map(c => c + c).join("");
+            const num = parseInt(h, 16);
+            return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+        }
+        const m = hex.match(/\d+(\.\d+)?/g);
+        if (m && m.length >= 3) return { r: +m[0], g: +m[1], b: +m[2] };
+        return { r: 14, g: 159, b: 110 };
+    }
+
+    let accentColor, textColor, accentRgb, textRgb;
+    window.updateCanvasColors = function () {
+        const style = getComputedStyle(document.documentElement);
+        accentColor = style.getPropertyValue("--accent").trim() || "#0E9F6E";
+        textColor = style.getPropertyValue("--text").trim() || "#F8FAFC";
+        accentRgb = hexToRgb(accentColor);
+        textRgb = hexToRgb(textColor);
+    };
+    updateCanvasColors();
+
+    // ── Build a lat/long grid, indexed so neighbors can be wired together ──
+    const numLatitudes = 16;
+    const numLongitudes = 22;
+    const globeRadius = 100;
+
+    const grid = [];
+    for (let i = 0; i < numLatitudes; i++) {
+        const row = [];
+        const lat = (Math.PI * i) / (numLatitudes - 1);
+        for (let j = 0; j < numLongitudes; j++) {
+            const lon = (Math.PI * 2 * j) / numLongitudes;
+            row.push({
+                x: globeRadius * Math.sin(lat) * Math.cos(lon),
+                y: globeRadius * Math.cos(lat),
+                z: globeRadius * Math.sin(lat) * Math.sin(lon)
+            });
+        }
+        grid.push(row);
+    }
+
+    // Per-row Y is constant across a row (depends only on latitude) — used to link
+    // each orbiting label back to its nearest point on the globe surface.
+    const rowYValues = grid.map(row => row[0].y);
+
+    // Wireframe edges: latitudinal rings + longitudinal struts
+    const edges = [];
+    for (let i = 0; i < numLatitudes; i++) {
+        for (let j = 0; j < numLongitudes; j++) {
+            const nextJ = (j + 1) % numLongitudes;
+            edges.push([i, j, i, nextJ]);
+            if (i < numLatitudes - 1) edges.push([i, j, i + 1, j]);
+        }
+    }
+
+    // ── Orbiting HR feature nodes ──
+    const hrItems = ["Recruitment", "Payroll", "Attendance", "Performance", "Analytics"];
+    const orbits = hrItems.map((text, index) => ({
+        text,
+        angle: (index / hrItems.length) * Math.PI * 2,
+        distance: 125,
+        yOffset: (index - 2) * 32,
+        trail: []
+    }));
+
+    let rotationY = 0;
+    let orbitRotation = 0;
+    const TRAIL_LENGTH = 16;
+    const ROTATION_SPEED = reduceMotion ? 0.0006 : 0.0025;
+    const ORBIT_SPEED = reduceMotion ? 0.0012 : 0.005;
+    const TILT_X = -0.35; // fixed ~20° tilt so the globe reads as 3D, not a flat spin
+
+    function project(x, y, z, centerX, centerY, fov) {
+        // tilt around X first (gives the globe a viewed-from-above feel)
+        const cosT = Math.cos(TILT_X), sinT = Math.sin(TILT_X);
+        const ty = y * cosT - z * sinT;
+        const tz = y * sinT + z * cosT;
+
+        // then spin around Y
+        const cosY = Math.cos(rotationY);
+        const sinY = Math.sin(rotationY);
+        const rx = x * cosY - tz * sinY;
+        const rz = tz * cosY + x * sinY;
+
+        const scale = fov / (fov + rz);
+        return { x: centerX + rx * scale, y: centerY + ty * scale, z: rz, scale };
+    }
+
+    function rgba(rgb, a) {
+        return `rgba(${rgb.r},${rgb.g},${rgb.b},${Math.max(0, Math.min(1, a))})`;
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, width, height);
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const fov = 350;
+
+        // Soft core glow so the wireframe reads as a solid sphere, not loose dots
+        const coreGlow = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, globeRadius * 1.15);
+        coreGlow.addColorStop(0, rgba(accentRgb, 0.10));
+        coreGlow.addColorStop(1, rgba(accentRgb, 0));
+        ctx.fillStyle = coreGlow;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, globeRadius * 1.15, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Project the full grid once per frame
+        const projGrid = grid.map(row => row.map(p => project(p.x, p.y, p.z, centerX, centerY, fov)));
+
+        // Depth-sort and draw wireframe struts first, as a faint structural mesh
+        const segs = edges.map(([i1, j1, i2, j2]) => {
+            const a = projGrid[i1][j1];
+            const b = projGrid[i2][j2];
+            return { a, b, z: (a.z + b.z) / 2 };
+        });
+        segs.sort((s1, s2) => s1.z - s2.z);
+        ctx.lineWidth = 0.6;
+        segs.forEach(seg => {
+            const depth = (fov - seg.z) / (fov * 2);
+            const alpha = Math.max(0.015, Math.min(0.2, depth * 0.26));
+            ctx.strokeStyle = rgba(accentRgb, alpha);
+            ctx.beginPath();
+            ctx.moveTo(seg.a.x, seg.a.y);
+            ctx.lineTo(seg.b.x, seg.b.y);
+            ctx.stroke();
+        });
+
+        // Build combined render queue: grid vertices + orbiting nodes
+        let renderQueue = [];
+        projGrid.forEach(row => row.forEach(p => renderQueue.push({ type: "point", ...p })));
+
+        orbits.forEach(o => {
+            const currentAngle = o.angle + orbitRotation;
+            const rawX = Math.cos(currentAngle) * o.distance;
+            const rawZ = Math.sin(currentAngle) * o.distance;
+            const proj = project(rawX, o.yOffset, rawZ, centerX, centerY, fov);
+
+            o.trail.push(currentAngle);
+            if (o.trail.length > TRAIL_LENGTH) o.trail.shift();
+
+            renderQueue.push({ type: "node", x: proj.x, y: proj.y, z: proj.z, scale: proj.scale, orbit: o });
+        });
+
+        renderQueue.sort((a, b) => b.z - a.z);
+
+        renderQueue.forEach(item => {
+            const depth = (fov - item.z) / (fov * 2); // 0 (far) → 1 (near)
+
+            if (item.type === "point") {
+                const lightDot = Math.max(0, (item.x - centerX) / (globeRadius * 1.4));
+                const alpha = Math.max(0.05, Math.min(0.9, depth * 0.7 + lightDot * 0.3));
+                ctx.fillStyle = rgba(accentRgb, alpha);
+                ctx.beginPath();
+                ctx.arc(item.x, item.y, Math.max(0.6, 1.6 * item.scale), 0, Math.PI * 2);
+                ctx.fill();
+                return;
+            }
+
+            // ── Orbiting node: dotted travel ring, trailing particles, glowing anchor, label ──
+            const o = item.orbit;
+            const nodeAlpha = Math.max(0.15, Math.min(1, Math.pow(depth, 1.1)));
+
+            // Dotted orbital ring showing the travel path
+            ctx.save();
+            ctx.setLineDash([2, 5]);
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = rgba(accentRgb, nodeAlpha * 0.3);
+            ctx.beginPath();
+            const ringSteps = 56;
+            for (let s = 0; s <= ringSteps; s++) {
+                const a = (s / ringSteps) * Math.PI * 2;
+                const pr = project(Math.cos(a) * o.distance, o.yOffset, Math.sin(a) * o.distance, centerX, centerY, fov);
+                if (s === 0) ctx.moveTo(pr.x, pr.y); else ctx.lineTo(pr.x, pr.y);
+            }
+            ctx.stroke();
+            ctx.restore();
+
+            // Trailing particle trace behind the node's current position
+            o.trail.forEach((angle, idx) => {
+                const t = idx / o.trail.length;
+                const pr = project(Math.cos(angle) * o.distance, o.yOffset, Math.sin(angle) * o.distance, centerX, centerY, fov);
+                ctx.fillStyle = rgba(accentRgb, t * nodeAlpha * 0.45);
+                ctx.beginPath();
+                ctx.arc(pr.x, pr.y, Math.max(0.5, 1.3 * pr.scale), 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Connector line back to the nearest point on the globe surface —
+            // ties each floating label visually to the sphere it describes.
+            const currentAngle = o.angle + orbitRotation;
+            let rowIdx = 0, best = Infinity;
+            for (let i = 0; i < rowYValues.length; i++) {
+                const diff = Math.abs(rowYValues[i] - o.yOffset);
+                if (diff < best) { best = diff; rowIdx = i; }
+            }
+            let lonIdx = Math.round((currentAngle / (Math.PI * 2)) * numLongitudes) % numLongitudes;
+            if (lonIdx < 0) lonIdx += numLongitudes;
+            const anchor = projGrid[rowIdx] && projGrid[rowIdx][lonIdx];
+            if (anchor) {
+                ctx.strokeStyle = rgba(accentRgb, nodeAlpha * 0.16);
+                ctx.lineWidth = 0.7;
+                ctx.beginPath();
+                ctx.moveTo(item.x, item.y);
+                ctx.lineTo(anchor.x, anchor.y);
+                ctx.stroke();
+            }
+
+            // Multi-layered glowing anchor point
+            const r = 5 * item.scale;
+            const glowRadius = r * 3.4;
+            const glow = ctx.createRadialGradient(item.x, item.y, 0, item.x, item.y, glowRadius);
+            glow.addColorStop(0, rgba(accentRgb, 0.55 * nodeAlpha));
+            glow.addColorStop(1, rgba(accentRgb, 0));
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(item.x, item.y, glowRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = rgba(accentRgb, nodeAlpha);
+            ctx.beginPath();
+            ctx.arc(item.x, item.y, r, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = `rgba(255,255,255,${0.85 * nodeAlpha})`;
+            ctx.beginPath();
+            ctx.arc(item.x, item.y, r * 0.42, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Label — scale and fade pronounced for a strong sense of spatial depth
+            const labelAlpha = Math.max(0.06, Math.pow(depth, 1.6));
+            const fontSize = Math.max(7, 13 * Math.pow(item.scale, 1.7));
+            ctx.fillStyle = rgba(textRgb, labelAlpha);
+            ctx.font = `700 ${fontSize}px 'Plus Jakarta Sans', sans-serif`;
+            ctx.textAlign = "center";
+            ctx.fillText(o.text, item.x, item.y - r * 2.6);
+        });
+
+        currentTiltY += (targetTiltY - currentTiltY) * 0.05;
+        rotationY += ROTATION_SPEED + currentTiltY * 0.002;
+        orbitRotation -= ORBIT_SPEED;
+
+        requestAnimationFrame(draw);
+    }
+    draw();
+});
 </script>
 </body>
 </html>
