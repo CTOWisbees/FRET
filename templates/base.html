@@ -147,7 +147,20 @@ body {
 }
 .logo-text { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 800; font-size: 1.3rem; }
 .logo-text span { color: var(--accent); }
+/* ─── SIDEBAR LOGO DARK/LIGHT THEME VISIBILITY FIX ─── */
 
+/* 1. Default State: Root is Dark Mode, so we invert the logo to make it white/visible */
+.sidebar-company-logo,
+.logo-icon {
+    filter: brightness(0) invert(1);
+    transition: filter 0.3s ease; /* Smooth toggle transition */
+}
+
+/* 2. Light Mode State: Turn off the filter to show the original dark logo colors */
+[data-theme="light"] .sidebar-company-logo,
+[data-theme="light"] .logo-icon {
+    filter: none;
+}
 .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
 .nav-section-label {
   font-size: 0.7rem; font-weight: 600;
@@ -310,7 +323,17 @@ body {
 select.form-control { cursor: pointer; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+/* Fix option backgrounds for select menus inside your dark theme layout */
+select.form-control option {
+    background: var(--bg3);
+    color: var(--text);
+}
 
+/* Gray out the hidden placeholder option text when no gender is selected yet */
+select.form-control:invalid,
+select.form-control option[value=""] {
+    color: var(--text3);
+}
 /* ── TABLE ── */
 .table-wrapper { overflow-x: auto; border-radius: var(--radius); }
 table { width: 100%; border-collapse: collapse; }
@@ -1130,92 +1153,6 @@ textarea.form-control{
 
     gap:12px;
 
-}
-/* 1. Isolated Component Container */
-.hr-select-group {
-  margin-bottom: 20px;
-  display: flex;
-  flex-direction: column;
-  font-family: 'Helvetica', 'Arial', sans-serif;
-}
-
-/* 2. Isolated Field Label */
-.hr-select-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #2d3748; /* Deep slate charcoal text */
-  margin-bottom: 8px;
-}
-
-/* 3. Isolated Context Position Wrapper */
-.hr-select-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-
-/* 4. Absolute Positioned Vector Icon */
-.hr-select-wrapper .hr-select-icon {
-  position: absolute;
-  left: 14px;
-  color: #a0aec0; /* Subdued gray icon color */
-  font-size: 16px;
-  pointer-events: none; /* Allows mouse clicks to slide through directly to the dropdown */
-  transition: color 0.2s ease;
-  z-index: 2;
-}
-
-/* 5. Custom Dropdown Box Select Menu */
-.hr-select-dropdown {
-  width: 100%;
-  padding: 12px 14px 12px 40px; /* Left buffer ensures text never crashes into the icon */
-  font-size: 15px;
-  color: #2d3748;
-  background-color: #ffffff;
-  border: 1.5px solid #cbd5e0;
-  border-radius: 6px;
-  outline: none;
-  cursor: pointer;
-  position: relative;
-  z-index: 1;
-  
-  /* Strip out default vendor system OS arrows */
-  appearance: none; 
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  
-  /* Insert clean lightweight custom SVG tracking arrow */
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23718096' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  background-size: 16px;
-  
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-/* 6. Component Active Focus States */
-.hr-select-dropdown:focus {
-  border-color: #004d40; /* Teal tone matches document aesthetics */
-  box-shadow: 0 0 0 3px rgba(0, 77, 64, 0.15);
-}
-
-/* Coordinates icon activation focus color along with the parent select block */
-.hr-select-wrapper:focus-within .hr-select-icon {
-  color: #004d40;
-}
-
-/* Simulation color behavior forcing placeholder selection tracking as subtle grey tint */
-.hr-select-dropdown:invalid,
-.hr-select-dropdown option[value=""] {
-  color: #718096;
-}
-
-/* Normalize list layout item views */
-.hr-select-dropdown option {
-  color: #2d3748;
-  background-color: #ffffff;
-  padding: 10px;
 }
 </style>
 {% block extra_head %}{% endblock %}
