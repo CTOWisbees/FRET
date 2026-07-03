@@ -9,52 +9,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-:root{
-    /* Backgrounds */
-    --bg:#0F141B;
-    --bg2:#161D26;
-    --bg3:#202A36;
-
-    --surface:#161D26;
-    --surface2:#202A36;
-
-    /* Borders */
-    --border:rgba(255,255,255,.08);
-
-    /* Brand */
-    --accent:#0E9F6E;
-    --accent2:#0A7A54;
-    --accent3:#2563C9;
-
-    /* Status */
-    --green:#10B981;
-    --red:#EF4444;
-    --yellow:#F59E0B;
-
-    /* Text */
-    --text:#F8FAFC;
-    --text2:#CBD5E1;
-    --text3:#94A3B8;
-
-    /* Shadows */
-    --card-shadow:
-        0 8px 28px rgba(0,0,0,.45);
-
-    /* Layout */
-    --sidebar-w:260px;
-    --radius:14px;
-    --radius-sm:10px;
-
-    /* Extras */
-    --sidebar:#0B1117;
-    --sidebar-hover:#18222D;
-    --sidebar-active:#0E9F6E;
-
-    --card-border:#2A3645;
-    --hover:#243241;
-}
-[data-theme="light"]{
-
+:root {
     /* Backgrounds */
     --bg:#F6F7F9;
     --bg2:#FFFFFF;
@@ -86,6 +41,11 @@
         0 1px 2px rgba(16,20,27,.04),
         0 8px 24px -12px rgba(16,20,27,.18);
 
+    /* Layout */
+    --sidebar-w:260px;
+    --radius:14px;
+    --radius-sm:10px;
+
     /* Extras */
     --sidebar:#FFFFFF;
     --sidebar-hover:#F1F5F9;
@@ -98,6 +58,46 @@
 
     --card-border:#E6E9EF;
     --hover:#F8FAFC;
+}
+
+[data-theme="dark"] {
+    /* Backgrounds */
+    --bg:#0F141B;
+    --bg2:#161D26;
+    --bg3:#202A36;
+
+    --surface:#161D26;
+    --surface2:#202A36;
+
+    /* Borders */
+    --border:rgba(255,255,255,.08);
+
+    /* Brand */
+    --accent:#0E9F6E;
+    --accent2:#0A7A54;
+    --accent3:#2563C9;
+
+    /* Status */
+    --green:#10B981;
+    --red:#EF4444;
+    --yellow:#F59E0B;
+
+    /* Text */
+    --text:#F8FAFC;
+    --text2:#CBD5E1;
+    --text3:#94A3B8;
+
+    /* Shadows */
+    --card-shadow:
+        0 8px 28px rgba(0,0,0,.45);
+
+    /* Extras */
+    --sidebar:#0B1117;
+    --sidebar-hover:#18222D;
+    --sidebar-active:#0E9F6E;
+
+    --card-border:#2A3645;
+    --hover:#243241;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; scroll-behavior: smooth; }
@@ -149,17 +149,17 @@ body {
 .logo-text span { color: var(--accent); }
 /* ─── SIDEBAR LOGO DARK/LIGHT THEME VISIBILITY FIX ─── */
 
-/* 1. Default State: Root is Dark Mode, so we invert the logo to make it white/visible */
+/* 1. Default State: Root is Light Mode, so we keep the filter clean for dark brand assets */
 .sidebar-company-logo,
 .logo-icon {
-    filter: brightness(0) invert(1);
-    transition: filter 0.3s ease; /* Smooth toggle transition */
+    filter: none;
+    transition: filter 0.3s ease; 
 }
 
-/* 2. Light Mode State: Turn off the filter to show the original dark logo colors */
-[data-theme="light"] .sidebar-company-logo,
-[data-theme="light"] .logo-icon {
-    filter: none;
+/* 2. Dark Mode State: Invert properties to bring visibility to icons against deep background spaces */
+[data-theme="dark"] .sidebar-company-logo,
+[data-theme="dark"] .logo-icon {
+    filter: brightness(0) invert(1);
 }
 .sidebar-nav { flex: 1; padding: 16px 12px; overflow-y: auto; }
 .nav-section-label {
@@ -1105,7 +1105,7 @@ textarea.form-control{
 
     max-width:92%;
 
-    background:white;
+    background:var(--bg2);
 
     border-radius:18px;
 
@@ -1344,17 +1344,27 @@ document.addEventListener('click', (e) => {
 });
 function toggleTheme() {
   const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') !== 'light';
-  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  document.getElementById('themeIcon').className = isDark ? 'fas fa-moon' : 'fas fa-sun';
-  localStorage.setItem('theme', isDark ? 'light' : 'dark');
+  // If current theme is dark, switch to light. Otherwise, switch to dark.
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+
+  html.setAttribute('data-theme', newTheme);
+  localStorage.setItem('theme', newTheme);
+  
+  // Update icon: Moon for light mode, Sun for dark mode
+  document.getElementById('themeIcon').className = newTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
 }
 
-// Apply saved theme on load
-const savedTheme = localStorage.getItem('theme') || 'dark';
-document.documentElement.setAttribute('data-theme', savedTheme);
-document.getElementById('themeIcon').className = 
-  savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+// Wrap layout load logic to prevent global namespace / redeclaration conflicts
+(function initBaseTheme() {
+  const saved = localStorage.getItem('theme') || 'light'; // Light mode fallback default
+  document.documentElement.setAttribute('data-theme', saved);
+  
+  const icon = document.getElementById('themeIcon');
+  if (icon) {
+    icon.className = saved === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+  }
+})();
 </script>
 {% block extra_scripts %}{% endblock %}
 </body>
