@@ -1,0 +1,164 @@
+{% extends "employee_base.html" %}
+{% block title %}Work Hub{% endblock %}
+
+{% block content %}
+<style>
+    .fret-wh-panel { animation: slideUp 0.4s ease both; }
+    .fret-wh-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .fret-wh-main-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.5rem; font-weight: 800; color: var(--text); margin: 0; }
+    .fret-wh-status-badge { background: rgba(99, 102, 241, 0.15); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.25); padding: 6px 14px; font-size: 0.82rem; font-weight: 600; border-radius: 999px; }
+    .fret-wh-divider { height: 1px; background: var(--border); margin: 20px 0 32px 0; border: none; }
+    .fret-nm-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--card-shadow); overflow: hidden; max-width: 750px; margin: 0 auto; }
+    .fret-nm-card-header { background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border-bottom: 1px solid var(--border); padding: 20px 24px; }
+    .fret-nm-card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; margin: 0; }
+    .fret-nm-card-title i { color: var(--accent); }
+    .fret-nm-card-body { padding: 24px; }
+    .fret-nm-form-block { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+    .fret-nm-form-label { font-size: 0.85rem; font-weight: 600; color: var(--text2); }
+    .fret-nm-input-group { display: flex; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+    .fret-nm-input-group:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15); }
+    .fret-nm-file-control { width: 100%; padding: 10px 14px; background: transparent; border: none; color: var(--text); font-size: 0.9rem; outline: none; cursor: pointer; }
+    .fret-nm-input-addon { background: var(--surface2); border-left: 1px solid var(--border); display: grid; place-items: center; padding: 0 16px; color: var(--green); font-size: 1.1rem; }
+    .fret-nm-preview-container { margin-top: 10px; padding: 10px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); display: none; align-items: center; gap: 10px; font-size: 0.85rem; }
+    .fret-nm-preview-icon { color: var(--green); }
+    .fret-nm-preview-name { color: var(--text); font-weight: 600; }
+    .fret-nm-submit-btn { width: 100%; height: 48px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #ffffff; border: none; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25); transition: all 0.2s; }
+    .fret-nm-submit-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(99, 102, 241, 0.4); }
+    .fret-nm-submit-btn:disabled { background: var(--bg3) !important; border: 1px solid var(--border) !important; color: var(--text3) !important; box-shadow: none !important; cursor: not-allowed; transform: none; }
+    .fret-wh-fallback-card { background: var(--bg2); border: 1px dashed var(--border); border-radius: var(--radius); box-shadow: var(--card-shadow); padding: 48px 24px; text-align: center; max-width: 550px; margin: 40px auto 0 auto; }
+    .fret-wh-fallback-icon { font-size: 3rem; color: var(--yellow); margin-bottom: 16px; animation: pulse 2.5s infinite ease-in-out; }
+    .fret-wh-fallback-card h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.3rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+    .fret-wh-fallback-card p { color: var(--text2); font-size: 0.9rem; line-height: 1.6; margin-bottom: 20px; }
+    .fret-wh-alert-info { background: rgba(6, 182, 212, 0.08); border: 1px solid rgba(6, 182, 212, 0.2); color: var(--accent3); padding: 10px 16px; border-radius: var(--radius-sm); display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; }
+</style>
+
+<div class="fret-wh-panel">
+    <div class="fret-wh-header-row">
+        <h2 class="fret-wh-main-title">Work Hub</h2>
+        <span class="fret-wh-status-badge">Designation: {{ current_user.designation | title }}</span>
+    </div>
+    <hr class="fret-wh-divider">
+
+    {% if current_user.designation == 'Digital Marketing Intern' or current_user.department == 'Marketing' %}
+        <div class="fret-nm-card">
+            <div class="fret-nm-card-header">
+                <h4 class="fret-nm-card-title"><i class="fas fa-paper-plane"></i> Newsletter Emailing Module</h4>
+            </div>
+            <div class="fret-nm-card-body">
+                <form id="newsletterUploadForm">
+                    <div class="fret-nm-form-block">
+                        <label for="emailSubject" class="fret-nm-form-label">1. Email Subject Line</label>
+                        <input type="text" id="emailSubject" class="form-control" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Enter email subject..." required>
+                    </div>
+                    <div class="fret-nm-form-block">
+                        <label for="thumbnailImage" class="fret-nm-form-label">3. Featured Thumbnail Image (Optional)</label>
+                        <div class="fret-nm-input-group">
+                            <input type="file" class="fret-nm-file-control" id="thumbnailImage" accept=".jpg, .jpeg, .png">
+                            <div class="fret-nm-input-addon"><i class="fas fa-image"></i></div>
+                        </div>
+                        <div id="fretImagePreview" class="fret-nm-preview-container" style="display:none; margin-top: 10px;">
+                            <i class="fas fa-check-circle fret-nm-preview-icon"></i>
+                            <span>Selected image: <span id="fretImageName" class="fret-nm-preview-name"></span></span>
+                        </div>
+                    </div>
+                    <div class="fret-nm-form-block">
+                        <label for="emailContent" class="fret-nm-form-label">2. Email Content / Message Body</label>
+                        <textarea class="form-control" id="emailContent" rows="6" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Write your message. Use {Name} to dynamically insert the receiver's name from Excel..." required></textarea>
+                    </div>
+
+                    <div class="fret-nm-form-block">
+                        <label for="excelFile" class="fret-nm-form-label">3. Select Readers Database (.xlsx, .xls)</label>
+                        <div class="fret-nm-input-group">
+                            <input type="file" class="fret-nm-file-control" id="excelFile" accept=".xlsx, .xls" required>
+                            <div class="fret-nm-input-addon"><i class="fas fa-file-excel"></i></div>
+                        </div>
+                        <div id="fretFilePreview" class="fret-nm-preview-container">
+                            <i class="fas fa-check-circle fret-nm-preview-icon"></i>
+                            <span>Selected file: <span id="fretFileName" class="fret-nm-preview-name"></span></span>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="fret-nm-submit-btn" id="broadcastBtn">
+                        <i class="fas fa-rocket"></i> Blast Bulk Newsletter
+                    </button>
+                </form>
+            </div>
+        </div>
+    {% else %}
+        <div class="fret-wh-fallback-card">
+            <div class="fret-wh-fallback-icon"><i class="fas fa-hourglass-half"></i></div>
+            <h3>Coming Soon!</h3>
+            <p>Your department's workspace utility nodes are currently undergoing engineering configurations.</p>
+            <div class="fret-wh-alert-info"><i class="fas fa-info-circle"></i> Please coordinate with your authority for functional items.</div>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+document.getElementById('excelFile')?.addEventListener('change', function(e) {
+    const filePreview = document.getElementById('fretFilePreview');
+    const fileNameSpan = document.getElementById('fretFileName');
+    if (this.files && this.files.length > 0) {
+        fileNameSpan.textContent = this.files[0].name;
+        filePreview.style.display = 'flex';
+    } else {
+        filePreview.style.display = 'none';
+    }
+});
+
+document.getElementById('newsletterUploadForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const fileInput = document.getElementById('excelFile');
+    if (!fileInput.files.length) return;
+
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('email_subject', document.getElementById('emailSubject').value);
+    const imageInput = document.getElementById('thumbnailImage');
+    if (imageInput.files.length > 0) {
+        formData.append('thumbnail', imageInput.files[0]);
+    }
+    document.getElementById('thumbnailImage')?.addEventListener('change', function(e) {
+        const preview = document.getElementById('fretImagePreview');
+        const nameSpan = document.getElementById('fretImageName');
+        if (this.files && this.files.length > 0) {
+            nameSpan.textContent = this.files[0].name;
+            preview.style.display = 'flex';
+        } else {
+            preview.style.display = 'none';
+        }
+    });
+    formData.append('message_body', document.getElementById('emailContent').value);
+    const btn = document.getElementById('broadcastBtn');
+    const originalHtml = btn.innerHTML;
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting & Sending...';
+
+    fetch('/send-bulk-newsletter', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof showToast === "function") { showToast(data.message, 'success'); } else { alert(data.message); }
+            fileInput.value = ''; 
+            document.getElementById('emailSubject').value = '';
+            document.getElementById('emailContent').value = '';
+            document.getElementById('fretFilePreview').style.display = 'none';
+        } else {
+            if (typeof showToast === "function") { showToast(data.message, 'error'); } else { alert("Error: " + data.message); }
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        if (typeof showToast === "function") { showToast('A connection timeout occurred.', 'error'); } else { alert('A network error occurred.'); }
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    });
+});
+</script>
+{% endblock %}

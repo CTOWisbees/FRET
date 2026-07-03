@@ -167,8 +167,25 @@ ROLE_DATA = {
             "Demonstrate professionalism, confidentiality, and timely communication in all assignments.",
         ],
     },
-}
+    "Research and Content Analyst Intern": {
+        "intro": (
+            "This internship is designed to provide you with hands-on exposure to financial markets, wealth management "
+            "concepts, investment research, and financial content creation. You will develop the ability to analyze market  "
+            "trends, simplify complex financial concepts, and create engaging content that educates and informs investors, "
+            "while building a strong foundation in personal finance, investments, and wealth management."
+        ),
+        "responsibilities": [
+            "Create deeply investigated and data driven research articles.",
+            "Create articles, blogs, newsletters, market updates, and educational content on finance and investments.",
+            "Simplify complex financial concepts into reader-friendly content.",
+            "Develop SEO-friendly content for websites, email newsletters, and investor communication.",
+            "Research trending financial topics and prepare insightful write-ups.",
+            "Collaborate with marketing and research teams to create engaging financial content.",
+            "Ensure content accuracy, clarity, and compliance with company standards."
+        ],
 
+    }
+}
 ROLE_KEYS = list(ROLE_DATA.keys())
 
 

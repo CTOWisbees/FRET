@@ -8,32 +8,8 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
 <style>
-:root{
-    --bg:#0F141B;
-    --bg2:#161D26;
-    --bg3:#202A36;
-
-    --surface:#161D26;
-
-    --border:rgba(255,255,255,.08);
-    --border-strong:rgba(255,255,255,.14);
-
-    --accent:#0E9F6E;
-    --accent2:#0A7A54;
-    --accent3:#2563C9;
-
-    --green:#10B981;
-    --red:#EF4444;
-
-    --text:#F8FAFC;
-    --text2:#CBD5E1;
-    --text3:#94A3B8;
-
-    --card-bg: rgba(22,29,38,.72);
-    --shadow-color: rgba(0,0,0,.45);
-}
-[data-theme="light"]{
-
+/* ─── NEW DEFAULT: LIGHT MODE ─── */
+:root {
     --bg:#F6F7F9;
     --bg2:#FFFFFF;
     --bg3:#EEF1F5;
@@ -41,7 +17,6 @@
     --surface:#FFFFFF;
 
     --border:#E6E9EF;
-    --border-strong:#D8DCE4;
 
     --accent:#0E9F6E;
     --accent2:#0A7A54;
@@ -53,9 +28,28 @@
     --text:#0F141B;
     --text2:#2B333F;
     --text3:#69707D;
+}
 
-    --card-bg: rgba(255,255,255,.82);
-    --shadow-color: rgba(15,20,27,.10);
+/* ─── OPT-IN ALTERNATE: DARK MODE ─── */
+[data-theme="dark"] {
+    --bg:#0F141B;
+    --bg2:#161D26;
+    --bg3:#202A36;
+
+    --surface:#161D26;
+
+    --border:rgba(255,255,255,.08);
+
+    --accent:#0E9F6E;
+    --accent2:#0A7A54;
+    --accent3:#2563C9;
+
+    --green:#10B981;
+    --red:#EF4444;
+
+    --text:#F8FAFC;
+    --text2:#CBD5E1;
+    --text3:#94A3B8;
 }
 
 @media (prefers-reduced-motion: reduce){
@@ -173,16 +167,24 @@ body {
 }
 
 /* ─── LOGO DARK/LIGHT THEME VISIBILITY FIX ─── */
-.hero-logo img,
-.login-logo {
-    filter: brightness(0) invert(1);
+/* 1. Default State (Light Mode): No filter needed, show original dark logo colors */
+.hero-logo img, 
+.logo-icon img, 
+.login-logo, 
+.form-logo-icon img {
+    filter: none;
     transition: filter 0.3s ease;
 }
 
-[data-theme="light"] .hero-logo img,
-[data-theme="light"] .login-logo {
-    filter: none;
+/* 2. Dark Mode State: Invert the logos to make them white/visible against dark panels */
+[data-theme="dark"] .hero-logo img,
+[data-theme="dark"] .logo-icon img,
+[data-theme="dark"] .login-logo,
+[data-theme="dark"] .form-logo-icon img {
+    filter: brightness(0) invert(1);
 }
+
+
 
 /* LEFT PANEL — brand narrative + globe, split flex */
 .left-panel {
@@ -644,13 +646,77 @@ body {
   .form-card{ padding: 32px 24px 26px; border-radius: 16px; }
   .right-panel{ padding: 28px 16px; }
 }
+
+/* ─── PREMIUM HEADLINE TYPOGRAPHY ─── */
+.panel-headline-container {
+  margin-bottom: 24px;
+}
+
+.panel-headline-premium {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-size: clamp(2.5rem, 2rem + 2vw, 3.5rem); /* Scaled larger for clean text look */
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em; /* Tight kerning for a modern tech corporate appearance */
+  color: var(--text);
+  margin: 0 0 8px 0;
+  display: block;
+}
+
+/* Elegant corporate subline positioning */
+.panel-subline-premium {
+  font-style: normal;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text3);
+  display: block;
+  opacity: 0.85;
+}
+
+/* ─── ORANGE CHROMATIC ACCENT SHIMMER EFFECT ─── */
+.shimmer-text {
+  position: relative;
+  display: inline-block;
+  background: linear-gradient(
+    to right, 
+    var(--text) 20%, 
+    var(--accent) 40%, 
+    #FF7A00 60%, /* Premium safety orange accent */
+    var(--text) 80%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  
+  /* Smooth loop that feels like an ambient pulse rather than an aggressive flash */
+  animation: textShimmer 7s linear infinite;
+}
+
+/* Trigger on mouse hover speeds up the reflection for a crisp metallic flash appearance */
+.shimmer-text:hover {
+  animation: textShimmer 2s linear infinite;
+}
+
+@keyframes textShimmer {
+  to {
+    background-position: 200% center;
+  }
+}
+.feature-icon i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
 </style>
 </head>
 <body>
-
-<!-- New Interactive Anti-Gravity Canvas Element placed at the root base -->
-<canvas id="interactiveBackgroundCanvas"></canvas>
-
 <div class="bg-grain"></div>
 <div class="bg-grid"></div>
 <div class="bg-glow"></div>
@@ -672,8 +738,11 @@ body {
 
     <span class="eyebrow"><span class="dot"></span> Enterprise HR Platform</span>
 
-    <div class="panel-headline">
-      FRET<br><em>Management System</em>
+    <div class="panel-headline-container">
+      <h1 class="panel-headline-premium">
+        <span class="shimmer-text">FRET</span>
+      </h1>
+      <em class="panel-subline-premium">Management System</em>
     </div>
 
     <p class="panel-sub">Streamline your HR operations — from onboarding to offer letters, all in one intelligent platform built for modern teams.</p>
@@ -681,22 +750,30 @@ body {
     <div class="panel-divider"></div>
 
     <div class="panel-features">
+      <!-- Feature 1 -->
       <div class="feature-item">
-        <div class="feature-icon">✉</div>
+        <!-- Replaced emoji with clean vector icon path; structural class kept untouched -->
+        <div class="feature-icon"><i class="fa-solid fa-file-signature"></i></div>
         <div class="feature-body">
           <span class="feature-text">Auto-generate offer letters with your signature</span>
           <span class="feature-sub">One click, fully branded</span>
         </div>
       </div>
+      
+      <!-- Feature 2 -->
       <div class="feature-item">
-        <div class="feature-icon">⚡</div>
+        <!-- Replaced emoji with clean vector icon path; structural class kept untouched -->
+        <div class="feature-icon"><i class="fa-solid fa-paper-plane"></i></div>
         <div class="feature-body">
           <span class="feature-text">Send emails &amp; NDAs with one click</span>
           <span class="feature-sub">Automated delivery &amp; tracking</span>
         </div>
       </div>
+      
+      <!-- Feature 3 -->
       <div class="feature-item">
-        <div class="feature-icon">📊</div>
+        <!-- Replaced emoji with clean vector icon path; structural class kept untouched -->
+        <div class="feature-icon"><i class="fa-solid fa-chart-line"></i></div>
         <div class="feature-body">
           <span class="feature-text">Live dashboards with hiring analytics</span>
           <span class="feature-sub">Real-time insights at a glance</span>
@@ -780,22 +857,27 @@ function togglePw() {
 
 function toggleTheme() {
   const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') !== 'light';
-  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
-  document.getElementById('themeIcon').className = isDark ? 'fas fa-moon' : 'fas fa-sun';
-  localStorage.setItem('theme', isDark ? 'light' : 'dark');
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
 
+  html.setAttribute('data-theme', newTheme);
+  document.getElementById('themeIcon').className = newTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+  localStorage.setItem('theme', newTheme);
+  
   if (window.updateCanvasColors) window.updateCanvasColors();
-  if (window.updateBgCanvasColors) window.updateBgCanvasColors();
 }
 
-const savedTheme = localStorage.getItem('theme') || 'dark';
-document.documentElement.setAttribute('data-theme', savedTheme);
+// 2. Safely initialize theme only once
+(function initTheme() {
+    // Only set if not already handled
+    const saved = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', saved);
 
-const icon = document.getElementById('themeIcon');
-if(icon){
-    icon.className = savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
-}
+    const icon = document.getElementById('themeIcon');
+    if(icon){
+        icon.className = saved === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+    }
+})();
 
 function selectLoginType(type){
     document.getElementById('loginType').value = type;

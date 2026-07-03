@@ -1,4 +1,5 @@
 from xmlrpc import server
+from openpyxl import reader
 import requests
 import base64
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
@@ -45,11 +46,27 @@ login_manager = LoginManager(app)
 @login_manager.user_loader
 def load_user(user_id):
     """
-    Tells Flask-Login how to reload a user from the session cache
-    by fetching their active row from the HR database table.
+    Polymorphic user loader. Checks the HR table first; if no match is found,
+    it checks the EmployeeAccount table so Interns don't get booted out.
     """
-    return HR.query.get(int(user_id))
-login_manager.login_view = 'login'
+    # Try looking in HR table
+    user = HR.query.get(int(user_id))
+    if user:
+        return user
+        
+    # Try looking in EmployeeAccount table
+    account = EmployeeAccount.query.get(int(user_id))
+    if account:
+        # We attach the underlying employee details directly onto the account object
+        # so things like current_user.designation work perfectly in your templates!
+        emp = Employee.query.get(account.employee_id)
+        if emp:
+            account.designation = emp.designation
+            account.department = emp.department
+            account.name = emp.name
+        return account
+        
+    return None
 
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
@@ -132,7 +149,7 @@ class Employee(db.Model):
     emp_type = db.Column(db.String(20), default='Normal')  # 'Intern' or 'Normal'
     gender = db.Column(db.String(10), nullable=False, default='female')
 
-class EmployeeAccount(db.Model):
+class EmployeeAccount(UserMixin, db.Model):
     __tablename__ = 'employee_accounts'
     id = db.Column(db.Integer, primary_key=True)
     employee_id = db.Column(db.Integer,db.ForeignKey('employee.id'),unique=True,nullable=False)
@@ -320,6 +337,33 @@ def get_graph_token():
         
     token_json = response.json()
     return token_json.get("access_token")
+
+def get_newsletter_graph_token(tenant_id, client_id, client_secret):
+    """
+    Dedicated token generator for the marketing newsletter section.
+    Uses hardcoded marketing credentials passed from the route.
+    """
+    import requests
+    
+    url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    payload = {
+        "client_id": client_id,
+        "scope": "https://graph.microsoft.com/.default",
+        "client_secret": client_secret,
+        "grant_type": "client_credentials"
+    }
+    
+    response = requests.post(url, headers=headers, data=payload)
+    
+    if response.status_code != 200:
+        raise Exception(f"Newsletter Azure Token Error: {response.text}")
+        
+    return response.json().get("access_token")
+
+
 # ─────────────── AUTH ROUTES ───────────────
 
 @app.route('/')
@@ -363,7 +407,7 @@ def login():
                     return redirect(
                         url_for('change_password')
                     )
-
+                login_user(account)
                 session['employee_id'] = account.employee_id
 
                 employee = Employee.query.get(
@@ -400,7 +444,8 @@ def employee_login():
                 return redirect(
                     url_for('change_password')
                 )
-
+            
+            login_user(account)
             session['employee_id'] = account.employee_id
 
             employee = Employee.query.get(account.employee_id)
@@ -993,6 +1038,10 @@ def send_email_route():
           <p style="margin:0;"><a href="mailto:info@wisbees.com" style="color:#4f46e5;">info@wisbees.com</a></p>
           <br>
           <p style="margin:0;font-size:12px;color:#666;">TimeArrow Private Limited (WisBees)</p>
+          <img src="https://fret.wisbees.com/static/logo.png" 
+                   alt="WisBees Logo" 
+                   width="120" 
+                   style="display: block; border: 0; max-width: 100%; height: auto;" />
         </div>
         """    
 
@@ -1742,7 +1791,150 @@ def employee_announcements():
         employee=employee
     )
 
+# work Routes Below:
+@app.route('/work')
+@login_required
+def work():
+    """
+    Renders the central Work Hub workspace page.
+    Passes current_user as employee to satisfy employee_base.html properties.
+    """
+    return render_template('work.html', employee=current_user)
 
+@app.route('/newsletter-workspace')
+@login_required
+def newsletter_workspace():
+    # Do the exact same thing here
+    return render_template('work.html', employee=current_user)
+
+
+@app.route('/send-bulk-newsletter', methods=['POST'])
+@login_required
+def send_bulk_newsletter():
+    if current_user.designation != 'Digital Marketing Intern' and current_user.department != 'Digital Marketing':
+        return jsonify({'success': False, 'message': 'Unauthorized access!'}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'No file uploaded'}), 400
+        
+    file = request.files['file']
+    custom_subject = request.form.get('email_subject', 'WisBees Update')
+    custom_body = request.form.get('message_body', '')
+    
+    if not custom_body:
+        return jsonify({'success': False, 'message': 'Email content body cannot be empty.'}), 400
+    
+    # ─── 1. RESTORED: HARDCODED MARKETING CREDENTIALS ───
+    SENDER_EMAIL  = ""
+    TENANT_ID     = ""
+    CLIENT_ID     = ""
+    CLIENT_SECRET = ""
+    
+    # ─── 2. PROCESS IMAGE THUMBNAIL UPLOAD ───
+    thumbnail_file = request.files.get('thumbnail')
+    inline_attachments = []
+    has_thumbnail = False
+    
+    if thumbnail_file and thumbnail_file.filename != '':
+        image_content = base64.b64encode(thumbnail_file.read()).decode('utf-8')
+        inline_attachments = [{
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": thumbnail_file.filename,
+            "contentType": thumbnail_file.content_type,
+            "contentBytes": image_content,
+            "isInline": True,
+            "contentId": "newsletter_thumbnail"
+        }]
+        has_thumbnail = True
+
+    try:
+        df = pd.read_excel(file)
+        if 'Email' not in df.columns or 'Name' not in df.columns:
+            return jsonify({'success': False, 'message': 'Excel missing "Name" or "Email" column.'}), 400
+
+        # ─── 3. RESTORED: CALLING YOUR NEW DEDICATED TOKEN GENERATOR ───
+        token = get_newsletter_graph_token(TENANT_ID, CLIENT_ID, CLIENT_SECRET)
+
+        for index, row in df.iterrows():
+            reader_name = row['Name']
+            reader_email = row['Email']
+            
+            personalized_text = custom_body.replace('{Name}', str(reader_name))
+            html_paragraphs = personalized_text.replace('\n', '<br>')
+
+            image_html_block = ""
+            if has_thumbnail:
+                image_html_block = """
+                <tr>
+                    <td align="center" style="padding: 10px 35px 25px 35px;">
+                        <img src="cid:newsletter_thumbnail" alt="Featured Story" style="width: 100%; max-width: 510px; height: auto; display: block; border-radius: 8px;">
+                    </td>
+                </tr>
+                """
+
+            finshots_html_layout = f"""
+            <div style="background-color: #f4f6f8; padding: 40px 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; min-height: 100%;">
+                <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 580px; background-color: #ffffff; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 20px rgba(15, 17, 23, 0.04);">
+                    <tr>
+                        <td align="center" style="padding: 35px 24px 25px 24px; border-bottom: 2px solid #f1f5f9;">
+                            <img src="https://fret.wisbees.com/static/logo.png" alt="WisBees Logo" width="150" style="display: block; border: 0; max-width: 100%; height: auto;">
+                        </td>
+                    </tr>
+                    
+                    {image_html_block}
+                    
+                    <tr>
+                        <td style="padding: 10px 35px 40px 35px;">
+                            <div style="color: #1e293b; font-size: 16px; line-height: 1.8; letter-spacing: -0.1px;">
+                                <style>
+                                    .email-body > p:first-child {{ font-size: 18px; font-weight: 600; color: #0f172a; margin-bottom: 24px; }}
+                                    .email-body p {{ margin-top: 0; margin-bottom: 20px; color: #334155; }}
+                                    .email-body h2, .email-body strong:not(li strong) {{ display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.3; margin-top: 32px; margin-bottom: 14px; letter-spacing: -0.4px; }}
+                                    .email-body ul {{ padding-left: 20px; margin-bottom: 24px; }}
+                                    .email-body li {{ margin-bottom: 10px; color: #334155; }}
+                                    .email-body a {{ color: #4f46e5; text-decoration: none; font-weight: 600; border-bottom: 1px solid #4f46e5; }}
+                                </style>
+                                <div class="email-body">
+                                    {html_paragraphs}
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td align="center" style="padding: 30px 24px; background-color: #fafbfc; border-top: 1px solid #e2e8f0; color: #64748b; font-size: 13px;">
+                            <p style="margin: 0 0 4px 0; font-weight: 700; color: #0f172a; letter-spacing: 0.2px;">TimeArrow Private Limited (WisBees)</p>
+                            <p style="margin: 0; color: #94a3b8; font-size: 12px;">Mumbai, Maharashtra, India</p>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            """
+
+            recipients = [{"emailAddress": {"address": reader_email}}]
+
+            email_payload = {
+                "message": {
+                    "subject": custom_subject,
+                    "body": {
+                        "contentType": "HTML",
+                        "content": finshots_html_layout
+                    },
+                    "toRecipients": recipients,
+                    "attachments": inline_attachments
+                },
+                "saveToSentItems": True
+            }
+
+            graph_send_url = f"https://graph.microsoft.com/v1.0/users/{SENDER_EMAIL}/sendMail"
+            requests.post(
+                graph_send_url,
+                headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+                json=email_payload
+            )
+
+        return jsonify({'success': True, 'message': f'Newsletter successfully blasted with layout and token enhancements!'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Processing error: {str(e)}'}), 500
 # ─────────────── INIT ───────────────
 
 def init_db():

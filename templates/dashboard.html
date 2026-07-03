@@ -33,9 +33,9 @@
   </div>
   <div class="stat-card">
     <div class="stat-label">New This Month</div>
-    <div class="stat-value" style="color:var(--accent3)">{{ new_this_month }}</div>
-    <div class="stat-change"><i class="fas fa-calendar-plus" style="color:var(--accent3)"></i> Added this month</div>
-    <div class="stat-icon" style="background:rgba(6,182,212,0.12);color:var(--accent3)"><i class="fas fa-user-plus"></i></div>
+    <div class="stat-value" style="color:var(--yellow)">{{ new_this_month }}</div>
+    <div class="stat-change"><i class="fas fa-calendar-plus" style="color:var(--yellow)"></i> Added this month</div>
+    <div class="stat-icon" style="background:rgba(6,182,212,0.12);color:var(--yellow)"><i class="fas fa-user-plus"></i></div>
   </div>
   <div class="stat-card">
     <div class="stat-label">Offers Sent</div>
@@ -259,22 +259,33 @@
 const monthlyData = {{ monthly_data|safe }};
 const weeklyData  = {{ weekly_data|safe }};
 const weeklyLabels = {{ weekly_labels|safe }};
-const deptLabels  = {{ dept_labels|safe }};
-const deptData    = {{ dept_data|safe }};
+const deptLabels   = {{ dept_labels|safe }};
+const deptData     = {{ dept_data|safe }};
 
 const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const ACCENT = '#6366f1', GREEN = '#10b981', YELLOW = '#f59e0b', CYAN = '#06b6d4';
-const PALETTE = [ACCENT,'#8b5cf6',CYAN,GREEN,YELLOW,'#f97316','#ec4899','#14b8a6'];
 
-Chart.defaults.color = '#64748b';
-Chart.defaults.font.family = 'Inter';
+// ─── UPDATED: BRAND COLOUR CONSTANTS ───
+const ACCENT = '#0E9F6E'; // Your signature brand green
+const GREEN  = '#10b981'; // Lighter green support
+const ORANGE = '#F59E0B'; // Replaced YELLOW/CYAN with Orange
+const AMBER  = '#D97706'; // Darker orange support
+
+// Updated PALETTE with clean alternating green and orange tones
+const PALETTE = [ACCENT, ORANGE, GREEN, AMBER, '#057A55', '#FF8A4C'];
+
+// Chart defaults tracking your dark theme's subdued text color
+Chart.defaults.color = '#94a3b8'; 
+Chart.defaults.font.family = "'Inter', sans-serif";
 
 let hiringChart;
 function buildHiringChart(labels, data) {
   const ctx = document.getElementById('hiringChart').getContext('2d');
+  
+  // ─── UPDATED: GREEN GRADIENT FOR BACKGROUND FILL ───
   const grad = ctx.createLinearGradient(0,0,0,220);
-  grad.addColorStop(0,'rgba(99,102,241,0.35)');
-  grad.addColorStop(1,'rgba(99,102,241,0)');
+  grad.addColorStop(0, 'rgba(14, 159, 110, 0.35)'); // Translucent Green at the top
+  grad.addColorStop(1, 'rgba(14, 159, 110, 0)');    // Fades out completely at the bottom
+
   if (hiringChart) hiringChart.destroy();
   hiringChart = new Chart(ctx, {
     type: 'line',
@@ -282,7 +293,7 @@ function buildHiringChart(labels, data) {
       labels,
       datasets: [{
         label: 'Hires', data,
-        borderColor: ACCENT, backgroundColor: grad,
+        borderColor: ACCENT, backgroundColor: grad, // Uses your green ACCENT variable
         fill: true, tension: 0.4,
         pointBackgroundColor: ACCENT, pointRadius: 4, pointHoverRadius: 6,
         borderWidth: 2
@@ -311,11 +322,27 @@ function switchChart(type, btn) {
 
 buildHiringChart(months, monthlyData);
 
-// Doughnut chart
+// Doughnut chart — Departments
 if (deptData.length > 0) {
   new Chart(document.getElementById('deptChart').getContext('2d'), {
     type: 'doughnut',
-    data: { labels: deptLabels, datasets: [{ data: deptData, backgroundColor: PALETTE, borderWidth: 0, hoverOffset: 6 }] },
+    data: { 
+      labels: deptLabels, 
+      datasets: [{ 
+        data: deptData, 
+        // ─── UPDATED: alternating shades of Green and Orange ───
+        backgroundColor: [
+          '#0E9F6E', // Primary Green
+          '#F59E0B', // Vibrant Orange
+          '#10B981', // Lighter Green[cite: 2]
+          '#D97706', // Darker Orange
+          '#057A55', // Deep Green
+          '#FF8A4C'  // Soft Coral/Orange
+        ], 
+        borderWidth: 0, 
+        hoverOffset: 6 
+      }] 
+    },
     options: {
       responsive: true, maintainAspectRatio: false,
       cutout: '68%',
@@ -332,6 +359,7 @@ if (deptData.length > 0) {
 const typeLabels = {{ type_labels|safe }};
 const typeData   = {{ type_data|safe }};
 
+// Doughnut chart — Intern vs Employee
 if (typeData[0] > 0 || typeData[1] > 0) {
   new Chart(document.getElementById('typeChart').getContext('2d'), {
     type: 'doughnut',
@@ -339,7 +367,11 @@ if (typeData[0] > 0 || typeData[1] > 0) {
       labels: typeLabels,
       datasets: [{
         data: typeData,
-        backgroundColor: ['#8b5cf6', '#10b981'],
+        // ─── UPDATED: Changed from Purple/Teal to Green and Orange ───
+        backgroundColor: [
+          '#0E9F6E', // Green (e.g., Employees)[cite: 2]
+          '#F59E0B'  // Orange (e.g., Interns)
+        ],
         borderWidth: 0,
         hoverOffset: 6
       }]
