@@ -314,12 +314,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, custom_notes='')
 
     for item in role_info["responsibilities"]:
         story.append(Paragraph(f"·&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {item}", sty_bullet))
-    if custom_notes:
-        story.append(Spacer(1, 0.2*cm))
-        story.append(Paragraph("Additional Notes", sty_bold))
-        story.append(Paragraph(custom_notes, sty_body))
 
-    story.append(Spacer(1, 0.25*cm))
 
     # ── NDA paragraph ─────────────────────────────────────────────────────────
     story.append(Paragraph(
@@ -338,8 +333,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, custom_notes='')
         sty_body
     ))
     for benefit in [
-        "Internship Completion Certificate",
-        "Experience Letter (based on performance)",
+        "Internship Experience Letter",
         "Letter of Recommendation (if applicable)",
     ]:
         story.append(Paragraph(f"·&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {benefit}", sty_bullet))
