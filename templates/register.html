@@ -1,215 +1,478 @@
 <!DOCTYPE html>
-<html lang="en">
+<html data-theme="light" lang="en">
 <head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Register — FRET</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
-<style>
-:root {
-  --bg:#0f1117;--bg2:#161b27;--bg3:#1e2535;--border:rgba(255,255,255,0.07);
-  --accent:#6366f1;--accent2:#8b5cf6;--green:#10b981;--red:#ef4444;
-  --text:#f1f5f9;--text2:#94a3b8;--text3:#64748b;
-}
-[data-theme="light"]{
-  --bg:#f8fafc;
-  --bg2:#ffffff;
-  --bg3:#f1f5f9;
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Register | Human Capital Future</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+    <style>
+        /* ─── 1. CORE THEME VARIABLES ─── */
+        :root {
+            --bg-left: #F8FAFC;
+            --bg-right: #FFFFFF;
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            --border-color: #E2E8F0;
+            --input-bg: #FFFFFF;
+            --primary: #0E9F6E;
+            --primary-hover: #0A7A54;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 12px 24px -8px rgba(0,0,0,0.1);
+            --btn-text: #FFFFFF;
+            --toggle-bg: #F1F5F9;
+            --toggle-active: #FFFFFF;
+            --error-bg: #FEF2F2;
+            --error-text: #DC2626;
+            --success-bg: #F0FDF4;
+            --success-text: #16A34A;
+            --dot-color: rgba(15, 23, 42, 0.08);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-  --text:#0f172a;
-  --text2:#475569;
-  --text3:#64748b;
+        [data-theme="dark"] {
+            --bg-left: #0B1120;
+            --bg-right: #0F172A;
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+            --border-color: #1E293B;
+            --input-bg: #0F172A;
+            --primary: #10B981;
+            --primary-hover: #34D399;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+            --shadow-md: 0 12px 24px -8px rgba(0,0,0,0.4);
+            --btn-text: #0F172A;
+            --toggle-bg: #1E293B;
+            --toggle-active: #334155;
+            --dot-color: rgba(248, 250, 252, 0.06);
+        }
 
-  --border:rgba(0,0,0,0.08);
-}
-.theme-btn{
-  position:fixed;
-  top:20px;
-  right:20px;
-  width:42px;
-  height:42px;
-  border:none;
-  border-radius:10px;
-  background:var(--bg3);
-  color:var(--text);
-  cursor:pointer;
-  z-index:9999;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:grid;place-items:center;padding:32px 16px;}
-.bg-grid{position:fixed;inset:0;z-index:0;background-image:linear-gradient(rgba(99,102,241,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,0.03) 1px,transparent 1px);background-size:40px 40px;}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:36px;width:100%;max-width:560px;position:relative;z-index:1;animation:slideUp 0.5s ease both;}
-@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
-.logo{
-  display:flex;
-  justify-content:center;
-  margin-bottom:24px;
-}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
 
-.register-logo{
-  width:130px;
-  height:auto;
-  object-fit:contain;
-  filter:drop-shadow(0 10px 25px rgba(99,102,241,.25));
-}
+        body {
+            background-color: var(--bg-right);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
+        }
 
-.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:10px;display:grid;place-items:center;font-size:18px;}
-.logo-text{font-family:'Plus Jakarta Sans',sans-serif;font-weight:800;font-size:1.3rem;}
-.logo-text span{color:var(--accent);}
-h1{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.5rem;font-weight:800;margin-bottom:4px;}
-.sub{font-size:0.87rem;color:var(--text3);margin-bottom:28px;}
-.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-.form-group{margin-bottom:14px;}
-label{display:block;font-size:0.8rem;font-weight:600;color:var(--text2);margin-bottom:5px;}
-.inp-wrap{position:relative;}
-.inp-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:0.85rem;}
-input,select{width:100%;padding:10px 12px 10px 36px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:0.875rem;font-family:inherit;outline:none;transition:all 0.2s;}
-input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,0.15);}
-input::placeholder{color:var(--text3);}
-select{cursor:pointer;}
-/* Signature upload */
-.sig-upload{border:2px dashed var(--border);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;}
-.sig-upload:hover{border-color:var(--accent);background:rgba(99,102,241,0.04);}
-.sig-upload input{position:absolute;inset:0;opacity:0;cursor:pointer;padding:0;}
-.sig-icon{font-size:2rem;margin-bottom:8px;color:var(--text3);}
-.sig-label{font-size:0.85rem;color:var(--text2);}
-.sig-hint{font-size:0.75rem;color:var(--text3);margin-top:4px;}
-.sig-preview{max-height:80px;border-radius:6px;margin-top:8px;display:none;}
-.btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border:none;border-radius:10px;font-size:0.95rem;font-weight:700;cursor:pointer;transition:all 0.2s;font-family:inherit;margin-top:6px;box-shadow:0 4px 20px rgba(99,102,241,0.35);}
-.btn:hover{transform:translateY(-1px);box-shadow:0 6px 28px rgba(99,102,241,0.5);}
-.footer{text-align:center;margin-top:20px;font-size:0.85rem;color:var(--text3);}
-.footer a{color:var(--accent);text-decoration:none;font-weight:600;}
-.alert{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:10px 14px;color:#fca5a5;font-size:0.85rem;display:flex;align-items:center;gap:8px;margin-bottom:14px;}
-</style>
+        /* --- Architecture --- */
+        .split-layout {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+
+        .left-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem;
+            position: relative;
+            background-color: var(--bg-left);
+            overflow: hidden;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .right-pane {
+            width: 100%;
+            background-color: var(--bg-right);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        @media (min-width: 1024px) {
+            .left-pane { display: flex; }
+            .right-pane { flex: 0 0 520px; max-width: 520px; padding: 3.5rem; }
+        }
+
+        @media (min-width: 1440px) {
+            .right-pane { flex: 0 0 560px; max-width: 560px; padding: 4.5rem; }
+            .left-pane { padding: 6rem; }
+        }
+
+        /* --- Left Pane Elements --- */
+        .dot-grid {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            background-image: radial-gradient(var(--dot-color) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.3;
+            z-index: 0;
+            pointer-events: none;
+            animation: drift 15s infinite alternate ease-in-out;
+        }
+
+        .orb-emerald {
+            width: 450px;
+            height: 450px;
+            background: var(--primary);
+            top: -5%;
+            right: -10%;
+        }
+
+        .orb-blue {
+            width: 350px;
+            height: 350px;
+            background: #2563C9;
+            bottom: 5%;
+            left: 5%;
+            opacity: 0.2;
+            animation-direction: alternate-reverse;
+            animation-duration: 12s;
+        }
+
+        @keyframes drift {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-40px, 50px) scale(1.05); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 10;
+            max-width: 500px;
+        }
+
+        .hero-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.05;
+            margin-bottom: 1.25rem;
+            letter-spacing: -1.5px;
+            color: var(--text-main);
+        }
+
+        .hero-title span {
+            color: var(--primary);
+        }
+
+        .hero-desc {
+            font-size: 1.15rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-bottom: 3rem;
+            max-width: 440px;
+        }
+
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        .glass-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .glass-header i {
+            color: var(--primary);
+        }
+
+        .metrics { display: grid; }
+        .metric-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 12px 0; font-size: 0.9rem; }
+        .metric-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .metric-label { color: var(--text-muted); }
+        .metric-value { font-weight: 600; color: var(--primary); }
+
+        /* --- Right Pane Form --- */
+        .auth-container { width: 100%; margin: 0 auto; max-width: 400px; }
+        .auth-header { margin-bottom: 2rem; text-align: left; }
+        .auth-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.5px; }
+        .auth-sub { color: var(--text-muted); font-size: 0.95rem; }
+
+        .auth-form { display: grid; gap: 1.25rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* Floating Label Logic */
+        .input-group { position: relative; }
+        .input-field, .select-field {
+            width: 100%;
+            padding: 1.35rem 1rem 0.65rem 1.25rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus, .select-field:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(14, 159, 110, 0.1);
+        }
+
+        .floating-label {
+            position: absolute;
+            left: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+            transition: all 0.2s ease-out;
+            transform-origin: left top;
+            font-size: 1rem;
+        }
+
+        .input-field:focus ~ .floating-label,
+        .input-field:not(:placeholder-shown) ~ .floating-label,
+        .select-field:focus ~ .floating-label,
+        .select-field:not([value=""]) ~ .floating-label {
+            top: 0.6rem;
+            transform: translateY(0) scale(0.75);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .select-field {
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .input-group::after {
+            content: '\f078';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            right: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        .input-group.no-arrow::after { display: none; }
+
+        .password-toggle {
+            position: absolute;
+            right: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: var(--text-muted);
+            z-index: 5;
+            padding: 5px;
+        }
+        .password-toggle:hover { color: var(--text-main); }
+
+        /* Custom Signature Component */
+        .signature-upload {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            background: var(--toggle-bg);
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .signature-upload:hover { border-color: var(--primary); background: var(--input-bg); }
+        .signature-upload i { font-size: 1.5rem; color: var(--primary); margin-bottom: 8px; display: block; }
+        .signature-upload span { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+        .signature-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+        /* Original Theme Toggle Button Structure Placement */
+        .theme-btn {
+            position: absolute; top: 2rem; right: 2rem;
+            background: transparent; border: 1px solid var(--border-color);
+            color: var(--text-muted); width: 40px; height: 40px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; z-index: 50;
+        }
+        .theme-btn:hover { background: var(--toggle-bg); color: var(--text-main); }
+
+        /* Buttons & Layout Extras */
+        .submit-btn {
+            width: 100%; padding: 1rem; background: var(--primary);
+            color: var(--btn-text); border: none; border-radius: 12px;
+            font-size: 1.05rem; font-weight: 600; cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s; display: flex; justify-content: center; align-items: center; gap: 8px;
+            margin-top: 0.5rem;
+        }
+        .submit-btn:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .submit-btn:active { transform: translateY(0); }
+
+        .register-text { text-align: center; font-size: 0.9rem; color: var(--text-muted); font-weight: 500; margin-top: 1rem; }
+        .register-text a { color: var(--text-main); font-weight: 700; text-decoration: none; }
+        .register-text a:hover { text-decoration: underline; color: var(--primary); }
+
+        /* Jinja Message Box */
+        .alert-box {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--error-bg);
+            color: var(--error-text);
+            border: 1px solid rgba(220, 38, 38, 0.15);
+        }
+    </style>
 </head>
 <body>
-<div class="bg-grid"></div>
-<button class="theme-btn" onclick="toggleTheme()">
-    <i class="fas fa-sun" id="themeIcon"></i>
-</button>
-<div class="card">
-  <div class="logo">
-    <img src="{{ url_for('static', filename='logo.png') }}"
-         class="register-logo"
-         alt="Company Logo">
-  </div>
-  <h1>HR Portal Registration</h1>
-  <p class="sub">
-Create your HR account to manage employees, onboarding, offer letters and documentation.
-</p>
-
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-    <div class="alert"><i class="fas fa-exclamation-circle"></i> {{ message }}</div>
-    {% endfor %}
-  {% endwith %}
-
-  <form method="POST" enctype="multipart/form-data">
-    <div class="grid2">
-      <div class="form-group">
-        <label>Full Name *</label>
-        <div class="inp-wrap">
-          <i class="fas fa-user inp-icon"></i>
-          <input type="text" name="name" placeholder="Priya Sharma" required/>
+<div class="split-layout">
+    <section class="left-pane">
+        <div class="dot-grid"></div>
+        <div class="orb orb-emerald"></div>
+        <div class="orb orb-blue"></div>
+        
+        <div class="hero-content">
+            <h1 class="hero-title">Join the Future of<br/><span>Human Capital.</span></h1>
+            <p class="hero-desc">FRET brings offers, onboarding, attendance, and analytics into one clean workspace.</p>
         </div>
-      </div>
-      <div class="form-group">
-        <label>Phone</label>
-        <div class="inp-wrap">
-          <i class="fas fa-phone inp-icon"></i>
-          <input type="tel" name="phone" placeholder="+91 98765 43210"/>
-        </div>
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Work Email *</label>
-      <div class="inp-wrap">
-        <i class="fas fa-envelope inp-icon"></i>
-        <input type="email" name="email" placeholder="priya@company.com" required/>
-      </div>
-    </div>
-    <div class="form-group">
-      <label>Designation</label>
-      <div class="inp-wrap">
-        <i class="fas fa-briefcase inp-icon"></i>
-        <select name="designation">
-          <option>HR Manager</option>
-          <option>Senior HR Manager</option>
-        </select>
-      </div>
-    </div>
-    <div class="grid2">
-      <div class="form-group">
-        <label>Password *</label>
-        <div class="inp-wrap">
-          <i class="fas fa-lock inp-icon"></i>
-          <input type="password" name="password" placeholder="Min. 8 characters" required/>
-        </div>
-      </div>
-      <div class="form-group">
-        <label>Confirm Password</label>
-        <div class="inp-wrap">
-          <i class="fas fa-shield-alt inp-icon"></i>
-          <input type="password" name="confirm_password" placeholder="Re-enter password"/>
-        </div>
-      </div>
-    </div>
+    </section>
 
-    <!-- Signature upload -->
-    <div class="form-group">
-      <label>Your Signature (for Offer Letters)</label>
-      <div class="sig-upload" >
-        <input type="file" name="signature" accept="image/*" onchange="previewSig(event)"/>
-        <div class="sig-icon">✍️</div>
-        <div class="sig-label">Click to upload your signature</div>
-        <div class="sig-hint">PNG with transparent background recommended · Max 2MB</div>
-        <img id="sigPreview" class="sig-preview" src="" alt="Signature preview"/>
-      </div>
-    </div>
+    <main class="right-pane">
+        <button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle Theme">
+            <i class="fas fa-moon" id="theme-icon"></i>
+        </button>
 
-    <button type="submit" class="btn">
-      <i class="fas fa-rocket"></i>&nbsp; Create Account &amp; Start
-    </button>
-  </form>
-  <div class="footer">Already have an account? <a href="{{ url_for('login') }}">Sign in →</a></div>
+        <div class="auth-container">
+            <div class="auth-header">
+                <h2 class="auth-title">Create an Account</h2>
+                <p class="auth-sub">Start managing your team today</p>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box {{ category }}">
+                            <i class="fas fa-exclamation-circle"></i> {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form action="" class="auth-form" enctype="multipart/form-data" id="register-form" method="POST">
+                <div class="form-row">
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="name" name="name" placeholder=" " required="" type="text"/>
+                        <label class="floating-label" for="name">Full Name</label>
+                    </div>
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="phone" name="phone" placeholder=" " required="" type="tel"/>
+                        <label class="floating-label" for="phone">Phone</label>
+                    </div>
+                </div>
+                <div class="input-group no-arrow">
+                    <input class="input-field" id="email" name="email" placeholder=" " required="" type="email"/>
+                    <label class="floating-label" for="email">Work Email</label>
+                </div>
+                <div class="input-group">
+                    <select class="select-field" id="designation" name="designation" onchange="this.setAttribute('value', this.value);" required="">
+                        <option disabled="" hidden="" selected="" value=""></option>
+                        <option value="hr_manager">HR Manager</option>
+                        <option value="executive">Executive</option>
+                    </select>
+                    <label class="floating-label" for="designation">Designation</label>
+                </div>
+                <div class="form-row">
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="password" name="password" placeholder=" " required="" type="password"/>
+                        <label class="floating-label" for="password">Password</label>
+                        <i class="fas fa-eye password-toggle" onclick="togglePass('password', this)"></i>
+                    </div>
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="confirm_password" name="confirm_password" placeholder=" " required="" type="password"/>
+                        <label class="floating-label" for="confirm_password">Confirm</label>
+                        <i class="fas fa-eye password-toggle" onclick="togglePass('confirm_password', this)"></i>
+                    </div>
+                </div>
+                <div class="signature-upload">
+                    <i class="fas fa-file-signature"></i>
+                    <span>Click to upload your digital signature (PNG/JPG)</span>
+                    <input accept="image/*" name="signature" required="" type="file"/>
+                </div>
+                <button class="submit-btn" type="submit">
+                    Create Account <i class="fas fa-arrow-right"></i>
+                </button>
+                <p class="register-text">
+                    Already have an account? <a href="{{ url_for('login') }}">Sign in here</a>
+                </p>
+            </form>
+        </div>
+    </main>
 </div>
-
 <script>
-function previewSig(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (ev) => {
-    const img = document.getElementById('sigPreview');
-    img.src = ev.target.result;
-    img.style.display = 'block';
-    e.target.closest('.sig-upload').querySelector('.sig-icon').textContent = '✅';
-    e.target.closest('.sig-upload').querySelector('.sig-label').textContent = file.name;
-  };
-  reader.readAsDataURL(file);
-}
+        // Password Toggle logic
+        function togglePass(id, el) {
+            const input = document.getElementById(id);
+            if (input.type === "password") {
+                input.type = "text";
+                el.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = "password";
+                el.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
 
-function toggleTheme() {
-  const html = document.documentElement;
-  const isDark = html.getAttribute('data-theme') !== 'light';
+        // Handles changing light/dark mode
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            const currentTheme = html.getAttribute('data-theme');
+            
+            if (currentTheme === 'dark') {
+                html.setAttribute('data-theme', 'light');
+                icon.className = 'fas fa-moon';
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
 
-  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+        // Initialize Theme on Load
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.className = savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+        })();
 
-  document.getElementById('themeIcon').className =
-      isDark ? 'fas fa-moon' : 'fas fa-sun';
+        // Handle select value attribute for floating label CSS
+        document.getElementById('designation').addEventListener('change', function() {
+            this.setAttribute('value', this.value);
+        });
 
-  localStorage.setItem('theme', isDark ? 'light' : 'dark');
-}
-
-const savedTheme = localStorage.getItem('theme') || 'dark';
-
-document.documentElement.setAttribute('data-theme', savedTheme);
-
-document.getElementById('themeIcon').className =
-    savedTheme === 'light'
-    ? 'fas fa-moon'
-    : 'fas fa-sun';
-</script>
+        // Form Submission visual feedback
+        document.getElementById('register-form').addEventListener('submit', function(e) {
+            const btn = this.querySelector('.submit-btn');
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Processing...';
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.8';
+        });
+    </script>
 </body>
 </html>
