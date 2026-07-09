@@ -39,7 +39,7 @@
     </div>
     <hr class="fret-wh-divider">
 
-    {% if 'marketing' in (current_user.department or '')|lower or 'marketing' in (current_user.designation or '')|lower %}
+    {% if current_user.designation == 'Digital Marketing Intern' or current_user.department == 'Marketing' %}
         <div class="fret-nm-card">
             <div class="fret-nm-card-header">
                 <h4 class="fret-nm-card-title"><i class="fas fa-paper-plane"></i> Newsletter Emailing Module</h4>
@@ -47,17 +47,23 @@
             <div class="fret-nm-card-body">
                 <form id="newsletterUploadForm">
                     <div class="fret-nm-form-block">
-                        <label for="postSlug" class="fret-nm-form-label">1. Select Newsletter (from wisbees.com)</label>
-                        <select id="postSlug" class="form-control" required
-                                style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;">
-                            <option value="">Loading posts…</option>
-                        </select>
-                        <div id="postMeta" style="margin-top: 10px; color: var(--text2); font-size: 13px;"></div>
+                        <label for="emailSubject" class="fret-nm-form-label">1. Email Subject Line</label>
+                        <input type="text" id="emailSubject" class="form-control" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Enter email subject..." required>
                     </div>
-
                     <div class="fret-nm-form-block">
-                        <label for="emailSubject" class="fret-nm-form-label">2. Subject Line (blank = post title)</label>
-                        <input type="text" id="emailSubject" class="form-control" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Defaults to the post title">
+                        <label for="thumbnailImage" class="fret-nm-form-label">3. Featured Thumbnail Image (Optional)</label>
+                        <div class="fret-nm-input-group">
+                            <input type="file" class="fret-nm-file-control" id="thumbnailImage" accept=".jpg, .jpeg, .png">
+                            <div class="fret-nm-input-addon"><i class="fas fa-image"></i></div>
+                        </div>
+                        <div id="fretImagePreview" class="fret-nm-preview-container" style="display:none; margin-top: 10px;">
+                            <i class="fas fa-check-circle fret-nm-preview-icon"></i>
+                            <span>Selected image: <span id="fretImageName" class="fret-nm-preview-name"></span></span>
+                        </div>
+                    </div>
+                    <div class="fret-nm-form-block">
+                        <label for="emailContent" class="fret-nm-form-label">2. Email Content / Message Body</label>
+                        <textarea class="form-control" id="emailContent" rows="6" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Write your message. Use {Name} to dynamically insert the receiver's name from Excel..." required></textarea>
                     </div>
 
                     <div class="fret-nm-form-block">
@@ -71,18 +77,11 @@
                             <span>Selected file: <span id="fretFileName" class="fret-nm-preview-name"></span></span>
                         </div>
                     </div>
-
+                    
                     <button type="submit" class="fret-nm-submit-btn" id="broadcastBtn">
                         <i class="fas fa-rocket"></i> Blast Bulk Newsletter
                     </button>
                 </form>
-
-                <div id="jobProgress" style="display:none; margin-top: 24px;">
-                    <div style="background: var(--bg3); border-radius: 999px; height: 8px; overflow: hidden;">
-                        <div id="jobBar" style="height: 100%; width: 0%; background: linear-gradient(90deg,#4f46e5,#8b5cf6); transition: width .4s;"></div>
-                    </div>
-                    <div id="jobText" style="margin-top: 10px; font-size: 13px; color: var(--text2);"></div>
-                </div>
             </div>
         </div>
     {% else %}
@@ -96,39 +95,6 @@
 </div>
 
 <script>
-// ── Load newsletter posts from Ghost ──────────────────────────────
-(async function loadPosts() {
-    const sel = document.getElementById('postSlug');
-    if (!sel) return;
-    try {
-        const res = await fetch('/api/newsletter/posts');
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message);
-
-        sel.innerHTML = '<option value="">— choose a post —</option>';
-        data.posts.forEach(p => {
-            const o = document.createElement('option');
-            o.value = p.slug;
-            o.textContent = p.title;
-            o.dataset.excerpt = p.excerpt || '';
-            o.dataset.date = new Date(p.published_at).toLocaleDateString();
-            o.dataset.visibility = p.visibility;
-            sel.appendChild(o);
-        });
-    } catch (e) {
-        sel.innerHTML = `<option value="">Could not load posts: ${e.message}</option>`;
-    }
-})();
-
-document.getElementById('postSlug')?.addEventListener('change', function () {
-    const o = this.selectedOptions[0];
-    const meta = document.getElementById('postMeta');
-    if (!o?.value) { meta.textContent = ''; return; }
-    const gated = o.dataset.visibility !== 'public'
-        ? ` · <span style="color:#f59e0b">${o.dataset.visibility}-only</span>` : '';
-    meta.innerHTML = `Published ${o.dataset.date}${gated}<br>${o.dataset.excerpt.slice(0, 160)}…`;
-});
-
 document.getElementById('excelFile')?.addEventListener('change', function(e) {
     const filePreview = document.getElementById('fretFilePreview');
     const fileNameSpan = document.getElementById('fretFileName');
@@ -140,58 +106,59 @@ document.getElementById('excelFile')?.addEventListener('change', function(e) {
     }
 });
 
-// ── Submit + poll ─────────────────────────────────────────────────
-document.getElementById('newsletterUploadForm')?.addEventListener('submit', async function (e) {
+document.getElementById('newsletterUploadForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     const fileInput = document.getElementById('excelFile');
     if (!fileInput.files.length) return;
 
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('email_subject', document.getElementById('emailSubject').value);
+    const imageInput = document.getElementById('thumbnailImage');
+    if (imageInput.files.length > 0) {
+        formData.append('thumbnail', imageInput.files[0]);
+    }
+    document.getElementById('thumbnailImage')?.addEventListener('change', function(e) {
+        const preview = document.getElementById('fretImagePreview');
+        const nameSpan = document.getElementById('fretImageName');
+        if (this.files && this.files.length > 0) {
+            nameSpan.textContent = this.files[0].name;
+            preview.style.display = 'flex';
+        } else {
+            preview.style.display = 'none';
+        }
+    });
+    formData.append('message_body', document.getElementById('emailContent').value);
     const btn = document.getElementById('broadcastBtn');
     const originalHtml = btn.innerHTML;
-    const fd = new FormData();
-    fd.append('post_slug', document.getElementById('postSlug').value);
-    fd.append('email_subject', document.getElementById('emailSubject').value);
-    fd.append('file', fileInput.files[0]);
-
+    
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Queueing…';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting & Sending...';
 
-    try {
-        const res = await fetch('/send-bulk-newsletter', { method: 'POST', body: fd });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.message);
-        if (typeof showToast === "function") { showToast(data.message, 'success'); }
-        fileInput.value = '';
-        document.getElementById('fretFilePreview').style.display = 'none';
-        pollJob(data.job_id);
-    } catch (err) {
-        if (typeof showToast === "function") { showToast(err.message, 'error'); } else { alert(err.message); }
+    fetch('/send-bulk-newsletter', {
+        method: 'POST',
+        body: formData
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            if (typeof showToast === "function") { showToast(data.message, 'success'); } else { alert(data.message); }
+            fileInput.value = ''; 
+            document.getElementById('emailSubject').value = '';
+            document.getElementById('emailContent').value = '';
+            document.getElementById('fretFilePreview').style.display = 'none';
+        } else {
+            if (typeof showToast === "function") { showToast(data.message, 'error'); } else { alert("Error: " + data.message); }
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        if (typeof showToast === "function") { showToast('A connection timeout occurred.', 'error'); } else { alert('A network error occurred.'); }
+    })
+    .finally(() => {
         btn.disabled = false;
         btn.innerHTML = originalHtml;
-    }
+    });
 });
-
-function pollJob(jobId) {
-    const wrap = document.getElementById('jobProgress');
-    const bar = document.getElementById('jobBar');
-    const text = document.getElementById('jobText');
-    const btn = document.getElementById('broadcastBtn');
-    const originalHtml = '<i class="fas fa-rocket"></i> Blast Bulk Newsletter';
-    wrap.style.display = 'block';
-
-    const tick = setInterval(async () => {
-        const d = await (await fetch(`/api/newsletter/job/${jobId}`)).json();
-        const done = d.sent + d.failed;
-        bar.style.width = `${d.total ? (done / d.total) * 100 : 0}%`;
-        text.textContent = `${d.status} — ${d.sent} sent, ${d.failed} failed, ${d.total - done} remaining`;
-
-        if (d.status === 'completed' || d.status === 'failed') {
-            clearInterval(tick);
-            if (d.error) text.textContent += ` — ${d.error}`;
-            btn.disabled = false;
-            btn.innerHTML = originalHtml;
-        }
-    }, 3000);
-}
 </script>
 {% endblock %}
