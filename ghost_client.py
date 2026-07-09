@@ -11,7 +11,7 @@ from urllib.parse import urlencode
 import requests
 
 GHOST_URL = os.environ.get("GHOST_URL", "https://wisbees.com").rstrip("/")
-CONTENT_KEY = os.environ.get("GHOST_CONTENT_API_KEY")
+CONTENT_KEY = os.environ.get("cd7e88cb2e1e4863b0dfdc51df")
 ADMIN_KEY = os.environ.get("GHOST_ADMIN_API_KEY")  # optional, "<id>:<hex secret>"
 NEWSLETTER_TAG = os.environ.get("GHOST_NEWSLETTER_TAG", "newsletter")
 
