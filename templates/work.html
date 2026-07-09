@@ -47,23 +47,14 @@
             <div class="fret-nm-card-body">
                 <form id="newsletterUploadForm">
                     <div class="fret-nm-form-block">
-                        <label for="emailSubject" class="fret-nm-form-label">1. Email Subject Line</label>
-                        <input type="text" id="emailSubject" class="form-control" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Enter email subject..." required>
+                        <label for="ghostPostSelect" class="fret-nm-form-label">1. Select Newsletter Post (from Ghost)</label>
+                        <select id="ghostPostSelect" class="form-control" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" required>
+                            <option value="">Loading posts…</option>
+                        </select>
                     </div>
                     <div class="fret-nm-form-block">
-                        <label for="thumbnailImage" class="fret-nm-form-label">3. Featured Thumbnail Image (Optional)</label>
-                        <div class="fret-nm-input-group">
-                            <input type="file" class="fret-nm-file-control" id="thumbnailImage" accept=".jpg, .jpeg, .png">
-                            <div class="fret-nm-input-addon"><i class="fas fa-image"></i></div>
-                        </div>
-                        <div id="fretImagePreview" class="fret-nm-preview-container" style="display:none; margin-top: 10px;">
-                            <i class="fas fa-check-circle fret-nm-preview-icon"></i>
-                            <span>Selected image: <span id="fretImageName" class="fret-nm-preview-name"></span></span>
-                        </div>
-                    </div>
-                    <div class="fret-nm-form-block">
-                        <label for="emailContent" class="fret-nm-form-label">2. Email Content / Message Body</label>
-                        <textarea class="form-control" id="emailContent" rows="6" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Write your message. Use {Name} to dynamically insert the receiver's name from Excel..." required></textarea>
+                        <label for="emailSubject" class="fret-nm-form-label">2. Email Subject Line (optional — defaults to post title)</label>
+                        <input type="text" id="emailSubject" class="form-control" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;" placeholder="Leave blank to use the post title...">
                     </div>
 
                     <div class="fret-nm-form-block">
@@ -77,11 +68,12 @@
                             <span>Selected file: <span id="fretFileName" class="fret-nm-preview-name"></span></span>
                         </div>
                     </div>
-                    
+
                     <button type="submit" class="fret-nm-submit-btn" id="broadcastBtn">
                         <i class="fas fa-rocket"></i> Blast Bulk Newsletter
                     </button>
                 </form>
+                <div id="fretJobStatus" style="display:none; margin-top: 20px; padding: 14px 16px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.88rem; color: var(--text2);"></div>
             </div>
         </div>
     {% else %}
@@ -106,34 +98,58 @@ document.getElementById('excelFile')?.addEventListener('change', function(e) {
     }
 });
 
+const ghostPostSelect = document.getElementById('ghostPostSelect');
+if (ghostPostSelect) {
+    fetch('/api/newsletter/posts')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.posts && data.posts.length) {
+                ghostPostSelect.innerHTML = '<option value="">Choose a post…</option>' +
+                    data.posts.map(p => `<option value="${p.slug}">${p.title}</option>`).join('');
+            } else {
+                ghostPostSelect.innerHTML = '<option value="">No posts found on Ghost</option>';
+            }
+        })
+        .catch(() => {
+            ghostPostSelect.innerHTML = '<option value="">Could not load posts from Ghost</option>';
+        });
+}
+
+function pollNewsletterJob(jobId) {
+    const statusBox = document.getElementById('fretJobStatus');
+    statusBox.style.display = 'block';
+    const timer = setInterval(() => {
+        fetch(`/api/newsletter/job/${jobId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data.success) { clearInterval(timer); return; }
+                statusBox.innerHTML = `Status: <strong>${data.status}</strong> — sent ${data.sent}/${data.total}` +
+                    (data.failed ? `, failed ${data.failed}` : '') +
+                    (data.error ? `<br><span style="color: var(--red, #ef4444)">${data.error}</span>` : '');
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(timer);
+                }
+            })
+            .catch(() => clearInterval(timer));
+    }, 4000);
+}
+
 document.getElementById('newsletterUploadForm')?.addEventListener('submit', function(e) {
     e.preventDefault();
     const fileInput = document.getElementById('excelFile');
-    if (!fileInput.files.length) return;
+    const postSlug = ghostPostSelect ? ghostPostSelect.value : '';
+    if (!fileInput.files.length || !postSlug) return;
 
     const formData = new FormData();
     formData.append('file', fileInput.files[0]);
+    formData.append('post_slug', postSlug);
     formData.append('email_subject', document.getElementById('emailSubject').value);
-    const imageInput = document.getElementById('thumbnailImage');
-    if (imageInput.files.length > 0) {
-        formData.append('thumbnail', imageInput.files[0]);
-    }
-    document.getElementById('thumbnailImage')?.addEventListener('change', function(e) {
-        const preview = document.getElementById('fretImagePreview');
-        const nameSpan = document.getElementById('fretImageName');
-        if (this.files && this.files.length > 0) {
-            nameSpan.textContent = this.files[0].name;
-            preview.style.display = 'flex';
-        } else {
-            preview.style.display = 'none';
-        }
-    });
-    formData.append('message_body', document.getElementById('emailContent').value);
+
     const btn = document.getElementById('broadcastBtn');
     const originalHtml = btn.innerHTML;
-    
+
     btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Extracting & Sending...';
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Queuing send...';
 
     fetch('/send-bulk-newsletter', {
         method: 'POST',
@@ -143,10 +159,10 @@ document.getElementById('newsletterUploadForm')?.addEventListener('submit', func
     .then(data => {
         if (data.success) {
             if (typeof showToast === "function") { showToast(data.message, 'success'); } else { alert(data.message); }
-            fileInput.value = ''; 
+            fileInput.value = '';
             document.getElementById('emailSubject').value = '';
-            document.getElementById('emailContent').value = '';
             document.getElementById('fretFilePreview').style.display = 'none';
+            pollNewsletterJob(data.job_id);
         } else {
             if (typeof showToast === "function") { showToast(data.message, 'error'); } else { alert("Error: " + data.message); }
         }
