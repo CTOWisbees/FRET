@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block page_title %}
+Leave Management
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+
+    <h2>Leave Requests</h2>
+    <br>
+    <table>
+
+        <thead>
+            <tr>
+                <th>Employee</th>
+                <th>Leave Type</th>
+                <th>From</th>
+                <th>To</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+
+        <tbody>
+
+        {% for leave in leaves %}
+
+        <tr>
+
+            <td>{{ leave.employee.name }}</td>
+
+            <td>{{ leave.leave_type }}</td>
+
+            <td>{{ leave.from_date }}</td>
+
+            <td>{{ leave.to_date }}</td>
+
+            <td>{{ leave.status }}</td>
+
+            <td>
+
+                {% if leave.status == "Pending" %}
+
+                <a href="{{ url_for('approve_leave', leave_id=leave.id) }}"
+                   class="btn btn-success">
+
+                    Approve
+
+                </a>
+
+                <a href="{{ url_for('reject_leave', leave_id=leave.id) }}"
+                   class="btn btn-danger">
+
+                    Reject
+
+                </a>
+
+                {% endif %}
+
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+        </tbody>
+
+    </table>
+
+</div>
+
+{% endblock %}

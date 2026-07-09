@@ -1,0 +1,454 @@
+{% extends "base.html" %}
+{% block title %}Employees — FRET{% endblock %}
+{% block page_title %}Employees{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Employee Directory</div>
+    <div class="page-subtitle">{{ employees|length }} employee{{ 's' if employees|length != 1 }}</div>
+  </div>
+  <a href="{{ url_for('add_employee') }}" class="btn btn-primary">
+    <i class="fas fa-plus"></i> Add Employee
+  </a>
+  
+</div>
+
+<!-- Filters -->
+<div class="card" style="margin-bottom:20px;padding:16px 20px;">
+  <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+    <div style="flex:1;min-width:200px;">
+      <label class="form-label">Search</label>
+      <div style="position:relative;">
+        <i class="fas fa-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:0.85rem;"></i>
+        <input type="text" name="search" value="{{ search }}" class="form-control" placeholder="Name, email or ID…" style="padding-left:34px;"/>
+      </div>
+    </div>
+    <div style="min-width:160px;">
+      <label class="form-label">Department</label>
+      <select name="department" class="form-control">
+        <option value="">All Departments</option>
+        {% for dept in departments %}
+        <option value="{{ dept }}" {% if dept_filter == dept %}selected{% endif %}>{{ dept }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width:130px;">
+      <label class="form-label">Status</label>
+      <select name="status" class="form-control">
+        <option value="">All Status</option>
+        <option value="Active" {% if status_filter == 'Active' %}selected{% endif %}>Active</option>
+        <option value="Inactive" {% if status_filter == 'Inactive' %}selected{% endif %}>Inactive</option>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-primary" style="height:42px;">
+      <i class="fas fa-filter"></i> Filter
+    </button>
+    {% if search or dept_filter or status_filter %}
+    <a href="{{ url_for('employees') }}" class="btn btn-secondary" style="height:42px;">
+      <i class="fas fa-times"></i> Clear
+    </a>
+    {% endif %}
+  </form>
+</div>
+
+<!-- Table -->
+<div class="card" style="padding:0;overflow:hidden;">
+  {% if employees %}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Employee</th>
+          <th>ID</th>
+          <th>Department</th>
+          <th>Designation</th>
+          <th>Joining Date</th>
+          <th>Salary</th>
+          <th>Status</th>
+          <th>Documents</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for emp in employees %}
+        <tr style="animation:slideUp 0.3s ease both;animation-delay:{{ loop.index * 0.03 }}s">
+          <td>
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,hsl({{ (loop.index * 47 + 200) % 360 }},60%,60%),hsl({{ (loop.index * 47 + 240) % 360 }},70%,50%));display:grid;place-items:center;font-weight:700;font-size:0.85rem;flex-shrink:0;color:#fff">
+                {{ emp.name[0].upper() }}
+              </div>
+              <div>
+                <div style="font-weight:600;font-size:0.875rem;">{{ emp.name }}</div>
+                <div style="font-size:0.75rem;color:var(--text3)">{{ emp.email or '—' }}</div>
+                <span class="badge-pill {% if emp.emp_type == 'Intern' %}badge-sent{% else %}badge-active{% endif %}" 
+                      style="font-size:0.65rem;margin-top:3px;">
+                  {{ emp.emp_type or 'Normal' }}
+              </div>
+            </div>
+          </td>
+          <td><code style="background:var(--bg3);padding:3px 8px;border-radius:6px;font-size:0.78rem;color:var(--accent)">{{ emp.emp_id }}</code></td>
+          <td>{{ emp.department or '—' }}</td>
+          <td>{{ emp.designation or '—' }}</td>
+          <td>{{ emp.joining_date.strftime('%d %b %Y') if emp.joining_date else '—' }}</td>
+          <td style="font-weight:600;">₹{{ '{:,.0f}'.format(emp.salary) }}</td>
+          <td><span class="badge-pill {% if emp.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
+            <i class="fas fa-circle" style="font-size:0.45rem"></i> {{ emp.status }}
+          </span></td>
+          <td>
+            <div style="display:flex;gap:4px;flex-wrap:wrap;">
+              {% if emp.offer_sent %}<span class="badge-pill badge-sent" style="font-size:0.68rem;"><i class="fas fa-check"></i> Offer</span>{% endif %}
+              {% if emp.nda_sent %}<span class="badge-pill badge-sent" style="font-size:0.68rem;"><i class="fas fa-check"></i> NDA</span>{% endif %}
+              {% if not emp.offer_sent and not emp.nda_sent %}<span class="badge-pill badge-pending" style="font-size:0.68rem;">Pending</span>{% endif %}
+            </div>
+          </td>
+          <td>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-success btn-sm" onclick="openOfferModal({{ emp.id }}, '{{ emp.name }}', '{{ emp.designation }}')">
+                <i class="fas fa-file-contract"></i> Offer
+              </button>
+              <a href="{{ url_for('edit_employee', emp_id=emp.id) }}" class="btn btn-secondary btn-sm" title="Edit">
+                <i class="fas fa-pen"></i>
+              </a>
+              
+              <button class="btn btn-danger btn-sm" onclick="openDeleteModal({{ emp.id }}, '{{ emp.name }}')">
+                <i class="fas fa-trash"></i>
+              </button>
+              <button
+                class="btn btn-sm btn-primary"
+                onclick="openExperienceModal(this)"
+                data-id="{{ emp.id }}"
+                data-name="{{ emp.name }}"
+                data-designation="{{ emp.designation }}"
+                data-department="{{ emp.department }}"
+                data-type="{{ emp.emp_type }}"
+                data-joining="{{ emp.joining_date.strftime('%d %b %Y') if emp.joining_date else '' }}"
+                data-end="{{ emp.end_date.strftime('%d %b %Y') if emp.end_date else 'Present' }}">
+
+                <i class="fas fa-file-signature"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %} 
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <i class="fas fa-users-slash"></i>
+    <div style="font-size:1.1rem;font-weight:600;margin-bottom:8px;">No employees found</div>
+    <div style="font-size:0.85rem;margin-bottom:20px;">{% if search or dept_filter or status_filter %}Try adjusting your filters{% else %}Get started by adding your first employee{% endif %}</div>
+    <a href="{{ url_for('add_employee') }}" class="btn btn-primary">
+      <i class="fas fa-plus"></i> Add Employee
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Delete Modal with CONFIRM input -->
+<div class="modal-backdrop" id="deleteModal">
+  <div class="modal">
+    <div class="modal-title">
+      <i class="fas fa-triangle-exclamation" style="color:var(--red)"></i> 
+      Delete Employee
+    </div>
+    <p style="color:var(--text2);font-size:0.9rem;margin-bottom:16px;">
+      This action cannot be undone. Type <strong>CONFIRM</strong> to delete 
+      <strong id="deleteEmpName"></strong>.
+    </p>
+    <input type="text" id="confirmInput" class="form-control" 
+           placeholder="Type CONFIRM" oninput="checkConfirm()"/>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" 
+              onclick="document.getElementById('deleteModal').classList.remove('open')">
+        Cancel
+      </button>
+      <button class="btn btn-danger" id="confirmDeleteBtn" disabled onclick="doDelete()">
+        Delete
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Offer Letter Modal -->
+<div class="modal-backdrop" id="offerModal" style="z-index:210;">
+  <div class="modal" style="max-width:680px;width:95%;">
+    <div class="modal-title">
+      <i class="fas fa-file-contract text-accent"></i> 
+      Generate Offer Letter
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Select Role</label>
+      <select class="form-control" id="offerRoleSelect">
+        <option value="">— Select role —</option>
+        <option>IT Intern – Web & Automation Developer</option>
+        <option>Equity Research Intern</option>
+        <option>HR Intern</option>
+        <option>Legal, Secretarial and Compliance Intern</option>
+        <option>Digital Marketing Intern</option>
+        <option>Finance Content Writer Intern</option>
+        <option>Wealth Management Intern</option>
+        <option>Research and Content Analyst Intern</option>
+      </select>
+    </div>
+
+    <div id="offerPreviewArea" style="display:none;">
+      <div style="font-size:0.82rem;color:var(--text3);margin-bottom:6px;">
+        Edit before sending — this text goes into the PDF
+      </div>
+      <textarea id="offerEditBox" class="form-control" rows="12" 
+                style="font-size:0.82rem;line-height:1.7;resize:vertical;"></textarea>
+    </div>
+
+    <div class="form-group" style="margin-top: 16px; margin-bottom: 20px; text-align: left;">
+      <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">
+        <i class="fas fa-copy text-accent"></i> CC Email Addresses (Optional)
+      </label>
+      <input type="text" 
+             id="email_cc_input" 
+             class="form-control" 
+             placeholder="e.g. gouri.sankar@wisbees.com, jd@wisbees.com" 
+             style="width: 100%; padding: 10px; border-radius: 6px; box-sizing: border-box;" />
+      <small style="color: var(--text3); display: block; margin-top: 4px; font-size: 0.78rem;">
+        Separate multiple email addresses with a comma ( , )
+      </small>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" 
+              onclick="document.getElementById('offerModal').classList.remove('open')">
+        Cancel
+      </button>
+      <button class="btn btn-secondary" onclick="previewOffer()" id="previewBtn">
+        <i class="fas fa-eye"></i> Preview
+      </button>
+      <button class="btn btn-primary" onclick="downloadOffer()" id="downloadBtn">
+        <i class="fas fa-download"></i> Download PDF
+      </button>
+      <button class="btn btn-success" onclick="sendOfferEmail()" id="sendOfferBtn">
+        <i class="fas fa-paper-plane"></i> Send Email
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Experience Letter Modal -->
+
+<div id="experienceModal" class="exp-modal">
+
+    <div class="exp-modal-box">
+
+        <div class="exp-modal-header">
+
+            <h3>Experience Letter</h3>
+
+            <span class="exp-close" onclick="closeExperienceModal()">
+                &times;
+            </span>
+
+        </div>
+
+        <div class="exp-modal-body">
+
+            <p><b>Name:</b> <span id="expName"></span></p>
+
+            <p><b>Designation:</b> <span id="expDesignation"></span></p>
+
+            <p><b>Department:</b> <span id="expDepartment"></span></p>
+
+            <p><b>Type:</b> <span id="expType"></span></p>
+
+            <p><b>Joining:</b> <span id="expJoining"></span></p>
+
+            <p><b>End:</b> <span id="expEnd"></span></p>
+
+        </div>
+
+        <div class="exp-modal-footer">
+
+            <button class="btn btn-secondary"
+                    onclick="closeExperienceModal()">
+                Close
+            </button>
+
+            <a id="experienceDownloadBtn"
+               class="btn btn-primary">
+
+                Download PDF
+
+            </a>
+
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+let currentEmpId = null;
+
+function openOfferModal(id, name, designation) {
+  currentEmpId = id;
+  document.getElementById('offerModal').classList.add('open');
+  document.getElementById('offerPreviewArea').style.display = 'none';
+
+  // Pre-select role from employee's designation
+  const roleSelect = document.getElementById('offerRoleSelect');
+  for (let i = 0; i < roleSelect.options.length; i++) {
+    if (roleSelect.options[i].value === designation || 
+        roleSelect.options[i].text === designation) {
+      roleSelect.selectedIndex = i;
+      break;
+    }
+  }
+}
+
+function openExperienceModal(button){
+
+    const id = button.dataset.id;
+
+    document.getElementById("expName").textContent =
+        button.dataset.name;
+
+    document.getElementById("expDesignation").textContent =
+        button.dataset.designation;
+
+    document.getElementById("expDepartment").textContent =
+        button.dataset.department;
+
+    document.getElementById("expType").textContent =
+        button.dataset.type;
+
+    document.getElementById("expJoining").textContent =
+        button.dataset.joining;
+
+    document.getElementById("expEnd").textContent =
+        button.dataset.end;
+
+    document.getElementById("experienceDownloadBtn").href =
+        "/experience-letter/" + id;
+
+    document
+        .getElementById("experienceModal")
+        .classList.add("show");
+
+}
+function closeExperienceModal(){
+
+    document
+        .getElementById("experienceModal")
+        .classList.remove("show");
+
+}
+window.onclick = function(e){
+
+    const modal =
+        document.getElementById("experienceModal");
+
+    if(e.target === modal){
+
+        closeExperienceModal();
+
+    }
+
+}
+
+function previewOffer() {
+  const role = document.getElementById('offerRoleSelect').value;
+  if (!role) { showToast('Please select a role first', 'error'); return; }
+  document.getElementById('offerPreviewArea').style.display = 'block';
+  document.getElementById('offerEditBox').value = 'Loading preview...';
+  fetch(`/api/offer-preview?emp_id=${currentEmpId}&role=${encodeURIComponent(role)}`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('offerEditBox').value = data.preview;
+    });
+}
+
+function downloadOffer() {
+  const role  = document.getElementById('offerRoleSelect').value;
+  const notes = document.getElementById('offerEditBox').value;
+  if (!role) { showToast('Please select a role', 'error'); return; }
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = '/generate-offer-letter';
+  const fields = { employee_id: currentEmpId, role_key: role, custom_notes: notes };
+  for (const [k, v] of Object.entries(fields)) {
+    const inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = k; inp.value = v;
+    form.appendChild(inp);
+  }
+  document.body.appendChild(form);
+  form.submit();
+}
+
+function sendOfferEmail() {
+  const role = document.getElementById('offerRoleSelect').value;
+  if (!role) { showToast('Please select a role', 'error'); return; }
+
+  // 1. Grab the custom CC input string from your modal
+  const ccEmails = document.getElementById('email_cc_input') ? document.getElementById('email_cc_input').value : '';
+
+  // 2. Disable button or show loading state (Optional but recommended)
+  const sendBtn = document.getElementById('sendOfferBtn');
+  const originalHtml = sendBtn.innerHTML;
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+  // 3. Fire request to Flask with the cc_emails field included
+  fetch('/send-email', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ 
+      employee_id: currentEmpId, 
+      type: 'both', 
+      role_key: role,
+      cc_emails: ccEmails // <-- ADDED THIS PARAMETER
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    document.getElementById('offerModal').classList.remove('open');
+    showToast(data.message, data.success ? 'success' : 'error');
+    
+    // Clear the field for the next time the modal opens
+    if(document.getElementById('email_cc_input')) {
+      document.getElementById('email_cc_input').value = '';
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    showToast('A network connection error occurred.', 'error');
+  })
+  .finally(() => {
+    // Restore button state
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = originalHtml;
+  });
+}
+
+let deleteEmpId = null;
+function openDeleteModal(id, name) {
+  deleteEmpId = id;
+  document.getElementById('deleteEmpName').textContent = name;
+  document.getElementById('confirmInput').value = '';
+  document.getElementById('confirmDeleteBtn').disabled = true;
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+function checkConfirm() {
+  const val = document.getElementById('confirmInput').value;
+  document.getElementById('confirmDeleteBtn').disabled = (val !== 'CONFIRM');
+}
+
+async function doDelete() {
+  const res = await fetch(`/employees/${deleteEmpId}/delete`, { method: 'POST' });
+  const data = await res.json();
+  if (data.success) location.reload();
+}
+</script>
+{% endblock %}

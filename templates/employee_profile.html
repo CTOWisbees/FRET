@@ -1,0 +1,125 @@
+{% extends "employee_base.html" %}
+
+{% block title %}My Profile{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block content %}
+
+<div class="profile-header-card">
+
+    <div class="profile-avatar">
+        {{ employee.name[0].upper() }}
+    </div>
+
+    <div class="profile-info">
+        <h2>{{ employee.name }}</h2>
+
+        <div class="profile-meta">
+            {{ employee.designation }}
+            •
+            {{ employee.department }}
+        </div>
+
+        <div class="profile-badge">
+            {{ employee.emp_type }}
+        </div>
+    </div>
+
+</div>
+
+<div class="profile-grid">
+
+    <!-- Personal Information -->
+
+    <div class="card">
+
+        <div class="section-title">
+            <i class="fas fa-user"></i>
+            Personal Information
+        </div>
+
+        <div class="info-grid">
+
+            <div class="info-item">
+                <label>Email</label>
+                <span>{{ employee.email }}</span>
+            </div>
+
+            <div class="info-item">
+                <label>Phone</label>
+                <span>{{ employee.phone or 'Not Available' }}</span>
+            </div>
+
+            <div class="info-item">
+                <label>Employee ID</label>
+                <span>{{ employee.emp_id }}</span>
+            </div>
+
+            <div class="info-item">
+                <label>Status</label>
+                <span class="status-active">
+                    {{ employee.status }}
+                </span>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Employment Details -->
+
+    <div class="card">
+
+        <div class="section-title">
+            <i class="fas fa-briefcase"></i>
+            Employment Details
+        </div>
+
+        <div class="info-grid">
+
+            <div class="info-item">
+                <label>Department</label>
+                <span>{{ employee.department }}</span>
+            </div>
+
+            <div class="info-item">
+                <label>Designation</label>
+                <span>{{ employee.designation }}</span>
+            </div>
+
+            <div class="info-item">
+                <label>Joining Date</label>
+                <span>
+                    {{ employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '-' }}
+                </span>
+            </div>
+
+            <div class="info-item">
+                <label>Employment Type</label>
+                <span>{{ employee.emp_type }}</span>
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<div class="card">
+
+    <div class="section-title">
+        <i class="fas fa-shield-alt"></i>
+        Security
+    </div>
+
+    <a href="{{ url_for('change_password') }}"
+       class="btn btn-primary">
+
+        <i class="fas fa-key"></i>
+        Change Password
+
+    </a>
+
+</div>
+
+{% endblock %}

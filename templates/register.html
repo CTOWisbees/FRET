@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html data-theme="light" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Register | Human Capital Future</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet"/>
+    <style>
+        /* ─── 1. CORE THEME VARIABLES ─── */
+        :root {
+            --bg-left: #F8FAFC;
+            --bg-right: #FFFFFF;
+            --text-main: #0F172A;
+            --text-muted: #64748B;
+            --border-color: #E2E8F0;
+            --input-bg: #FFFFFF;
+            --primary: #0E9F6E;
+            --primary-hover: #0A7A54;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 12px 24px -8px rgba(0,0,0,0.1);
+            --btn-text: #FFFFFF;
+            --toggle-bg: #F1F5F9;
+            --toggle-active: #FFFFFF;
+            --error-bg: #FEF2F2;
+            --error-text: #DC2626;
+            --success-bg: #F0FDF4;
+            --success-text: #16A34A;
+            --dot-color: rgba(15, 23, 42, 0.08);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        [data-theme="dark"] {
+            --bg-left: #0B1120;
+            --bg-right: #0F172A;
+            --text-main: #F8FAFC;
+            --text-muted: #94A3B8;
+            --border-color: #1E293B;
+            --input-bg: #0F172A;
+            --primary: #10B981;
+            --primary-hover: #34D399;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+            --shadow-md: 0 12px 24px -8px rgba(0,0,0,0.4);
+            --btn-text: #0F172A;
+            --toggle-bg: #1E293B;
+            --toggle-active: #334155;
+            --dot-color: rgba(248, 250, 252, 0.06);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-right);
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* --- Architecture --- */
+        .split-layout {
+            display: flex;
+            width: 100%;
+            height: 100vh;
+        }
+
+        .left-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 4rem;
+            position: relative;
+            background-color: var(--bg-left);
+            overflow: hidden;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .right-pane {
+            width: 100%;
+            background-color: var(--bg-right);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        @media (min-width: 1024px) {
+            .left-pane { display: flex; }
+            .right-pane { flex: 0 0 520px; max-width: 520px; padding: 3.5rem; }
+        }
+
+        @media (min-width: 1440px) {
+            .right-pane { flex: 0 0 560px; max-width: 560px; padding: 4.5rem; }
+            .left-pane { padding: 6rem; }
+        }
+
+        /* --- Left Pane Elements --- */
+        .dot-grid {
+            position: absolute;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+            background-image: radial-gradient(var(--dot-color) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(90px);
+            opacity: 0.3;
+            z-index: 0;
+            pointer-events: none;
+            animation: drift 15s infinite alternate ease-in-out;
+        }
+
+        .orb-emerald {
+            width: 450px;
+            height: 450px;
+            background: var(--primary);
+            top: -5%;
+            right: -10%;
+        }
+
+        .orb-blue {
+            width: 350px;
+            height: 350px;
+            background: #2563C9;
+            bottom: 5%;
+            left: 5%;
+            opacity: 0.2;
+            animation-direction: alternate-reverse;
+            animation-duration: 12s;
+        }
+
+        @keyframes drift {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-40px, 50px) scale(1.05); }
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 10;
+            max-width: 500px;
+        }
+
+        .hero-title {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.05;
+            margin-bottom: 1.25rem;
+            letter-spacing: -1.5px;
+            color: var(--text-main);
+        }
+
+        .hero-title span {
+            color: var(--primary);
+        }
+
+        .hero-desc {
+            font-size: 1.15rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-bottom: 3rem;
+            max-width: 440px;
+        }
+
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+
+        .glass-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .glass-header i {
+            color: var(--primary);
+        }
+
+        .metrics { display: grid; }
+        .metric-item { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding: 12px 0; font-size: 0.9rem; }
+        .metric-item:last-child { border-bottom: none; padding-bottom: 0; }
+        .metric-label { color: var(--text-muted); }
+        .metric-value { font-weight: 600; color: var(--primary); }
+
+        /* --- Right Pane Form --- */
+        .auth-container { width: 100%; margin: 0 auto; max-width: 400px; }
+        .auth-header { margin-bottom: 2rem; text-align: left; }
+        .auth-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; letter-spacing: -0.5px; }
+        .auth-sub { color: var(--text-muted); font-size: 0.95rem; }
+
+        .auth-form { display: grid; gap: 1.25rem; }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* Floating Label Logic */
+        .input-group { position: relative; }
+        .input-field, .select-field {
+            width: 100%;
+            padding: 1.35rem 1rem 0.65rem 1.25rem;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 1rem;
+            outline: none;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .input-field:focus, .select-field:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(14, 159, 110, 0.1);
+        }
+
+        .floating-label {
+            position: absolute;
+            left: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            pointer-events: none;
+            transition: all 0.2s ease-out;
+            transform-origin: left top;
+            font-size: 1rem;
+        }
+
+        .input-field:focus ~ .floating-label,
+        .input-field:not(:placeholder-shown) ~ .floating-label,
+        .select-field:focus ~ .floating-label,
+        .select-field:not([value=""]) ~ .floating-label {
+            top: 0.6rem;
+            transform: translateY(0) scale(0.75);
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .select-field {
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .input-group::after {
+            content: '\f078';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            position: absolute;
+            right: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        .input-group.no-arrow::after { display: none; }
+
+        .password-toggle {
+            position: absolute;
+            right: 1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: var(--text-muted);
+            z-index: 5;
+            padding: 5px;
+        }
+        .password-toggle:hover { color: var(--text-main); }
+
+        /* Custom Signature Component */
+        .signature-upload {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            background: var(--toggle-bg);
+            transition: var(--transition);
+            cursor: pointer;
+            position: relative;
+        }
+
+        .signature-upload:hover { border-color: var(--primary); background: var(--input-bg); }
+        .signature-upload i { font-size: 1.5rem; color: var(--primary); margin-bottom: 8px; display: block; }
+        .signature-upload span { font-size: 0.85rem; color: var(--text-muted); font-weight: 500; }
+        .signature-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+        /* Original Theme Toggle Button Structure Placement */
+        .theme-btn {
+            position: absolute; top: 2rem; right: 2rem;
+            background: transparent; border: 1px solid var(--border-color);
+            color: var(--text-muted); width: 40px; height: 40px; border-radius: 50%;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; z-index: 50;
+        }
+        .theme-btn:hover { background: var(--toggle-bg); color: var(--text-main); }
+
+        /* Buttons & Layout Extras */
+        .submit-btn {
+            width: 100%; padding: 1rem; background: var(--primary);
+            color: var(--btn-text); border: none; border-radius: 12px;
+            font-size: 1.05rem; font-weight: 600; cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s; display: flex; justify-content: center; align-items: center; gap: 8px;
+            margin-top: 0.5rem;
+        }
+        .submit-btn:hover { background: var(--primary-hover); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+        .submit-btn:active { transform: translateY(0); }
+
+        .register-text { text-align: center; font-size: 0.9rem; color: var(--text-muted); font-weight: 500; margin-top: 1rem; }
+        .register-text a { color: var(--text-main); font-weight: 700; text-decoration: none; }
+        .register-text a:hover { text-decoration: underline; color: var(--primary); }
+
+        /* Jinja Message Box */
+        .alert-box {
+            padding: 12px 16px;
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--error-bg);
+            color: var(--error-text);
+            border: 1px solid rgba(220, 38, 38, 0.15);
+        }
+    </style>
+</head>
+<body>
+<div class="split-layout">
+    <section class="left-pane">
+        <div class="dot-grid"></div>
+        <div class="orb orb-emerald"></div>
+        <div class="orb orb-blue"></div>
+        
+        <div class="hero-content">
+            <h1 class="hero-title">Join the Future of<br/><span>Human Capital.</span></h1>
+            <p class="hero-desc">FRET brings offers, onboarding, attendance, and analytics into one clean workspace.</p>
+        </div>
+    </section>
+
+    <main class="right-pane">
+        <button class="theme-btn" onclick="toggleTheme()" aria-label="Toggle Theme">
+            <i class="fas fa-moon" id="theme-icon"></i>
+        </button>
+
+        <div class="auth-container">
+            <div class="auth-header">
+                <h2 class="auth-title">Create an Account</h2>
+                <p class="auth-sub">Start managing your team today</p>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert-box {{ category }}">
+                            <i class="fas fa-exclamation-circle"></i> {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <form action="" class="auth-form" enctype="multipart/form-data" id="register-form" method="POST">
+                <div class="form-row">
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="name" name="name" placeholder=" " required="" type="text"/>
+                        <label class="floating-label" for="name">Full Name</label>
+                    </div>
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="phone" name="phone" placeholder=" " required="" type="tel"/>
+                        <label class="floating-label" for="phone">Phone</label>
+                    </div>
+                </div>
+                <div class="input-group no-arrow">
+                    <input class="input-field" id="email" name="email" placeholder=" " required="" type="email"/>
+                    <label class="floating-label" for="email">Work Email</label>
+                </div>
+                <div class="input-group">
+                    <select class="select-field" id="designation" name="designation" onchange="this.setAttribute('value', this.value);" required="">
+                        <option disabled="" hidden="" selected="" value=""></option>
+                        <option value="hr_manager">HR Manager</option>
+                        <option value="executive">Executive</option>
+                    </select>
+                    <label class="floating-label" for="designation">Designation</label>
+                </div>
+                <div class="form-row">
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="password" name="password" placeholder=" " required="" type="password"/>
+                        <label class="floating-label" for="password">Password</label>
+                        <i class="fas fa-eye password-toggle" onclick="togglePass('password', this)"></i>
+                    </div>
+                    <div class="input-group no-arrow">
+                        <input class="input-field" id="confirm_password" name="confirm_password" placeholder=" " required="" type="password"/>
+                        <label class="floating-label" for="confirm_password">Confirm</label>
+                        <i class="fas fa-eye password-toggle" onclick="togglePass('confirm_password', this)"></i>
+                    </div>
+                </div>
+                <div class="signature-upload">
+                    <i class="fas fa-file-signature"></i>
+                    <span>Click to upload your digital signature (PNG/JPG)</span>
+                    <input accept="image/*" name="signature" required="" type="file"/>
+                </div>
+                <button class="submit-btn" type="submit">
+                    Create Account <i class="fas fa-arrow-right"></i>
+                </button>
+                <p class="register-text">
+                    Already have an account? <a href="{{ url_for('login') }}">Sign in here</a>
+                </p>
+            </form>
+        </div>
+    </main>
+</div>
+<script>
+        // Password Toggle logic
+        function togglePass(id, el) {
+            const input = document.getElementById(id);
+            if (input.type === "password") {
+                input.type = "text";
+                el.classList.replace('fa-eye', 'fa-eye-slash');
+            } else {
+                input.type = "password";
+                el.classList.replace('fa-eye-slash', 'fa-eye');
+            }
+        }
+
+        // Handles changing light/dark mode
+        function toggleTheme() {
+            const html = document.documentElement;
+            const icon = document.getElementById('theme-icon');
+            const currentTheme = html.getAttribute('data-theme');
+            
+            if (currentTheme === 'dark') {
+                html.setAttribute('data-theme', 'light');
+                icon.className = 'fas fa-moon';
+                localStorage.setItem('theme', 'light');
+            } else {
+                html.setAttribute('data-theme', 'dark');
+                icon.className = 'fas fa-sun';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Initialize Theme on Load
+        (function() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            const icon = document.getElementById('theme-icon');
+            if (icon) {
+                icon.className = savedTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+            }
+        })();
+
+        // Handle select value attribute for floating label CSS
+        document.getElementById('designation').addEventListener('change', function() {
+            this.setAttribute('value', this.value);
+        });
+
+        // Form Submission visual feedback
+        document.getElementById('register-form').addEventListener('submit', function(e) {
+            const btn = this.querySelector('.submit-btn');
+            btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Processing...';
+            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.8';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}My Profile — FRET{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">My Profile</div>
+    <div class="page-subtitle">Manage your name, signature & credentials</div>
+  </div>
+</div>
+
+<div style="max-width:760px;display:grid;gap:20px;">
+  <form method="POST" enctype="multipart/form-data">
+    <!-- Identity -->
+    <div class="card slide-up">
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);">
+        <div style="width:64px;height:64px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:grid;place-items:center;font-size:1.6rem;font-weight:800;color:#fff;flex-shrink:0;">
+          {{ current_user.name[0].upper() }}
+        </div>
+        <div>
+          <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.2rem;font-weight:800;">{{ current_user.name }}</div>
+          <div style="color:var(--text3);font-size:0.85rem;">{{ current_user.designation }} · {{ current_user.email }}</div>
+          <div style="font-size:0.75rem;color:var(--text3);margin-top:4px;">Member since {{ current_user.created_at.strftime('%B %Y') }}</div>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Full Name *</label>
+          <input type="text" name="name" class="form-control" value="{{ current_user.name }}" required/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input type="tel" name="phone" class="form-control" value="{{ current_user.phone or '' }}"/>
+        </div>
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Designation</label>
+          <select name="designation" class="form-control">
+            {% for d in ['HR Manager','Senior HR Manager','HR Director','Talent Acquisition Specialist','HR Business Partner','Chief People Officer'] %}
+            <option {% if current_user.designation == d %}selected{% endif %}>{{ d }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Signature -->
+    <div class="card slide-up" style="animation-delay:0.1s;">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:6px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-signature text-accent"></i> Digital Signature
+        {% if current_user.signature_path %}
+        <span class="badge-pill badge-active" style="font-size:0.7rem;margin-left:6px;"><i class="fas fa-check"></i> Uploaded</span>
+        {% else %}
+        <span class="badge-pill badge-pending" style="font-size:0.7rem;margin-left:6px;">Missing</span>
+        {% endif %}
+      </div>
+      <div style="font-size:0.82rem;color:var(--text3);margin-bottom:18px;">This signature is automatically embedded at the bottom of every offer letter you generate.</div>
+
+      {% if current_user.signature_path %}
+      <div style="background:white;border-radius:10px;padding:16px;margin-bottom:16px;text-align:center;max-width:320px;">
+        <img src="/signature/{{ current_user.id }}" alt="Your signature" style="max-height:80px;max-width:260px;object-fit:contain;"/>
+      </div>
+      {% endif %}
+
+      <div style="border:2px dashed var(--border);border-radius:10px;padding:24px;text-align:center;cursor:pointer;transition:all 0.2s;position:relative;" id="sigDropZone" onclick="document.getElementById('sigFile').click()">
+        <input type="file" id="sigFile" name="signature" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer;" onchange="previewSig(event)"/>
+        <div id="sigContent">
+          <div style="font-size:2rem;margin-bottom:8px;">✍️</div>
+          <div style="font-size:0.9rem;font-weight:600;color:var(--text2);">{{ 'Replace signature' if current_user.signature_path else 'Upload your signature' }}</div>
+          <div style="font-size:0.75rem;color:var(--text3);margin-top:4px;">PNG with transparent background · Max 2MB</div>
+        </div>
+        <img id="sigPreview" style="display:none;max-height:80px;margin:0 auto;border-radius:6px;" src="" alt="Preview"/>
+      </div>
+    </div>
+
+    <!-- Password -->
+    <div class="card slide-up" style="animation-delay:0.15s;">
+      <div style="font-size:0.95rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:8px;">
+        <i class="fas fa-lock text-accent"></i> Change Password
+      </div>
+      <div style="font-size:0.82rem;color:var(--text3);margin-bottom:16px;">Leave blank to keep your current password unchanged.</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input type="password" name="new_password" class="form-control" placeholder="Min. 8 characters"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm New Password</label>
+          <input type="password" name="confirm_password" class="form-control" placeholder="Repeat password"/>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Profile</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function previewSig(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    document.getElementById('sigContent').style.display = 'none';
+    const preview = document.getElementById('sigPreview');
+    preview.src = ev.target.result;
+    preview.style.display = 'block';
+    document.getElementById('sigDropZone').style.borderColor = 'var(--green)';
+  };
+  reader.readAsDataURL(file);
+}
+// Drag hover
+const dz = document.getElementById('sigDropZone');
+dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.style.borderColor = 'var(--accent)'; dz.style.background = 'rgba(99,102,241,0.05)'; });
+dz.addEventListener('dragleave', () => { dz.style.borderColor = 'var(--border)'; dz.style.background = ''; });
+dz.addEventListener('drop', (e) => { e.preventDefault(); dz.style.borderColor = 'var(--border)'; dz.style.background = ''; });
+</script>
+{% endblock %}

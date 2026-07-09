@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Edit Employee — FRET{% endblock %}
+{% block page_title %}Edit Employee{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">Edit Employee</div>
+    <div class="page-subtitle">{{ emp.emp_id }} · {{ emp.name }}</div>
+  </div>
+  <a href="{{ url_for('employees') }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Back
+  </a>
+</div>
+
+<div style="max-width:760px;">
+<form method="POST" class="slide-up">
+  <div class="card" style="margin-bottom:20px;">
+    <div style="font-size:0.95rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;color:var(--text2);border-bottom:1px solid var(--border);padding-bottom:12px;">
+      <i class="fas fa-user text-accent"></i> Personal Information
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Full Name *</label>
+        <input type="text" name="name" class="form-control" value="{{ emp.name }}" required/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" name="email" class="form-control" value="{{ emp.email or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Phone Number</label>
+        <input type="tel" name="phone" class="form-control" value="{{ emp.phone or '' }}"/>
+      </div>
+            
+          <div class="form-group">
+              <label class="form-label">Gender *</label>
+              <select name="gender" class="form-control" required>
+                  <option value="" disabled hidden {% if not emp.gender %}selected{% endif %}>Select Gender</option>
+                  <option value="male" {% if emp.gender == 'male' %}selected{% endif %}>Male</option>
+                  <option value="female" {% if emp.gender == 'female' %}selected{% endif %}>Female</option>
+              </select>
+          </div>
+
+            <div class="form-group">
+              <label class="form-label">Status</label>
+              <select name="status" class="form-control">
+                <option value="Active" {% if emp.status == 'Active' %}selected{% endif %}>Active</option>
+                <option value="Inactive" {% if emp.status == 'Inactive' %}selected{% endif %}>Inactive</option>
+                <option value="On Leave" {% if emp.status == 'On Leave' %}selected{% endif %}>On Leave</option>
+                <option value="Probation" {% if emp.status == 'Probation' %}selected{% endif %}>Probation</option>
+              </select>
+            </div>
+          </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select name="status" class="form-control">
+          <option value="Active" {% if emp.status == 'Active' %}selected{% endif %}>Active</option>
+          <option value="Inactive" {% if emp.status == 'Inactive' %}selected{% endif %}>Inactive</option>
+          <option value="On Leave" {% if emp.status == 'On Leave' %}selected{% endif %}>On Leave</option>
+          <option value="Probation" {% if emp.status == 'Probation' %}selected{% endif %}>Probation</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:20px;">
+    <div style="font-size:0.95rem;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:8px;color:var(--text2);border-bottom:1px solid var(--border);padding-bottom:12px;">
+      <i class="fas fa-briefcase text-accent"></i> Job Details
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label class="form-label">Department</label>
+        <select name="department" class="form-control">
+          {% for dept in ['Engineering','Product','Design','Marketing','Sales','Human Resources','Finance','Operations','Customer Success','Legal','Data & Analytics'] %}
+          <option {% if emp.department == dept %}selected{% endif %}>{{ dept }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Designation</label>
+        <input type="text" name="designation" class="form-control" value="{{ emp.designation or '' }}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Annual CTC (₹)</label>
+        <input type="number" name="salary" class="form-control" value="{{ emp.salary }}" min="0" step="1000"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Joining / Start Date</label>
+        <input type="date" name="joining_date" class="form-control" value="{{ emp.joining_date.isoformat() if emp.joining_date else '' }}"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">End Date</label>
+        <input type="date" name="end_date" class="form-control" value="{{ emp.end_date.isoformat() if emp.end_date else '' }}"/>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:12px;justify-content:flex-end;">
+    <a href="{{ url_for('employees') }}" class="btn btn-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save"></i> Save Changes</button>
+  </div>
+</form>
+</div>
+{% endblock %}

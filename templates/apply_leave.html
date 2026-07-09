@@ -1,0 +1,224 @@
+{% extends "employee_base.html" %}
+
+{% block page_title %}
+Apply Leave
+{% endblock %}
+
+{% block content %}
+
+<div class="card">
+
+    <div class="page-header">
+
+        <div>
+
+            <h2 class="page-title">
+                Leave Application
+            </h2>
+
+            <p class="page-subtitle">
+                Submit leave request
+            </p>
+
+        </div>
+
+    </div>
+
+    <form method="POST">
+
+        <div class="form-grid">
+
+            <div class="form-group">
+
+                <label class="form-label">
+                    Leave Type
+                </label>
+
+                <select
+                    name="leave_type"
+                    class="form-control"
+                    required>
+
+                    <option value="">
+                        Select
+                    </option>
+
+                    <option>
+                        Casual Leave
+                    </option>
+
+                    <option>
+                        Sick Leave
+                    </option>
+
+                    <option>
+                        Work From Home
+                    </option>
+
+                </select>
+
+            </div>
+
+            <div class="form-group">
+
+                <label class="form-label">
+                    From Date
+                </label>
+
+                <input
+                    type="date"
+                    name="from_date"
+                    class="form-control"
+                    required>
+
+            </div>
+
+            <div class="form-group">
+
+                <label class="form-label">
+                    To Date
+                </label>
+
+                <input
+                    type="date"
+                    name="to_date"
+                    class="form-control"
+                    required>
+
+            </div>
+
+        </div>
+
+        <div class="form-group">
+
+            <label class="form-label">
+                Reason
+            </label>
+
+            <textarea
+                name="reason"
+                class="form-control"
+                rows="4"
+                required></textarea>
+
+        </div>
+
+        <button
+            class="btn btn-primary">
+
+            <i class="fas fa-paper-plane"></i>
+
+            Submit Request
+
+        </button>
+
+    </form>
+    <hr style="margin:30px 0;">
+
+    <div class="card">
+
+        <div class="card-head">
+
+            <div class="card-title">
+                <i class="fas fa-history"></i>
+                Leave History
+            </div>
+
+        </div>
+
+        {% if leave_history %}
+
+        <div class="table-wrapper">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>Type</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Days</th>
+                        <th>Status</th>
+                        <th>Applied On</th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {% for leave in leave_history %}
+
+                    <tr>
+
+                        <td>{{ leave.leave_type }}</td>
+
+                        <td>
+                            {{ leave.from_date.strftime('%d %b %Y') }}
+                        </td>
+
+                        <td>
+                            {{ leave.to_date.strftime('%d %b %Y') }}
+                        </td>
+
+                        <td>
+                            {{ ((leave.to_date - leave.from_date).days + 1) }}
+                        </td>
+
+                        <td>
+
+                            {% if leave.status == 'Approved' %}
+
+                                <span class="badge-pill badge-active">
+                                    Approved
+                                </span>
+
+                            {% elif leave.status == 'Rejected' %}
+
+                                <span class="badge-pill badge-inactive">
+                                    Rejected
+                                </span>
+
+                            {% else %}
+
+                                <span class="badge-pill badge-pending">
+                                    Pending
+                                </span>
+
+                            {% endif %}
+
+                        </td>
+
+                        <td>
+                            {{ leave.applied_on.strftime('%d %b %Y') }}
+                        </td>
+
+                    </tr>
+
+                    {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+        {% else %}
+
+        <div class="empty-state">
+
+            <i class="fas fa-calendar-times"></i>
+
+            <p>No leave history found.</p>
+
+        </div>
+
+        {% endif %}
+
+    </div>
+
+</div>
+
+{% endblock %}
