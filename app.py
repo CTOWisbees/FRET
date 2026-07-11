@@ -666,11 +666,10 @@ def register():
         try:
             # We fetch a dynamic token via your systemic OAuth generator
             # If a primary config hasn't been set up yet, fall back to environment configurations
-            config = EmailConfig.query.first()
-            tenant_id = config.tenant_id if config else os.environ.get('AZURE_TENANT_ID')
-            client_id = config.client_id if config else os.environ.get('AZURE_CLIENT_ID')
-            client_secret = config.client_secret if config else os.environ.get('AZURE_CLIENT_SECRET')
-            sender_email = config.sender_email if config else os.environ.get('AZURE_SENDER_EMAIL')
+            tenant_id = os.environ.get('AZURE_TENANT_ID')
+            client_id = os.environ.get('AZURE_CLIENT_ID')
+            client_secret = os.environ.get('AZURE_CLIENT_SECRET')
+            sender_email = os.environ.get('AZURE_SENDER_EMAIL')
             
             token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
             token_res = requests.post(token_url, data={
