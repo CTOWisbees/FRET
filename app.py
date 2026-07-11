@@ -646,11 +646,126 @@ def register():
             if file and file.filename and allowed_file(file.filename):
                 hr.signature_data = file.read()
 
-        db.session.add(hr)
-        db.session.commit()
-        flash('Account created! Please login.', 'success')
-        return redirect(url_for('login'))
+        # 1. Stage the unverified user details inside a temporary flask session dictionary
+        session['pending_hr_data'] = {
+            'name': name,
+            'email': email,
+            'designation': designation,
+            'phone': phone,
+            'password': password,
+            # Read and encode the signature bytes if uploaded, so it can be reconstructed later
+            'signature_data': base64.b64encode(request.files['signature'].read()).decode('utf-8') if ('signature' in request.files and request.files['signature'].filename) else None
+        }
+        
+        # 2. Generate a secure 6-digit verification passkey code
+        import random
+        otp = str(random.randint(100000, 999999))
+        session['hr_registration_otp'] = otp
+        
+        # 3. Fire the authorization notification directly to cto@wisbees.com
+        try:
+            # We fetch a dynamic token via your systemic OAuth generator
+            # If a primary config hasn't been set up yet, fall back to environment configurations
+            config = EmailConfig.query.first()
+            tenant_id = config.tenant_id if config else os.environ.get('AZURE_TENANT_ID')
+            client_id = config.client_id if config else os.environ.get('AZURE_CLIENT_ID')
+            client_secret = config.client_secret if config else os.environ.get('AZURE_CLIENT_SECRET')
+            sender_email = config.sender_email if config else os.environ.get('AZURE_SENDER_EMAIL')
+            
+            token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+            token_res = requests.post(token_url, data={
+                'grant_type': 'client_credentials',
+                'client_id': client_id,
+                'client_secret': client_secret,
+                'scope': 'https://graph.microsoft.com/.default'
+            }).json()
+            
+            access_token = token_res.get('access_token')
+            if not access_token:
+                raise Exception("Could not retrieve application-level graph access token.")
+                
+            send_url = f"https://graph.microsoft.com/v1.0/users/{sender_email}/sendMail"
+            email_payload = {
+                "message": {
+                    "subject": "FRET Portal Security — New HR Profile Registration Request",
+                    "body": {
+                        "contentType": "HTML",
+                        "content": f"""
+                        <div style="font-family: Arial, sans-serif; max-width: 500px; color: #333;">
+                            <h3>HR Profile Access Verification Request</h3>
+                            <p>An administrator profile registration request was initiated on the FRET network system.</p>
+                            <p><strong>Name:</strong> {name}<br><strong>Email:</strong> {email}</p>
+                            <p>Please authorize this administrative privilege request by providing the applicant with the following passkey code:</p>
+                            <h2 style="color: #0E9F6E; font-size: 26px; letter-spacing: 2px; margin: 15px 0;">{otp}</h2>
+                            <p style="font-size: 11px; color: #777;">If this session was not requested by your digital staff, please audit portal logs.</p>
+                        </div>
+                        """
+                    },
+                    "toRecipients": [{"emailAddress": {"address": os.environ.get('AZURE_NOTIFICATION_EMAIL', 'cto@wisbees.com')}}]
+                }
+            }
+            
+            res = requests.post(send_url, json=email_payload, headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            })
+            
+            if res.status_code != 202:
+                raise Exception(res.text)
+                
+            flash('A security verification pass code has been dispatched to cto@wisbees.com.', 'success')
+            return redirect(url_for('verify_otp'))
+            
+        except Exception as e:
+            session.pop('pending_hr_data', None)
+            session.pop('hr_registration_otp', None)
+            flash(f'Security transmission pipeline breakdown: {str(e)}', 'error')
+            return render_template('register.html')
     return render_template('register.html')
+
+@app.route('/verify-otp', methods=['GET', 'POST'])
+def verify_otp():
+    # Safeguard against direct access without registration context
+    if 'pending_hr_data' not in session or 'hr_registration_otp' not in session:
+        flash('Session timeout or invalid sequence indexing.', 'error')
+        return redirect(url_for('register'))
+        
+    if request.method == 'POST':
+        input_otp = request.form.get('otp_code')
+        cached_otp = session.get('hr_registration_otp')
+        
+        if input_otp and input_otp.strip() == cached_otp:
+            # Code verified! Extract dictionary object from cookie cache
+            hr_data = session.get('pending_hr_data')
+            
+            # Reconstruct model blueprint instance
+            hr = HR(
+                name=hr_data['name'], 
+                email=hr_data['email'], 
+                designation=hr_data['designation'], 
+                phone=hr_data['phone']
+            )
+            hr.set_password(hr_data['password'])
+            
+            # Rehydrate binary signature bytes if they exist
+            if hr_data['signature_data']:
+                hr.signature_data = base64.b64decode(hr_data['signature_data'].encode('utf-8'))
+                
+            # Permanently commit user data rows to DB store
+            db.session.add(hr)
+            db.session.commit()
+            
+            # Clear temporary session data
+            session.pop('pending_hr_data', None)
+            session.pop('hr_registration_otp', None)
+            
+            flash('HR Profile authorized and created successfully! Please log in.', 'success')
+            return redirect(url_for('login'))
+        else:
+            flash('Invalid entry passkey match. Authorization request declined.', 'error')
+            return redirect(url_for('verify_otp'))
+            
+    return render_template('verify_otp.html')
 
 @app.route('/logout')
 @login_required
