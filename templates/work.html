@@ -102,16 +102,19 @@ const ghostPostSelect = document.getElementById('ghostPostSelect');
 if (ghostPostSelect) {
     fetch('/api/newsletter/posts')
         .then(res => res.json())
-        .then(data => {
+        .then(res => res.json().then(data => ({ ok: res.ok, status: res.status, data })))
+        .then(({ ok, status, data }) => {
             if (data.success && data.posts && data.posts.length) {
                 ghostPostSelect.innerHTML = '<option value="">Choose a post…</option>' +
                     data.posts.map(p => `<option value="${p.slug}">${p.title}</option>`).join('');
+            } else if (!data.success && data.message) {
+                ghostPostSelect.innerHTML = `<option value="">[${status}] ${data.message}</option>`;
             } else {
-                ghostPostSelect.innerHTML = '<option value="">No posts found on Ghost</option>';
+                ghostPostSelect.innerHTML = '<option value="">No newsletter-tagged posts found on Ghost</option>';
             }
         })
-        .catch(() => {
-            ghostPostSelect.innerHTML = '<option value="">Could not load posts from Ghost</option>';
+        .catch(err => {
+            ghostPostSelect.innerHTML = `<option value="">Could not reach Ghost API: ${err.message}</option>`;
         });
 }
 
