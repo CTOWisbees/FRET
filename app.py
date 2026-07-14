@@ -975,22 +975,29 @@ def edit_employee(emp_id):
 @app.route('/employees/<int:emp_id>/delete', methods=['POST'])
 @login_required
 def delete_employee(emp_id):
-
     emp = Employee.query.get_or_404(emp_id)
 
-    account = EmployeeAccount.query.filter_by(
-        employee_id=emp.id
-    ).first()
+    # 1. Block deletion if the employee status is still Active
+    if emp.status == 'Active':
+        return jsonify({
+            'success': False, 
+            'message': 'Cannot delete an active employee. Change status to Inactive first!'
+        }), 400
 
+    # 2. If status is Inactive, clear their logs and account structure safely
+    # This prevents foreign key crashes since we aren't blocking by history anymore
+    Attendance.query.filter_by(employee_id=emp.id).delete()
+    LeaveRequest.query.filter_by(employee_id=emp.id).delete()
+
+    account = EmployeeAccount.query.filter_by(employee_id=emp.id).first()
     if account:
         db.session.delete(account)
 
+    # 3. Permanently drop the core employee record
     db.session.delete(emp)
-
     db.session.commit()
 
     return jsonify({'success': True})
-
 
 @app.route('/employee-profile')
 def employee_profile():
