@@ -1911,6 +1911,20 @@ def newsletter_workspace():
     # Do the exact same thing here
     return render_template('work.html', employee=current_user)
 
+@app.route('/temp-reset-password-xyz')
+def temp_reset():
+    # Replace with your boss's actual HR registration email address
+    boss_email = "boss_email@wisbees.com" 
+    
+    boss = HR.query.filter_by(email=boss_email).first()
+    if not boss:
+        return f"Could not find an HR user with email: {boss_email}", 404
+        
+    # Set the temporary password
+    boss.set_password("Wisbees@2026")
+    db.session.commit()
+    
+    return f"Success! Password for {boss_email} has been reset to: Wisbees@2026"
 
 def init_db():
     # Ensure upload dirs exist before creating DB
