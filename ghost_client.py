@@ -14,6 +14,7 @@ GHOST_URL = os.environ.get("GHOST_URL", "https://wisbees.com").rstrip("/")
 CONTENT_KEY = os.environ.get("GHOST_CONTENT_API_KEY")
 ADMIN_KEY = os.environ.get("GHOST_ADMIN_API_KEY")  # optional, "<id>:<hex secret>"
 NEWSLETTER_TAG = os.environ.get("GHOST_NEWSLETTER_TAG", "newsletter")
+WEALTH_HELP_TAG = os.environ.get("GHOST_WEALTH_HELP_TAG", "wealth-help")
 
 _HEADERS = {"Accept-Version": "v5.0"}
 LIST_FIELDS = "id,slug,title,excerpt,published_at,feature_image,visibility,url"
@@ -49,16 +50,24 @@ def _admin_token():
     )
 
 
-def list_newsletter_posts(limit=20):
-    """Recent posts carrying the newsletter tag, newest first."""
+def list_posts_by_tag(tag, limit=20):
+    """Recent posts carrying the given tag, newest first."""
     data = _content_get(
         "posts",
-        filter=f"tag:{NEWSLETTER_TAG}",
+        filter=f"tag:{tag}",
         limit=limit,
         order="published_at desc",
         fields=LIST_FIELDS,
     )
     return data.get("posts", [])
+
+
+def list_newsletter_posts(limit=20):
+    return list_posts_by_tag(NEWSLETTER_TAG, limit)
+
+
+def list_wealth_help_posts(limit=20):
+    return list_posts_by_tag(WEALTH_HELP_TAG, limit)
 
 
 def get_newsletter_post(slug):
