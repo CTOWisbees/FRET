@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
+import sqlalchemy
 from flask import Blueprint, current_app, jsonify, request
 from flask_login import current_user, login_required
 
@@ -131,9 +132,12 @@ def _decode_email(blob):
 
 # ─────────────── email body ───────────────
 
-def render_email(post, reader_name, unsub_url):
+def render_email(post, reader_name, unsub_url, custom_message=None):
     """Wrap the Ghost post HTML in the FRET newsletter shell."""
-    greeting = f"Hi {html_lib.escape(str(reader_name))}," if reader_name else "Hi there,"
+    if custom_message:
+        greeting = html_lib.escape(custom_message).replace("\n", "<br>")
+    else:
+        greeting = f"Hi {html_lib.escape(str(reader_name))}," if reader_name else "Hi there,"
 
     hero = ""
     if post.get("feature_image"):
@@ -182,7 +186,7 @@ def _run_job(app, job_id):
 
             for d in pending:
                 token = _graph_token(cfg)  # refreshes itself mid-job
-                body = render_email(post, d.name, _unsub_url(d.email))
+                body = render_email(post, d.name, _unsub_url(d.email), job.custom_message)
                 try:
                     _send_one(token, cfg["NEWSLETTER_SENDER_EMAIL"], d.email, job.subject, body)
                     d.status = "sent"
@@ -213,8 +217,8 @@ def _run_job(app, job_id):
 @bp.get("/api/newsletter/posts")
 @login_required
 def list_posts():
-    if not _may_send():
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    # Read-only article metadata — every employee can browse it from the Work
+    # Hub. Sending (below) stays gated to marketing via _may_send().
     try:
         return jsonify({"success": True, "posts": ghost_client.list_newsletter_posts()})
     except Exception as e:
@@ -249,6 +253,7 @@ def send_bulk_newsletter():
         return jsonify({"success": False, "message": f'"{post["title"]}" has already been sent.'}), 409
 
     subject = (request.form.get("email_subject") or "").strip() or post["title"]
+    custom_message = (request.form.get("custom_message") or "").strip()
     blocked = {u.email for u in Unsubscribe.query.all()}
 
     rows, seen = [], set()
@@ -262,7 +267,7 @@ def send_bulk_newsletter():
     if not rows:
         return jsonify({"success": False, "message": "No valid, subscribed recipients"}), 400
 
-    job = Job(post_slug=slug, subject=subject, total=len(rows),
+    job = Job(post_slug=slug, subject=subject, total=len(rows), custom_message=custom_message,
               created_by=getattr(current_user, "name", "unknown"))
     _db.session.add(job)
     _db.session.flush()
@@ -324,6 +329,7 @@ def init_newsletter(app, db):
         id = db.Column(db.Integer, primary_key=True)
         post_slug = db.Column(db.String(200), nullable=False, index=True)
         subject = db.Column(db.String(300))
+        custom_message = db.Column(db.Text)
         status = db.Column(db.String(20), default="queued")  # queued|sending|completed|failed
         total = db.Column(db.Integer, default=0)
         sent_count = db.Column(db.Integer, default=0)
@@ -351,3 +357,13 @@ def init_newsletter(app, db):
 
     Job, Delivery, Unsubscribe = NewsletterJob, NewsletterDelivery, NewsletterUnsubscribe
     app.register_blueprint(bp)
+
+    # db.create_all() never alters an existing table, so a DB from before the
+    # custom_message column existed needs a one-time patch here.
+    with app.app_context():
+        inspector = sqlalchemy.inspect(db.engine)
+        if inspector.has_table("newsletter_job"):
+            cols = {c["name"] for c in inspector.get_columns("newsletter_job")}
+            if "custom_message" not in cols:
+                db.session.execute(sqlalchemy.text("ALTER TABLE newsletter_job ADD COLUMN custom_message TEXT"))
+                db.session.commit()

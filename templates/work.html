@@ -39,6 +39,15 @@
     </div>
     <hr class="fret-wh-divider">
 
+    <div class="fret-nm-card" style="margin-bottom:32px;">
+        <div class="fret-nm-card-header">
+            <h4 class="fret-nm-card-title"><i class="fas fa-newspaper"></i> Latest Articles</h4>
+        </div>
+        <div class="fret-nm-card-body" id="fretArticlesList">
+            <p style="color:var(--text2);">Loading articles…</p>
+        </div>
+    </div>
+
     {% if current_user.designation == 'Digital Marketing Intern' or current_user.department == 'Marketing' %}
         <div class="fret-nm-card">
             <div class="fret-nm-card-header">
@@ -58,7 +67,12 @@
                     </div>
 
                     <div class="fret-nm-form-block">
-                        <label for="excelFile" class="fret-nm-form-label">3. Select Readers Database (.xlsx, .xls)</label>
+                        <label for="customMessage" class="fret-nm-form-label">3. Opening Message (shown at the top of the email, in place of the greeting)</label>
+                        <textarea id="customMessage" class="form-control" rows="4" style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px; resize: vertical; font-family: inherit;" placeholder="Write whatever you'd like readers to see first..." required></textarea>
+                    </div>
+
+                    <div class="fret-nm-form-block">
+                        <label for="excelFile" class="fret-nm-form-label">4. Select Readers Database (.xlsx, .xls)</label>
                         <div class="fret-nm-input-group">
                             <input type="file" class="fret-nm-file-control" id="excelFile" accept=".xlsx, .xls" required>
                             <div class="fret-nm-input-addon"><i class="fas fa-file-excel"></i></div>
@@ -97,6 +111,28 @@ document.getElementById('excelFile')?.addEventListener('change', function(e) {
         filePreview.style.display = 'none';
     }
 });
+
+const articlesList = document.getElementById('fretArticlesList');
+if (articlesList) {
+    fetch('/api/newsletter/posts')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.posts && data.posts.length) {
+                articlesList.innerHTML = data.posts.map(p => `
+                    <a href="${p.url}" target="_blank" rel="noopener" style="display:flex; gap:14px; align-items:flex-start; padding:14px 0; border-bottom:1px solid var(--border); text-decoration:none; color:inherit;">
+                        ${p.feature_image ? `<img src="${p.feature_image}" alt="" style="width:90px;height:64px;object-fit:cover;border-radius:8px;flex-shrink:0;">` : ''}
+                        <div>
+                            <div style="font-weight:700; color:var(--text); font-size:0.95rem;">${p.title}</div>
+                            <div style="color:var(--text2); font-size:0.82rem; margin-top:4px;">${p.excerpt || ''}</div>
+                        </div>
+                    </a>
+                `).join('');
+            } else {
+                articlesList.innerHTML = `<p style="color:var(--text2);">${data.message || 'No articles found yet.'}</p>`;
+            }
+        })
+        .catch(() => { articlesList.innerHTML = '<p style="color:var(--text2);">Could not load articles.</p>'; });
+}
 
 const ghostPostSelect = document.getElementById('ghostPostSelect');
 if (ghostPostSelect) {
@@ -146,6 +182,7 @@ document.getElementById('newsletterUploadForm')?.addEventListener('submit', func
     formData.append('file', fileInput.files[0]);
     formData.append('post_slug', postSlug);
     formData.append('email_subject', document.getElementById('emailSubject').value);
+    formData.append('custom_message', document.getElementById('customMessage').value);
 
     const btn = document.getElementById('broadcastBtn');
     const originalHtml = btn.innerHTML;
@@ -163,6 +200,7 @@ document.getElementById('newsletterUploadForm')?.addEventListener('submit', func
             if (typeof showToast === "function") { showToast(data.message, 'success'); } else { alert(data.message); }
             fileInput.value = '';
             document.getElementById('emailSubject').value = '';
+            document.getElementById('customMessage').value = '';
             document.getElementById('fretFilePreview').style.display = 'none';
             pollNewsletterJob(data.job_id);
         } else {

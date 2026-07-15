@@ -16,7 +16,7 @@ ADMIN_KEY = os.environ.get("GHOST_ADMIN_API_KEY")  # optional, "<id>:<hex secret
 NEWSLETTER_TAG = os.environ.get("GHOST_NEWSLETTER_TAG", "newsletter")
 
 _HEADERS = {"Accept-Version": "v5.0"}
-LIST_FIELDS = "id,slug,title,excerpt,published_at,feature_image,visibility"
+LIST_FIELDS = "id,slug,title,excerpt,published_at,feature_image,visibility,url"
 
 
 class GhostError(Exception):
