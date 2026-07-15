@@ -71,7 +71,7 @@
             <div class="fret-nm-card-body">
                 <form id="newsletterUploadForm">
                     <div class="fret-nm-form-block">
-                        <label for="ghostPostSearch" class="fret-nm-form-label">1. Select Newsletter Post (from Ghost)</label>
+                        <label for="ghostPostSearch" class="fret-nm-form-label">1. Select Post to Send (Newsletter or Wealth Help, from Ghost)</label>
                         <div style="position:relative;">
                             <input type="text" id="ghostPostSearch" class="form-control" autocomplete="off" disabled
                                    style="background: var(--bg3); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); width: 100%; padding: 12px;"
@@ -204,7 +204,7 @@ function renderGhostOptions(list) {
 }
 
 if (ghostPostSearch) {
-    fetch('/api/newsletter/posts')
+    fetch('/api/newsletter/sendable-posts')
         .then(res => res.json())
         .then(data => {
             if (data.success && data.posts && data.posts.length) {
@@ -213,7 +213,7 @@ if (ghostPostSearch) {
             } else if (!data.success && data.message) {
                 ghostPostSearch.placeholder = `Error: ${data.message}`;
             } else {
-                ghostPostSearch.placeholder = 'No newsletter-tagged posts found on Ghost';
+                ghostPostSearch.placeholder = 'No newsletter or wealth-help posts found on Ghost';
             }
             ghostPostSearch.disabled = false;
         })

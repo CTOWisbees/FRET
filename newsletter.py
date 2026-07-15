@@ -234,6 +234,17 @@ def list_wealth_help_posts():
         return jsonify({"success": False, "message": str(e)}), 502
 
 
+@bp.get("/api/newsletter/sendable-posts")
+@login_required
+def list_sendable_posts():
+    if not _may_send():
+        return jsonify({"success": False, "message": "Unauthorized"}), 403
+    try:
+        return jsonify({"success": True, "posts": ghost_client.list_sendable_posts()})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 502
+
+
 @bp.post("/send-bulk-newsletter")
 @login_required
 def send_bulk_newsletter():

@@ -70,10 +70,24 @@ def list_wealth_help_posts(limit=20):
     return list_posts_by_tag(WEALTH_HELP_TAG, limit)
 
 
+SENDABLE_TAGS = {NEWSLETTER_TAG, WEALTH_HELP_TAG}
+
+
+def list_sendable_posts(limit=20):
+    """Posts tagged newsletter or wealth-help — the ones eligible to be mailed out."""
+    seen, posts = set(), []
+    for p in list_newsletter_posts(limit) + list_wealth_help_posts(limit):
+        if p["id"] not in seen:
+            seen.add(p["id"])
+            posts.append(p)
+    posts.sort(key=lambda p: p.get("published_at") or "", reverse=True)
+    return posts
+
+
 def get_newsletter_post(slug):
     """
     Full post by slug, with `html` populated — but ONLY if it carries the
-    newsletter tag.
+    newsletter or wealth-help tag.
 
     This is the actual gate. The dropdown in work.html only lists tagged posts,
     but that's a UI convenience, not security — the browser sends whatever
@@ -88,10 +102,10 @@ def get_newsletter_post(slug):
     post = posts[0]
 
     tags = {t["slug"] for t in post.get("tags", [])}
-    if NEWSLETTER_TAG not in tags:
+    if not tags & SENDABLE_TAGS:
         raise GhostError(
-            f"'{post['title']}' isn't tagged #{NEWSLETTER_TAG} — only newsletter "
-            "posts can be sent through this tool."
+            f"'{post['title']}' isn't tagged #{NEWSLETTER_TAG} or #{WEALTH_HELP_TAG} — "
+            "only those posts can be sent through this tool."
         )
 
     if post.get("visibility") != "public":
@@ -104,10 +118,10 @@ def get_newsletter_post(slug):
         # Admin API doesn't echo `include=tags` the same way; re-verify here too
         # so a members-only post can't skip the check via the admin fallback path.
         admin_tags = {t["slug"] for t in post.get("tags", [])}
-        if NEWSLETTER_TAG not in admin_tags:
+        if not admin_tags & SENDABLE_TAGS:
             raise GhostError(
-                f"'{post['title']}' isn't tagged #{NEWSLETTER_TAG} — only newsletter "
-                "posts can be sent through this tool."
+                f"'{post['title']}' isn't tagged #{NEWSLETTER_TAG} or #{WEALTH_HELP_TAG} — "
+                "only those posts can be sent through this tool."
             )
 
     if not post.get("html"):
