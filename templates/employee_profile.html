@@ -5,23 +5,47 @@
 
 {% block content %}
 
-<div class="profile-header-card">
+<div class="profile-header-card" style="display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
 
-    <div class="profile-avatar">
-        {{ employee.name[0].upper() }}
+    <!-- Left: Image Display & Upload Form -->
+    <div class="profile-avatar-wrapper" style="text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative;">
+        {% if employee.profile_pic_data %}
+            <img src="{{ url_for('get_employee_avatar', emp_id=employee.id) }}" 
+                 alt="Profile Picture" 
+                 style="width: 120px !important; height: 120px !important; border-radius: 50% !important; object-fit: cover !important; object-position: center !important; border: 3px solid #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); display: block !important;">
+        {% else %}
+            <!-- Initials Fallback Block -->
+            <div class="avatar-letters" style="width: 120px !important; height: 120px !important; border-radius: 50% !important; background: linear-gradient(135deg, #4f46e5, #6366f1); color: #ffffff; font-size: 42px; font-weight: 600; display: flex; align-items: center; justify-content: center; border: 3px solid #fff; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); user-select: none;">
+                {{ employee.name[0] | upper }}
+            </div>
+        {% endif %}
+
+        <!-- Quick Upload Form (Submits automatically when a file is chosen) -->
+        <form action="{{ url_for('update_profile') }}" method="POST" enctype="multipart/form-data" id="uploadForm">
+            <label for="profile_pic" class="btn btn-secondary" style="cursor: pointer; padding: 6px 12px; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #ccc; border-radius: 4px; background: #fff;">
+                <i class="fas fa-camera"></i> Change Photo
+            </label>
+            <input type="file" id="profile_pic" name="profile_pic" accept="image/*" style="display: none;" onchange="document.getElementById('uploadForm').submit();">
+        </form>
     </div>
 
+    <!-- Right: Profile Info -->
     <div class="profile-info">
-        <h2>{{ employee.name }}</h2>
+        <h2 style="margin: 0 0 4px 0; font-size: 24px; font-weight: 600; color: #1f2937;">{{ employee.name }}</h2>
 
-        <div class="profile-meta">
-            {{ employee.designation }}
-            •
-            {{ employee.department }}
+        <div class="profile-meta" style="font-size: 14px; color: #6b7280; margin-bottom: 8px;">
+            {{ employee.designation }} • {{ employee.department }}
         </div>
 
-        <div class="profile-badge">
+        <div class="profile-badge" style="display: inline-block; padding: 4px 12px; font-size: 12px; font-weight: 500; background-color: #e0e7ff; color: #4338ca; border-radius: 9999px; text-transform: capitalize;">
             {{ employee.emp_type }}
+        </div>
+
+        <!-- NEW: Button pointing to your existing ID Card route -->
+        <div style="margin-top: 16px;">
+            <a href="{{ url_for('view_id_card', emp_id=employee.id) }}" target="_blank" class="btn btn-primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; font-size: 13px; background-color: #4f46e5; color: white; border-radius: 6px; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <i class="fas fa-id-card"></i> View ID Card
+            </a>
         </div>
     </div>
 
@@ -104,6 +128,7 @@
     </div>
 
 </div>
+
 
 <div class="card">
 

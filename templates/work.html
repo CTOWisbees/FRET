@@ -35,6 +35,29 @@
     .fret-wh-tag-link { font-size: 0.8rem; font-weight: 600; color: var(--accent); text-decoration: none; }
     .ghost-post-option:hover { background: var(--bg3); }
     .ghost-post-option:last-child { border-bottom: none !important; }
+
+    /* Custom Input Grid Layouts matching existing system variables */
+    .fret-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .fret-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .fret-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .fret-research-form input, .fret-research-form select, .fret-research-form textarea {
+        width: 100%; padding: 10px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 0.9rem; outline: none; box-sizing: border-box; transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .fret-research-form input:focus, .fret-research-form select:focus, .fret-research-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
+    .fret-research-table { width: 100%; border-collapse: collapse; margin-top: 8px; border-radius: var(--radius-sm); overflow: hidden; }
+    .fret-research-table th, .fret-research-table td { padding: 10px; border: 1px solid var(--border); text-align: center; font-size: 0.85rem; color: var(--text); }
+    .fret-research-table th { background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.06)); font-weight: 700; color: var(--text); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.4px; }
+    .fret-research-table tr:hover td { background: var(--bg3); }
+    .fret-research-table input { padding: 6px 10px; text-align: center; }
+
+    /* Step-card grouping for the Research Compiler form */
+    .fret-step-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px 20px; margin-bottom: 20px; }
+    .fret-step-card .fret-nm-form-block:last-child { margin-bottom: 0; }
+    .fret-research-form select#recommendationSelect { font-weight: 700; }
+    .fret-research-form select#recommendationSelect.rec-buy { color: var(--green); border-color: rgba(16, 185, 129, 0.4); }
+    .fret-research-form select#recommendationSelect.rec-hold { color: var(--yellow); border-color: rgba(245, 158, 11, 0.4); }
+    .fret-research-form select#recommendationSelect.rec-sell { color: var(--red); border-color: rgba(239, 68, 68, 0.4); }
+    .fret-nm-card-badge { background: rgba(99, 102, 241, 0.15); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.25); padding: 4px 12px; font-size: 0.72rem; font-weight: 700; border-radius: 999px; letter-spacing: 0.3px; }
 </style>
 
 <div class="fret-wh-panel">
@@ -44,26 +67,28 @@
     </div>
     <hr class="fret-wh-divider">
 
-    <div class="fret-nm-card" style="margin-bottom:32px;">
-        <div class="fret-nm-card-header">
-            <h4 class="fret-nm-card-title"><i class="fas fa-newspaper"></i> Latest Articles</h4>
-        </div>
-        <div class="fret-nm-card-body" id="fretArticlesList">
-            <p style="color:var(--text2);">Loading articles…</p>
-        </div>
-    </div>
 
-    <div class="fret-nm-card" style="margin-bottom:32px;">
-        <div class="fret-nm-card-header" style="display:flex; align-items:center; justify-content:space-between;">
-            <h4 class="fret-nm-card-title"><i class="fas fa-hand-holding-dollar"></i> Wealth Help</h4>
-            <a href="https://www.wisbees.com/tag/wealth-help/" target="_blank" rel="noopener" class="fret-wh-tag-link">View all on WisBees →</a>
-        </div>
-        <div class="fret-nm-card-body" id="fretWealthHelpList">
-            <p style="color:var(--text2);">Loading articles…</p>
-        </div>
-    </div>
 
+    {# --- BLOCK FOR DIGITAL MARKETING INTERNS --- #}
     {% if current_user.designation == 'Digital Marketing Intern' or current_user.department == 'Marketing' %}
+        <div class="fret-nm-card" style="margin-bottom:32px;">
+            <div class="fret-nm-card-header">
+                <h4 class="fret-nm-card-title"><i class="fas fa-newspaper"></i> Latest Articles</h4>
+            </div>
+            <div class="fret-nm-card-body" id="fretArticlesList">
+                <p style="color:var(--text2);">Loading articles…</p>
+            </div>
+        </div>
+
+        <div class="fret-nm-card" style="margin-bottom:32px;">
+            <div class="fret-nm-card-header" style="display:flex; align-items:center; justify-content:space-between;">
+                <h4 class="fret-nm-card-title"><i class="fas fa-hand-holding-dollar"></i> Wealth Help</h4>
+                <a href="https://www.wisbees.com/tag/wealth-help/" target="_blank" rel="noopener" class="fret-wh-tag-link">View all on WisBees →</a>
+            </div>
+            <div class="fret-nm-card-body" id="fretWealthHelpList">
+                <p style="color:var(--text2);">Loading articles…</p>
+            </div>
+        </div>
         <div class="fret-nm-card">
             <div class="fret-nm-card-header">
                 <h4 class="fret-nm-card-title"><i class="fas fa-paper-plane"></i> Newsletter Emailing Module</h4>
@@ -109,6 +134,202 @@
                 <div id="fretJobStatus" style="display:none; margin-top: 20px; padding: 14px 16px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); font-size: 0.88rem; color: var(--text2);"></div>
             </div>
         </div>
+
+    {# --- NEW DYNAMIC BLOCK FOR EQUITY RESEARCH INTERNS --- #}
+        {% elif current_user.designation == 'Equity Research Intern' or current_user.department == 'Research' %}
+        <div class="fret-nm-card fret-research-form">
+            <div class="fret-nm-card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                <h4 class="fret-nm-card-title"><i class="fas fa-chart-line"></i> Institutional Stock Research Compiler Engine</h4>
+                <span class="fret-nm-card-badge"><i class="fas fa-bolt"></i> Auto-Fill Enabled</span>
+            </div>
+            <div class="fret-nm-card-body">
+                <form action="{{ url_for('generate_report') }}" method="POST" enctype="multipart/form-data" target="_blank">
+
+                    <div class="fret-step-card">
+                        <div class="fret-nm-form-block">
+                            <div class="fret-grid-4">
+                                <div style="position: relative;">
+                                    <label class="fret-nm-form-label">Search Target Stock</label>
+                                    <div style="display: flex; gap: 6px;">
+                                        <input type="text" id="mainCompanyName" name="company_name" placeholder="Type first letter (e.g. T, R, A)..." autocomplete="off" oninput="handleStockSearch('mainCompanyName', 'stockSearchDropdown', selectTargetStock)" required>
+                                        <button type="button" id="btnFetchMetrics" class="btn btn-sm" onclick="fetchTargetMetrics()"
+                                                style="background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #ffffff; border: none; border-radius: var(--radius-sm); padding: 0 14px; cursor: pointer; white-space: nowrap; font-size: 0.82rem; font-weight: 600; transition: transform 0.15s;"
+                                                onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+                                            <i class="fas fa-sync" id="fetchIcon"></i> Fetch
+                                        </button>
+                                    </div>
+                                    <div id="stockSearchDropdown" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:100; top:100%; left:0; right:0; margin-top:4px; max-height:220px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                                </div>
+                                <div>
+                                    <label class="fret-nm-form-label">Current Price (₹)</label>
+                                    <input type="number" step="0.01" name="cmp" id="cmpInput" placeholder="564" required>
+                                </div>
+                                <div>
+                                    <label class="fret-nm-form-label">Price As On</label>
+                                    <input type="date" name="cmp_date" id="cmpDateInput" required>
+                                </div>
+                                <div>
+                                    <label class="fret-nm-form-label">Target Price (₹)</label>
+                                    <input type="number" step="0.01" name="target_price" placeholder="1000" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fret-step-card">
+                        <div class="fret-nm-form-block">
+                            <div class="fret-grid-2">
+                                <div>
+                                    <label class="fret-nm-form-label">Comparison Mode</label>
+                                    <select name="comparison_mode" id="comparisonModeSelect" onchange="toggleComparisonMode()">
+                                        <option value="peer" selected>Peer Comparison (Target Co. vs Peers)</option>
+                                        <option value="financial_year">Same Stock Financial Year Comparison (Current FY vs Prior FYs)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="fret-nm-form-label">Recommendation</label>
+                                    <select name="recommendation" id="recommendationSelect" class="rec-buy" onchange="updateRecommendationStyle(this)">
+                                        <option value="Buy" selected>Buy</option>
+                                        <option value="Sell">Sell</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fret-step-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                            <label class="fret-nm-form-label" id="columnBlockTitle" style="margin-bottom:0;">Peer Comparison Identifiers</label>
+                            <div id="peerControlButtons">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="addPeerBtn" onclick="addPeerColumn()" style="font-size: 11px; padding: 4px 10px;">
+                                    <i class="fas fa-plus"></i> Add Peer Column (Max 5)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="fret-grid-3" id="columnLabelsContainer" style="display: grid; gap: 10px;">
+                            <!-- Target Co. -->
+                            <div>
+                                <label class="fret-nm-form-label" id="lbl_comp_1">Target Company</label>
+                                <input type="text" name="comp_1" id="comp_1" placeholder="Target Co. Name" required>
+                            </div>
+
+                            <!-- Peer 1 Search Input -->
+                            <div style="position: relative;" id="peer_wrap_2">
+                                <label class="fret-nm-form-label" id="lbl_comp_2">Peer 1 Search</label>
+                                <input type="text" name="comp_2" id="comp_2" placeholder="Type Peer 1 (e.g. VEDL)..." autocomplete="off" oninput="handleStockSearch('comp_2', 'peerDropdown_2', (sym) => selectPeerStock(2, sym))" required>
+                                <div id="peerDropdown_2" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                            </div>
+
+                            <!-- Peer 2 Search Input -->
+                            <div style="position: relative;" id="peer_wrap_3">
+                                <label class="fret-nm-form-label" id="lbl_comp_3">Peer 2 Search</label>
+                                <input type="text" name="comp_3" id="comp_3" placeholder="Type Peer 2 (e.g. HINDALCO)..." autocomplete="off" oninput="handleStockSearch('comp_3', 'peerDropdown_3', (sym) => selectPeerStock(3, sym))" required>
+                                <div id="peerDropdown_3" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fret-step-card">
+                        <div class="fret-nm-form-block">
+                            <div class="fret-grid-3">
+                                <div>
+                                    <label class="fret-nm-form-label">Industry Sector</label>
+                                    <input type="text" name="industry" placeholder="e.g. Zinc & Silver Mining" required>
+                                </div>
+                                <div>
+                                    <label class="fret-nm-form-label">Time Horizon</label>
+                                    <input type="text" name="view" placeholder="e.g. 2-3 yrs" required>
+                                </div>
+                                <div>
+                                    <label class="fret-nm-form-label">Upload Chart</label>
+                                    <input type="file" name="chart_img" accept="image/*" required style="padding: 6px 10px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fret-step-card">
+                        <div style="overflow-x: auto;">
+                            <table class="fret-research-table" id="metricsTable">
+                                <thead>
+                                    <tr id="metricsHeaderRow">
+                                        <th>Metric Dimension</th>
+                                        <th id="th_col_1">Target Co.</th>
+                                        <th id="th_col_2">Peer 1</th>
+                                        <th id="th_col_3">Peer 2</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="metricsTableBody">
+                                    <!-- Dynamic rows rendered via JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="fret-step-card">
+                        <div class="fret-nm-form-block">
+                            <label class="fret-nm-form-label">Business Overview (Moat)</label>
+                            <textarea name="business_overview" rows="4" placeholder="Describe competitive core structures, expansions, operations..." required></textarea>
+                        </div>
+
+                        <div class="fret-nm-form-block">
+                            <div class="fret-grid-2">
+                                <div>
+                                    <label class="fret-nm-form-label">Relative Valuation Thesis</label>
+                                    <textarea name="relative_valuation" rows="3" placeholder="Compare multiples..." required></textarea>
+                                </div>
+                                <div>
+                                    <label class="fret-nm-form-label">Technical Chart Analysis</label>
+                                    <textarea name="technicals" rows="3" placeholder="Pattern formations..." required></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="fret-step-card">
+                        <label class="fret-nm-form-label">Street Coverage Consensus Analytics</label>
+                        <table class="fret-research-table" id="fretAnalystDynamicTable">
+                            <thead>
+                                <tr>
+                                    <th>Call Date</th>
+                                    <th>Brokerage House</th>
+                                    <th>Rating Recommendation</th>
+                                    <th>Target Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><input type="text" name="an_date[]" placeholder="e.g. May '25"></td>
+                                    <td><input type="text" name="an_broker[]" placeholder="e.g. Yes Securities"></td>
+                                    <td><input type="text" name="an_call[]" placeholder="e.g. BUY"></td>
+                                    <td><input type="number" step="0.01" name="an_target[]" placeholder="e.g. 585"></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" name="an_date[]" placeholder="e.g. May '25"></td>
+                                    <td><input type="text" name="an_broker[]" placeholder="e.g. Dolat Capital"></td>
+                                    <td><input type="text" name="an_call[]" placeholder="e.g. BUY"></td>
+                                    <td><input type="number" step="0.01" name="an_target[]" placeholder="e.g. 720"></td>
+                                </tr>
+                                <tr>
+                                    <td><input type="text" name="an_date[]" placeholder="e.g. June '25"></td>
+                                    <td><input type="text" name="an_broker[]" placeholder="e.g. Indsec Research"></td>
+                                    <td><input type="text" name="an_call[]" placeholder="e.g. BUY"></td>
+                                    <td><input type="number" step="0.01" name="an_target[]" placeholder="e.g. 750"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="fret-nm-submit-btn" style="margin-top:16px;">
+                        <i class="fas fa-layer-group"></i> Compile Standard Research Report
+                    </button>
+                </form>
+            </div>
+        </div>
+
+    {# --- FALLBACK DEFAULT BLOCK FOR OTHER DEPARTMENTS --- #}
     {% else %}
         <div class="fret-wh-fallback-card">
             <div class="fret-wh-fallback-icon"><i class="fas fa-hourglass-half"></i></div>
@@ -120,14 +341,32 @@
 </div>
 
 <script>
+// ============================================================================
+// SECTION 1: DIGITAL MARKETING INTERN MODULES (GHOST NEWSLETTER & BULK MAIL)
+// ============================================================================
+
+// Logic to dynamically inject infinite brokerage table evaluation matrices inside the hub layout
+function addFretAnalystRow() {
+    const tbody = document.querySelector('#fretAnalystDynamicTable tbody');
+    if (!tbody) return;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" name="an_date[]" placeholder="DD/MM/YYYY"></td>
+        <td><input type="text" name="an_broker[]" placeholder="Brokerage"></td>
+        <td><input type="text" name="an_call[]" placeholder="Call"></td>
+        <td><input type="number" step="0.01" name="an_target[]" placeholder="Target"></td>
+    `;
+    tbody.appendChild(tr);
+}
+
 document.getElementById('excelFile')?.addEventListener('change', function(e) {
     const filePreview = document.getElementById('fretFilePreview');
     const fileNameSpan = document.getElementById('fretFileName');
     if (this.files && this.files.length > 0) {
-        fileNameSpan.textContent = this.files[0].name;
-        filePreview.style.display = 'flex';
+        if (fileNameSpan) fileNameSpan.textContent = this.files[0].name;
+        if (filePreview) filePreview.style.display = 'flex';
     } else {
-        filePreview.style.display = 'none';
+        if (filePreview) filePreview.style.display = 'none';
     }
 });
 
@@ -158,7 +397,7 @@ function renderArticleFeed(container, posts) {
     if (rest) {
         const moreWrap = container.querySelector('.fret-wh-more-wrap');
         const btn = container.querySelector('.fret-wh-showmore-btn');
-        btn.addEventListener('click', () => {
+        btn?.addEventListener('click', () => {
             const expanded = moreWrap.style.display !== 'none';
             moreWrap.style.display = expanded ? 'none' : 'block';
             btn.textContent = expanded ? 'Show more' : 'Show less';
@@ -190,6 +429,7 @@ const ghostPostSlug = document.getElementById('ghostPostSlug');
 const ghostPostDropdown = document.getElementById('ghostPostDropdown');
 
 function renderGhostOptions(list) {
+    if (!ghostPostDropdown) return;
     if (!list.length) {
         ghostPostDropdown.innerHTML = '<div style="padding:10px 14px; color:var(--text2); font-size:0.85rem;">No matching posts</div>';
     } else {
@@ -223,7 +463,7 @@ if (ghostPostSearch) {
         });
 
     ghostPostSearch.addEventListener('input', function() {
-        ghostPostSlug.value = '';
+        if (ghostPostSlug) ghostPostSlug.value = '';
         const q = this.value.trim().toLowerCase();
         renderGhostOptions(q ? ghostPosts.filter(p => p.title.toLowerCase().includes(q)) : ghostPosts);
     });
@@ -234,21 +474,22 @@ if (ghostPostSearch) {
 
     document.addEventListener('click', function(e) {
         if (!e.target.closest('#ghostPostSearch') && !e.target.closest('#ghostPostDropdown')) {
-            ghostPostDropdown.style.display = 'none';
+            if (ghostPostDropdown) ghostPostDropdown.style.display = 'none';
         }
     });
 
-    ghostPostDropdown.addEventListener('click', function(e) {
+    ghostPostDropdown?.addEventListener('click', function(e) {
         const opt = e.target.closest('.ghost-post-option');
         if (!opt || !opt.dataset.slug) return;
         ghostPostSearch.value = opt.dataset.title;
-        ghostPostSlug.value = opt.dataset.slug;
+        if (ghostPostSlug) ghostPostSlug.value = opt.dataset.slug;
         ghostPostDropdown.style.display = 'none';
     });
 }
 
 function pollNewsletterJob(jobId) {
     const statusBox = document.getElementById('fretJobStatus');
+    if (!statusBox) return;
     statusBox.style.display = 'block';
     const timer = setInterval(() => {
         fetch(`/api/newsletter/job/${jobId}`)
@@ -271,7 +512,7 @@ document.getElementById('newsletterUploadForm')?.addEventListener('submit', func
     const fileInput = document.getElementById('excelFile');
     const postSlug = ghostPostSlug ? ghostPostSlug.value : '';
     if (!fileInput.files.length || !postSlug) {
-        if (typeof showToast === "function") { showToast('Pick a newsletter post from the search box.', 'error'); }
+        if (typeof showToast === "function") { showToast('Pick a newsletter post from the search box.', 'error'); } else { alert('Pick a newsletter post from the search box.'); }
         return;
     }
 
@@ -298,9 +539,10 @@ document.getElementById('newsletterUploadForm')?.addEventListener('submit', func
             fileInput.value = '';
             document.getElementById('emailSubject').value = '';
             document.getElementById('customMessage').value = '';
-            ghostPostSearch.value = '';
-            ghostPostSlug.value = '';
-            document.getElementById('fretFilePreview').style.display = 'none';
+            if (ghostPostSearch) ghostPostSearch.value = '';
+            if (ghostPostSlug) ghostPostSlug.value = '';
+            const preview = document.getElementById('fretFilePreview');
+            if (preview) preview.style.display = 'none';
             pollNewsletterJob(data.job_id);
         } else {
             if (typeof showToast === "function") { showToast(data.message, 'error'); } else { alert("Error: " + data.message); }
@@ -314,6 +556,378 @@ document.getElementById('newsletterUploadForm')?.addEventListener('submit', func
         btn.disabled = false;
         btn.innerHTML = originalHtml;
     });
+});
+
+
+// ============================================================================
+// SECTION 2: EQUITY RESEARCH INTERNS MODULE (COMPILER & AUTOCOMPLETE SEARCH)
+// ============================================================================
+
+let currentPeerCount = 2; // Default 2 peers + 1 Target Company = 3 Columns Total
+const maxPeers = 5;
+
+// Defined Metric Schemas for Peer vs Financial Year Modes
+const peerMetrics = [
+    { label: "Market Cap (Cr)", key: "mcap" },
+    { label: "P/E Ratio", key: "pe" },
+    { label: "ROE (%)", key: "roe" },
+    { label: "ROCE (%)", key: "roce" },
+    { label: "OPM (%)", key: "opm" },
+    { label: "EV / EBITDA", key: "ev" }
+];
+
+const fyMetrics = [
+    { label: "Revenue (Cr)", key: "mcap" },
+    { label: "EBITDA (Cr)", key: "pe" },
+    { label: "Net Profit (Cr)", key: "roe" },
+    { label: "OPM (%)", key: "roce" },
+    { label: "EPS (₹)", key: "opm" },
+    { label: "Dividend / Share (₹)", key: "ev" }
+];
+
+function updateRecommendationStyle(sel) {
+    sel.classList.remove('rec-buy', 'rec-hold', 'rec-sell');
+    if (sel.value === 'Buy') sel.classList.add('rec-buy');
+    else if (sel.value === 'Hold') sel.classList.add('rec-hold');
+    else if (sel.value === 'Sell') sel.classList.add('rec-sell');
+}
+
+function toggleComparisonMode() {
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    if (!modeSelect) return;
+
+    const mode = modeSelect.value;
+    const addPeerBtn = document.getElementById('addPeerBtn');
+    const colBlockTitle = document.getElementById('columnBlockTitle');
+
+    if (mode === 'financial_year') {
+        resetToFYMode();
+        if (addPeerBtn) addPeerBtn.style.display = 'none';
+        if (colBlockTitle) colBlockTitle.textContent = "Financial Year Identifiers";
+    } else {
+        if (addPeerBtn) addPeerBtn.style.display = 'inline-block';
+        if (colBlockTitle) colBlockTitle.textContent = "Peer Comparison Identifiers";
+        renderPeerMode();
+    }
+}
+
+function resetToFYMode() {
+    currentPeerCount = 2;
+
+    // India FY runs Apr-Mar; the latest fully completed FY ended this March
+    // if we're past April, otherwise it ended last March.
+    const now = new Date();
+    const completedFYEndYear = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+    const fyLabel = offset => `FY${String(completedFYEndYear - offset).slice(-2)}`;
+
+    const lbl1 = document.getElementById('lbl_comp_1'); if (lbl1) lbl1.textContent = "Current Year";
+    const comp1 = document.getElementById('comp_1'); if (comp1) comp1.value = fyLabel(0);
+
+    const lbl2 = document.getElementById('lbl_comp_2'); if (lbl2) lbl2.textContent = "Prior Year 1";
+    const comp2 = document.getElementById('comp_2'); if (comp2) comp2.value = fyLabel(1);
+
+    const lbl3 = document.getElementById('lbl_comp_3'); if (lbl3) lbl3.textContent = "Prior Year 2";
+    const comp3 = document.getElementById('comp_3'); if (comp3) comp3.value = fyLabel(2);
+
+    const container = document.getElementById('columnLabelsContainer');
+    if (container) {
+        while (container.children.length > 3) {
+            container.removeChild(container.lastChild);
+        }
+    }
+
+    renderTableRows(fyMetrics, 2);
+}
+
+function renderPeerMode() {
+    const lbl1 = document.getElementById('lbl_comp_1'); if (lbl1) lbl1.textContent = "Target Company";
+    const companyNameField = document.querySelector('input[name="company_name"]');
+    const comp1 = document.getElementById('comp_1'); 
+    if (comp1) {
+        comp1.value = companyNameField ? companyNameField.value : "";
+        comp1.placeholder = "Target Co. Name";
+    }
+
+    const lbl2 = document.getElementById('lbl_comp_2'); if (lbl2) lbl2.textContent = "Peer 1";
+    const comp2 = document.getElementById('comp_2'); if (comp2) comp2.placeholder = "Type Peer 1...";
+
+    const lbl3 = document.getElementById('lbl_comp_3'); if (lbl3) lbl3.textContent = "Peer 2";
+    const comp3 = document.getElementById('comp_3'); if (comp3) comp3.placeholder = "Type Peer 2...";
+
+    renderTableRows(peerMetrics, currentPeerCount);
+}
+
+function renderTableRows(metricsList, peerCount) {
+    const headerRow = document.getElementById('metricsHeaderRow');
+    const tableBody = document.getElementById('metricsTableBody');
+    if (!headerRow || !tableBody) return;
+
+    let headerHTML = `<th>Metric Dimension</th><th>Col 1 (Target / Y1)</th>`;
+    for (let i = 1; i <= peerCount; i++) {
+        headerHTML += `<th id="th_col_${i+1}">Col ${i+1} (Peer ${i} / Y${i+1})</th>`;
+    }
+    headerRow.innerHTML = headerHTML;
+
+    let bodyHTML = '';
+    metricsList.forEach(m => {
+        bodyHTML += `<tr><td><strong>${m.label}</strong></td>`;
+        bodyHTML += `<td><input type="text" name="${m.key}_1" placeholder="Val 1" required></td>`;
+        for (let i = 1; i <= peerCount; i++) {
+            const colNum = i + 1;
+            bodyHTML += `<td><input type="text" name="${m.key}_${colNum}" placeholder="Val ${colNum}"></td>`;
+        }
+        bodyHTML += `</tr>`;
+    });
+    tableBody.innerHTML = bodyHTML;
+
+    const container = document.getElementById('columnLabelsContainer');
+    if (container) {
+        const totalCols = peerCount + 1;
+        container.style.gridTemplateColumns = `repeat(${Math.min(totalCols, 4)}, 1fr)`;
+    }
+}
+
+// Global Debounce Registry for Inputs
+let searchDebounceTimers = {};
+
+// 1. Unified Instant First-Letter Stock Search Handler
+function handleStockSearch(inputId, dropdownId, selectCallback) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    const query = input ? input.value.trim() : '';
+
+    if (!query) {
+        if (dropdown) dropdown.style.display = 'none';
+        return;
+    }
+
+    clearTimeout(searchDebounceTimers[inputId]);
+    searchDebounceTimers[inputId] = setTimeout(async () => {
+        try {
+            const res = await fetch(`/api/search-stocks?q=${encodeURIComponent(query)}`);
+            const data = await res.json();
+
+            if (data.success && data.results.length > 0) {
+                dropdown.innerHTML = data.results.map(s => `
+                    <div onclick="executeSearchSelection('${inputId}', '${dropdownId}', '${s.full_symbol}', '${s.name.replace(/'/g, "")}')" 
+                         style="padding: 10px 14px; cursor: pointer; font-size: 0.88rem; color: var(--text); border-bottom: 1px solid var(--border); transition: background 0.15s;"
+                         onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+                        <strong>${s.symbol}</strong> — <span style="color: var(--text2);">${s.name}</span>
+                        <small style="float: right; opacity: 0.6; font-size: 0.75rem;">${s.exch}</small>
+                    </div>
+                `).join('');
+                
+                window[`callback_${inputId}`] = selectCallback;
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.innerHTML = `<div style="padding:10px 14px; font-size:0.85rem; color:var(--text2);">No matching stocks found</div>`;
+                dropdown.style.display = 'block';
+            }
+        } catch (err) {
+            console.error("Search error:", err);
+        }
+    }, 200);
+}
+
+function executeSearchSelection(inputId, dropdownId, symbol, name) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    if (input) input.value = symbol;
+    if (dropdown) dropdown.style.display = 'none';
+
+    if (typeof window[`callback_${inputId}`] === 'function') {
+        window[`callback_${inputId}`](symbol, name);
+    }
+}
+
+// Global click event to close dropdowns when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.stock-autocomplete-dropdown') && !e.target.closest('input')) {
+        document.querySelectorAll('.stock-autocomplete-dropdown').forEach(d => d.style.display = 'none');
+    }
+});
+
+// 2. Target Company Data Fetcher (ONLY Target)
+async function fetchTargetMetrics() {
+    const symbolInput = document.getElementById('mainCompanyName');
+    const symbol = symbolInput ? symbolInput.value.trim() : '';
+
+    if (!symbol) {
+        alert("Please select or type a stock ticker.");
+        return;
+    }
+
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    const mode = modeSelect ? modeSelect.value : 'peer';
+
+    const btn = document.getElementById('btnFetchMetrics');
+    const icon = document.getElementById('fetchIcon');
+    if (btn && icon) { btn.disabled = true; icon.classList.add('fa-spin'); }
+
+    try {
+        if (mode === 'financial_year') {
+            await fetchTargetFinancialYears(symbol);
+            return;
+        }
+
+        const res = await fetch(`/api/get-stock-data/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+
+        if (result.success) {
+            const data = result.data;
+            if (data.company_name) symbolInput.value = data.company_name;
+
+            const cmpField = document.getElementById('cmpInput');
+            if (cmpField && data.cmp !== 'N/A') cmpField.value = data.cmp;
+
+            const cmpDateField = document.getElementById('cmpDateInput');
+            if (cmpDateField && data.cmp !== 'N/A') cmpDateField.value = new Date().toISOString().split('T')[0];
+
+            const comp1 = document.getElementById('comp_1');
+            if (comp1) comp1.value = data.company_name;
+
+            fillColumnMetrics(1, data);
+        } else {
+            alert(result.message || "Failed to fetch stock data.");
+        }
+    } catch (e) {
+        alert("Error fetching stock data.");
+    } finally {
+        if (btn && icon) { btn.disabled = false; icon.classList.remove('fa-spin'); }
+    }
+}
+
+// 2b. Target Company Historical Financials Fetcher (Financial Year mode - last 3 FYs at once)
+async function fetchTargetFinancialYears(symbol) {
+    try {
+        const res = await fetch(`/api/get-stock-financials/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+
+        if (!result.success) {
+            alert(result.message || "Failed to fetch historical financials.");
+            return;
+        }
+
+        // years[] comes back oldest -> newest; reverse so Col 1 is the current
+        // (most recent) year, descending through prior years after that.
+        const descendingYears = [...result.years].reverse();
+        descendingYears.forEach((yearData, idx) => {
+            const colNum = idx + 1;
+            const lbl = document.getElementById(`lbl_comp_${colNum}`);
+            const input = document.getElementById(`comp_${colNum}`);
+            if (lbl) lbl.textContent = colNum === 1 ? 'Current Year' : `Prior Year ${colNum - 1}`;
+            if (input) input.value = yearData.label;
+            fillColumnMetrics(colNum, yearData);
+        });
+    } catch (e) {
+        alert("Error fetching historical financial data.");
+    }
+}
+
+function selectTargetStock(symbol) {
+    fetchTargetMetrics();
+}
+
+// 3. Specific Peer Company Data Fetcher (ONLY Selected Peer Column)
+async function selectPeerStock(colNum, symbol) {
+    try {
+        const res = await fetch(`/api/get-stock-data/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+
+        if (result.success) {
+            const data = result.data;
+            const peerInput = document.getElementById(`comp_${colNum}`);
+            if (peerInput) peerInput.value = data.company_name;
+
+            fillColumnMetrics(colNum, data);
+        }
+    } catch (e) {
+        console.error(`Error fetching data for peer column ${colNum}:`, e);
+    }
+}
+
+// Utility function to populate column input fields safely
+function fillColumnMetrics(colNum, data) {
+    const fieldMap = {
+        [`mcap_${colNum}`]: data.mcap,
+        [`pe_${colNum}`]: data.pe,
+        [`roe_${colNum}`]: data.roe,
+        [`roce_${colNum}`]: data.roce,
+        [`opm_${colNum}`]: data.opm,
+        [`ev_${colNum}`]: data.ev
+    };
+
+    for (const [key, val] of Object.entries(fieldMap)) {
+        const inp = document.querySelector(`input[name="${key}"]`);
+        if (inp && val !== undefined && val !== 'N/A') {
+            inp.value = val;
+        }
+    }
+}
+
+// Dynamic Peer Column Expansion Handler
+function addPeerColumn() {
+    if (currentPeerCount >= maxPeers) {
+        alert("Maximum of 5 peers allowed.");
+        return;
+    }
+
+    currentPeerCount++;
+    const colIndex = currentPeerCount + 1; // Col 1 is Target, Col 2 is Peer 1, etc.
+    const container = document.getElementById('columnLabelsContainer');
+
+    const newDiv = document.createElement('div');
+    newDiv.id = `peer_wrap_${colIndex}`;
+    newDiv.style.position = 'relative';
+    newDiv.innerHTML = `
+        <label class="fret-nm-form-label" id="lbl_comp_${colIndex}">Peer ${currentPeerCount} Search</label>
+        <div style="display: flex; gap: 4px;">
+            <input type="text" name="comp_${colIndex}" id="comp_${colIndex}" placeholder="Type Peer ${currentPeerCount}..." autocomplete="off" oninput="handleStockSearch('comp_${colIndex}', 'peerDropdown_${colIndex}', (sym) => selectPeerStock(${colIndex}, sym))" required>
+            <button type="button" onclick="removePeerColumn(${colIndex})" class="btn btn-sm btn-outline-danger" style="padding:2px 8px;"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="peerDropdown_${colIndex}" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+    `;
+    container?.appendChild(newDiv);
+
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    const mode = modeSelect ? modeSelect.value : 'peer';
+    const activeMetrics = mode === 'financial_year' ? fyMetrics : peerMetrics;
+    renderTableRows(activeMetrics, currentPeerCount);
+}
+
+function removePeerColumn(colIndex) {
+    const wrap = document.getElementById(`peer_wrap_${colIndex}`);
+    if (wrap) wrap.remove();
+
+    currentPeerCount--;
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    const mode = modeSelect ? modeSelect.value : 'peer';
+    const activeMetrics = mode === 'financial_year' ? fyMetrics : peerMetrics;
+    renderTableRows(activeMetrics, currentPeerCount);
+}
+
+// Auto-initialize layout setup
+document.addEventListener('DOMContentLoaded', function() {
+    if (document.getElementById('comparisonModeSelect')) {
+        toggleComparisonMode();
+    }
+
+    const cmpDateField = document.getElementById('cmpDateInput');
+    if (cmpDateField && !cmpDateField.value) {
+        cmpDateField.value = new Date().toISOString().split('T')[0];
+    }
+
+    const companyNameField = document.querySelector('input[name="company_name"]');
+    const targetCompanyField = document.getElementById('comp_1');
+    if (companyNameField && targetCompanyField) {
+        companyNameField.addEventListener('input', function() {
+            const modeSelect = document.getElementById('comparisonModeSelect');
+            const mode = modeSelect ? modeSelect.value : 'peer';
+            if (mode !== 'financial_year') {
+                targetCompanyField.value = companyNameField.value;
+            }
+        });
+    }
 });
 </script>
 {% endblock %}

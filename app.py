@@ -2,13 +2,16 @@ from xmlrpc import server
 from openpyxl import reader
 import requests
 import base64
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session, Response, abort
+from markupsafe import Markup, escape
+import re
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, config, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime, date
 import os
+from groq import Groq
 import json
 import base64
 from io import BytesIO
@@ -18,14 +21,17 @@ from pdf_generator import generate_experience_letter_pdf, generate_offer_letter_
 from datetime import datetime, timedelta
 import requests
 import base64
+import yfinance as yf
 
 app = Flask(__name__)
+groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY")) #for repharsing (Equity research Interns)
 
 # Absolute paths — DB is always in the same place no matter where you run from
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, 'hrms.db')
 UPLOAD_DIR = os.path.join(BASE_DIR, 'uploads')
-
+RESEARCH_UPLOAD_DIR = os.path.join(BASE_DIR, 'static', 'uploads')
+os.makedirs(RESEARCH_UPLOAD_DIR, exist_ok=True)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'hrms-secret-key-2024')
 
 # Database: use DATABASE_URL (e.g. Neon Postgres) in production, fall back to local SQLite.
@@ -156,6 +162,8 @@ class Employee(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('hr.id'))
     emp_type = db.Column(db.String(20), default='Normal')  # 'Intern' or 'Normal'
     gender = db.Column(db.String(10), nullable=False, default='female')
+    profile_pic_data = db.Column(db.LargeBinary, nullable=True)
+    profile_pic_mime = db.Column(db.String(20), nullable=True)
 
 class EmployeeAccount(UserMixin, db.Model):
     __tablename__ = 'employee_accounts'
@@ -1911,20 +1919,423 @@ def newsletter_workspace():
     # Do the exact same thing here
     return render_template('work.html', employee=current_user)
 
-@app.route('/temp-reset-password-xyz')
-def temp_reset():
-    # Replace with your boss's actual HR registration email address
-    boss_email = "info@wisbees.com" 
+# @app.route('/temp-reset-password-xyz')
+# def temp_reset():
+#     # Replace with your boss's actual HR registration email address
+#     boss_email = "info@wisbees.com" 
     
-    boss = HR.query.filter_by(email=boss_email).first()
-    if not boss:
-        return f"Could not find an HR user with email: {boss_email}", 404
+#     boss = HR.query.filter_by(email=boss_email).first()
+#     if not boss:
+#         return f"Could not find an HR user with email: {boss_email}", 404
         
-    # Set the temporary password
-    boss.set_password("Wisbees@2026")
-    db.session.commit()
+#     # Set the temporary password
+#     boss.set_password("Wisbees@2026")
+#     db.session.commit()
     
-    return f"Success! Password for {boss_email} has been reset to: Wisbees@2026"
+#     return f"Success! Password for {boss_email} has been reset to: Wisbees@2026"
+
+@app.route('/employee/<int:emp_id>/avatar')
+def get_employee_avatar(emp_id):
+    emp = Employee.query.get_or_404(emp_id)
+    if not emp.profile_pic_data:
+        abort(404)
+    # Return the binary data explicitly with its stored MIME type (e.g., image/jpeg)
+    return Response(emp.profile_pic_data, mimetype=emp.profile_pic_mime or 'image/jpeg')
+
+@app.route('/profile/update', methods=['POST'])
+def update_profile():
+    # 1. Check if it is an Employee/Intern based on your session logic
+    if 'employee_id' in session:
+        target_user = Employee.query.get(session['employee_id'])
+        redirect_route = 'employee_profile'
+        
+    # 2. Otherwise, check if it is an HR user
+    elif current_user.is_authenticated:
+        target_user = current_user
+        redirect_route = 'profile'
+        
+    # 3. If neither, send them to login
+    else:
+        return redirect(url_for('login'))
+
+    # Process the file upload
+    if 'profile_pic' in request.files:
+        file = request.files['profile_pic']
+        if file and file.filename != '':
+            target_user.profile_pic_data = file.read()
+            target_user.profile_pic_mime = file.mimetype
+            
+    db.session.commit()
+    flash('Profile updated successfully!', 'success')
+    
+    # Safely redirect to the correct dashboard
+    return redirect(url_for(redirect_route))
+
+@app.route('/employee/<int:emp_id>/id-card')
+@login_required
+def view_id_card(emp_id):
+    # Fetch employee or intern details
+    employee = Employee.query.get_or_404(emp_id)
+    return render_template('id_card.html', emp=employee, role="EMPLOYEE")
+
+# ─────────────── EQUITY RESEARCH COMPILED MODULES ───────────────
+
+@app.template_filter('nl2p')
+def nl2p(text):
+    """Turns free-text textarea input into HTML paragraphs the standard way:
+    a blank line starts a new paragraph, a single line break becomes <br>."""
+    if not text:
+        return ''
+    paragraphs = re.split(r'\n\s*\n', text.strip())
+    rendered = []
+    for para in paragraphs:
+        if not para.strip():
+            continue
+        safe = escape(para.strip()).replace('\n', Markup('<br>\n'))
+        rendered.append(f'<p class="dossier-paragraph">{safe}</p>')
+    return Markup('\n'.join(rendered))
+
+@app.route('/research/generate', methods=['POST'])
+@login_required
+def generate_report():
+    form_data = request.form.to_dict()
+    
+    # Process the incoming chart attachment stream
+    chart_file = request.files.get('chart_img')
+    filename = None
+    if chart_file and chart_file.filename != '':
+        filename = secure_filename(chart_file.filename)
+        chart_file.save(os.path.join(RESEARCH_UPLOAD_DIR, filename))
+
+    # Calculate targeted performance upside potential percentage
+    try:
+        cmp_val = float(form_data.get('cmp', 0))
+        target_val = float(form_data.get('target_price', 0))
+        upside = round(((target_val - cmp_val) / cmp_val) * 100, 2) if cmp_val > 0 else 0
+    except ValueError:
+        upside = 0
+    form_data['upside'] = upside
+
+    # Standard collection of dynamic analyst metrics arrays
+    dates = request.form.getlist('an_date[]')
+    brokers = request.form.getlist('an_broker[]')
+    calls = request.form.getlist('an_call[]')
+    targets = request.form.getlist('an_target[]')
+    
+    analysts_list = []
+    for i in range(len(dates)):
+        if dates[i] or brokers[i]:
+            analysts_list.append({
+                'date': dates[i],
+                'broker': brokers[i],
+                'call': calls[i],
+                'target': targets[i]
+            })
+
+    # Financial metric labels differ depending on the comparison mode chosen
+    # on the form, but reuse the same field-name keys (mcap/pe/roe/roce/opm/ev)
+    comparison_mode = form_data.get('comparison_mode', 'peer')
+    if comparison_mode == 'financial_year':
+        metric_labels = [
+            ('mcap', 'Revenue (Cr)'),
+            ('pe', 'EBITDA (Cr)'),
+            ('roe', 'Net Profit (Cr)'),
+            ('roce', 'OPM (%)'),
+            ('opm', 'EPS (₹)'),
+            ('ev', 'Dividend / Share (₹)'),
+        ]
+    else:
+        metric_labels = [
+            ('mcap', 'Market Cap (Cr)'),
+            ('pe', 'P/E Ratio'),
+            ('roe', 'ROE (%)'),
+            ('roce', 'ROCE (%)'),
+            ('opm', 'OPM (%)'),
+            ('ev', 'EV / EBITDA'),
+        ]
+
+    # Collect the dynamic Target/Peer (or Year) columns submitted from the form
+    comparison_columns = []
+    col_index = 1
+    while f'comp_{col_index}' in form_data:
+        col_name = form_data.get(f'comp_{col_index}', '').strip()
+        if col_name:
+            comparison_columns.append({
+                'name': col_name,
+                'metrics': {key: form_data.get(f'{key}_{col_index}', '') for key, _ in metric_labels}
+            })
+        col_index += 1
+
+    # Defaults to the compact modern dashboard summary we built first
+    return render_template(
+        'premium_report.html',
+        data=form_data,
+        chart_filename=filename,
+        analysts=analysts_list,
+        comparison_mode=comparison_mode,
+        comparison_columns=comparison_columns,
+        metric_labels=metric_labels
+    )
+
+@app.route('/research/mail', methods=['POST'])
+@login_required
+def mail_report():
+    """
+    Hooks directly into the Microsoft Graph authentication layer 
+    to dispatch the compiled intelligence briefing down the ecosystem wire.
+    """
+    company = request.form.get('company_name', 'Equity Assets')
+    
+    config = EmailConfig.query.filter_by(hr_id=current_user.id).first()
+    if not config or not config.sender_email:
+        flash('System configuration absent. Setup Email Config credentials before dispatching reports.', 'error')
+        return redirect(url_for('work'))
+
+    try:
+        token = get_graph_token()
+        send_url = f"https://graph.microsoft.com/v1.0/users/{config.sender_email}/sendMail"
+        
+        email_payload = {
+            "message": {
+                "subject": f"WisBees Research Briefing Matrix Update: {company}",
+                "body": {
+                    "contentType": "HTML",
+                    "content": f"""
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; color: #1e293b;">
+                        <h2 style="color: #10b981; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">WisBees Research Node Update</h2>
+                        <p>A premium equity tracking blueprint covering <strong>{company}</strong> was compiled by an Equity Research Intern.</p>
+                        <p>Please check the web terminal workspace hub to analyze the chart breakdowns, financial matrices, and rating consensus sheets.</p>
+                        <br>
+                        <p style="font-size: 12px; color: #64748b; margin: 0;">TimeArrow Private Limited (WisBees)</p>
+                        <img src="https://fret.wisbees.com/static/logo.png" alt="WisBees Logo" width="120" style="display: block; margin-top: 10px;" />
+                    </div>
+                    """
+                },
+                "toRecipients": [
+                    {
+                        "emailAddress": {
+                            "address": "info@wisbees.com"  # Adjust target recipient matrix group as preferred
+                        }
+                    }
+                ]
+            },
+            "saveToSentItems": True
+        }
+
+        res = requests.post(send_url, json=email_payload, headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        })
+        
+        if res.status_code != 202:
+            raise Exception(res.text)
+
+        flash(f"Premium equity intelligence compilation tracking package distributed successfully.", "success")
+    except Exception as e:
+        flash(f"Transmission node failure: {str(e)}", "error")
+
+    return redirect(url_for('work'))
+
+# 1. LIVE SEARCH ENDPOINT (Works from the very first letter)
+@app.route('/api/search-stocks', methods=['GET'])
+def search_stocks():
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify({'success': True, 'results': []})
+
+    try:
+        # Fetch top matching stock tickers from Yahoo Finance
+        search = yf.Search(query, max_results=8)
+        results = []
+        for quote in search.quotes:
+            symbol = quote.get('symbol', '')
+            # Filter primarily for Indian equities or clean symbols
+            if symbol.endswith('.NS') or symbol.endswith('.BO') or '.' not in symbol:
+                results.append({
+                    'symbol': symbol.replace('.NS', '').replace('.BO', ''),
+                    'full_symbol': symbol,
+                    'name': quote.get('shortname') or quote.get('longname') or symbol,
+                    'exch': quote.get('exchDisp', '')
+                })
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# 2. SINGLE STOCK DATA FETCH ENDPOINT (Only fetches requested stock, NO auto peers)
+@app.route('/api/get-stock-data/<symbol>', methods=['GET'])
+def get_stock_data(symbol):
+    try:
+        clean_input = symbol.strip().upper()
+        if not clean_input:
+            return jsonify({'success': False, 'message': 'Stock symbol cannot be empty.'}), 400
+
+        # Standardize ticker formatting
+        if clean_input.endswith('.NS') or clean_input.endswith('.BO'):
+            ticker_symbol = clean_input
+            base_ticker = clean_input.split('.')[0]
+        else:
+            ticker_symbol = f"{clean_input}.NS"
+            base_ticker = clean_input
+
+        # Query NSE first
+        stock = yf.Ticker(ticker_symbol)
+        info = {}
+        try:
+            info = stock.info
+        except Exception:
+            info = {}
+
+        # Fallback to BSE (.BO) if NSE lookup failed
+        if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
+            if not clean_input.endswith('.BO'):
+                ticker_symbol = f"{base_ticker}.BO"
+                stock = yf.Ticker(ticker_symbol)
+                try:
+                    info = stock.info
+                except Exception:
+                    info = {}
+
+        if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
+            return jsonify({
+                'success': False, 
+                'message': f'Symbol "{clean_input}" not found on NSE/BSE or missing market data.'
+            }), 404
+
+        mcap_raw = info.get('marketCap')
+        stock_data = {
+            'company_name': info.get('longName') or info.get('shortName') or base_ticker,
+            'cmp': info.get('currentPrice') or info.get('regularMarketPrice') or 'N/A',
+            'mcap': round(mcap_raw / 10000000, 2) if mcap_raw else 'N/A', # In Crores
+            'pe': round(info.get('trailingPE'), 2) if info.get('trailingPE') else 'N/A',
+            'roe': round(info.get('returnOnEquity', 0) * 100, 2) if info.get('returnOnEquity') else 'N/A',
+            'roce': round(info.get('returnOnAssets', 0) * 100, 2) if info.get('returnOnAssets') else 'N/A',
+            'opm': round(info.get('operatingMargins', 0) * 100, 2) if info.get('operatingMargins') else 'N/A',
+            'ev': round(info.get('enterpriseToEbitda'), 2) if info.get('enterpriseToEbitda') else 'N/A'
+        }
+
+        return jsonify({'success': True, 'data': stock_data})
+
+    except Exception as e:
+        print(f"Fetch Error for symbol '{symbol}': {str(e)}")
+        return jsonify({'success': False, 'message': f'Backend fetch error: {str(e)}'}), 500
+
+
+# 3. HISTORICAL FINANCIALS FETCH ENDPOINT (Last 3 Fiscal Years, for Financial Year comparison mode)
+@app.route('/api/get-stock-financials/<symbol>', methods=['GET'])
+def get_stock_financials(symbol):
+    try:
+        clean_input = symbol.strip().upper()
+        if not clean_input:
+            return jsonify({'success': False, 'message': 'Stock symbol cannot be empty.'}), 400
+
+        if clean_input.endswith('.NS') or clean_input.endswith('.BO'):
+            ticker_symbol = clean_input
+            base_ticker = clean_input.split('.')[0]
+        else:
+            ticker_symbol = f"{clean_input}.NS"
+            base_ticker = clean_input
+
+        stock = yf.Ticker(ticker_symbol)
+        fin = stock.financials
+
+        # Fallback to BSE (.BO) if NSE lookup returned no annual statements
+        if (fin is None or fin.empty) and not clean_input.endswith('.BO'):
+            ticker_symbol = f"{base_ticker}.BO"
+            stock = yf.Ticker(ticker_symbol)
+            fin = stock.financials
+
+        if fin is None or fin.empty or 'Total Revenue' not in fin.index:
+            return jsonify({
+                'success': False,
+                'message': f'No historical financial statements found for "{clean_input}".'
+            }), 404
+
+        revenue_row = fin.loc['Total Revenue']
+        # Columns are annual fiscal periods; keep only ones with an actual revenue figure,
+        # oldest -> newest, and take the last 3 completed fiscal years
+        valid_periods = sorted(col for col in fin.columns if pd.notna(revenue_row.get(col)))[-3:]
+
+        if not valid_periods:
+            return jsonify({'success': False, 'message': 'No complete fiscal years of financial data found.'}), 404
+
+        def row_val(name, col):
+            if name in fin.index:
+                v = fin.loc[name].get(col)
+                return None if pd.isna(v) else v
+            return None
+
+        dividends = stock.dividends
+        if dividends is not None and not dividends.empty and dividends.index.tz is not None:
+            dividends = dividends.copy()
+            dividends.index = dividends.index.tz_convert(None)
+
+        years = []
+        for col in valid_periods:
+            revenue = row_val('Total Revenue', col)
+            ebitda = row_val('EBITDA', col)
+            net_income = row_val('Net Income', col)
+            operating_income = row_val('Operating Income', col)
+            eps = row_val('Diluted EPS', col)
+
+            opm = round((operating_income / revenue) * 100, 2) if operating_income is not None and revenue else None
+
+            # Sum dividends paid within the 12 months ending on this fiscal period
+            div_total = None
+            if dividends is not None and not dividends.empty:
+                period_end = pd.Timestamp(col)
+                period_start = period_end - pd.DateOffset(years=1)
+                div_slice = dividends[(dividends.index > period_start) & (dividends.index <= period_end)]
+                if len(div_slice):
+                    div_total = round(float(div_slice.sum()), 2)
+
+            years.append({
+                'label': f"FY{str(pd.Timestamp(col).year)[-2:]}",
+                'mcap': round(revenue / 10000000, 2) if revenue else 'N/A',        # Revenue (Cr)
+                'pe': round(ebitda / 10000000, 2) if ebitda else 'N/A',           # EBITDA (Cr)
+                'roe': round(net_income / 10000000, 2) if net_income else 'N/A',  # Net Profit (Cr)
+                'roce': opm if opm is not None else 'N/A',                        # OPM (%)
+                'opm': round(eps, 2) if eps is not None else 'N/A',               # EPS (Rs)
+                'ev': div_total if div_total is not None else 'N/A'               # Dividend / Share (Rs)
+            })
+
+        return jsonify({'success': True, 'years': years})
+
+    except Exception as e:
+        print(f"Financials Fetch Error for symbol '{symbol}': {str(e)}")
+        return jsonify({'success': False, 'message': f'Backend fetch error: {str(e)}'}), 500
+
+@app.route('/api/rephrase-text', methods=['POST'])
+@login_required  # Include if your routes use Flask-Login authentication
+def rephrase_text():
+    data = request.get_json() or {}
+    text = data.get('text', '').strip()
+
+    if not text:
+        return jsonify({'success': False, 'message': 'No text provided.'}), 400
+
+    try:
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a senior equity research editor at an institutional investment firm. "
+                        "Rewrite the text into formal, authoritative, and professional financial prose. "
+                        "Output ONLY the rewritten text without meta-commentary, introductory notes, or quotes."
+                    )
+                },
+                {"role": "user", "content": text}
+            ],
+            temperature=0.3
+        )
+
+        rephrased_text = completion.choices[0].message.content.strip()
+        return jsonify({'success': True, 'rephrased': rephrased_text})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 def init_db():
     # Ensure upload dirs exist before creating DB

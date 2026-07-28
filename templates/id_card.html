@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ emp.name }} - ID Card</title>
+    <!-- Importing Google Fonts for match -->
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Load JsBarcode Library for live Barcode rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Open Sans', sans-serif;
+            background-color: #f3f4f6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        /* outer card frame style from image */
+        .card-wrapper {
+            background: #ffffff;
+            border: 8px solid #e2e8f0;
+            border-radius: 35px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            padding: 10px;
+            display: inline-block;
+        }
+
+        .id-card {
+            width: 350px;
+            height: 540px;
+            background: #ffffff;
+            border-radius: 25px;
+            overflow: hidden;
+            text-align: center;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Top Header Grey Area */
+        .card-header {
+            background-color: #f1f3f5;
+            width: 100%;
+            padding: 20px 0 35px 0;
+            border-bottom-left-radius: 10px;
+            border-bottom-right-radius: 10px;
+        }
+
+        /* WisBees Logo Style */
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .logo-img {
+            height: 50px;
+            object-fit: contain;
+        }
+        .tagline {
+            font-size: 14px;
+            font-weight: 700;
+            color: #000000;
+            margin-top: 5px;
+            letter-spacing: 0.5px;
+        }
+
+        /* Rounded Avatar with Orange Border */
+        .avatar-container {
+            margin-top: -25px;
+            z-index: 2;
+        }
+        .id-avatar {
+            width: 125px;
+            height: 125px;
+            border-radius: 50%;
+            border: 4px solid #f28500; /* Custom orange border matching your picture */
+            object-fit: cover;
+            background: #ffffff;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .id-avatar-placeholder {
+            width: 125px;
+            height: 125px;
+            border-radius: 50%;
+            border: 4px solid #f28500;
+            background: #f28500;
+            color: white;
+            font-size: 45px;
+            line-height: 125px;
+            display: inline-block;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+
+        /* Body Typography styles matching reference picture */
+        .card-body {
+            width: 100%;
+            padding: 10px 20px 15px 20px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-grow: 1;
+        }
+
+        .emp-name {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 24px;
+            font-weight: 800;
+            color: #000000;
+            text-transform: uppercase;
+            margin: 10px 0 6px 0;
+            letter-spacing: 0.5px;
+        }
+
+        /* Highlighted Pill/Badge for Designation */
+        .designation-badge {
+            background-color: #f28500; /* Bright pill highlight */
+            color: #000000;
+            font-weight: 700;
+            font-size: 16px;
+            padding: 6px 25px;
+            border-radius: 20px;
+            margin-bottom: 5px;
+            display: inline-block;
+            width: fit-content;
+        }
+
+        .blood-group {
+            font-weight: 700;
+            font-size: 14px;
+            color: #000000;
+            margin-bottom: 12px;
+        }
+
+        /* Details list design */
+        .details-list {
+            font-size: 14px;
+            color: #000000;
+            text-align: left;
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        .details-list div {
+            margin-bottom: 2px;
+        }
+        .label-bold {
+            font-weight: 700;
+        }
+
+        /* Barcode Area */
+        .barcode-container {
+            margin-top: auto;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #barcode {
+            max-width: 80%;
+            height: 40px;
+        }
+        .barcode-subtext {
+            font-size: 9px;
+            color: #4a5568;
+            margin-top: -2px;
+        }
+
+        /* Footer Parent Organization */
+        .card-footer-text {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 12px;
+            font-weight: 800;
+            color: #000000;
+            margin-top: 10px;
+            text-transform: capitalize;
+        }
+
+        /* Print controls helper */
+        .no-print-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+        }
+        .print-btn {
+            background: #1a202c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        
+
+        @media print {
+            body {
+                background: none;
+                height: auto;
+            }
+            .no-print-container {
+                display: none;
+            }
+            .card-wrapper {
+                box-shadow: none;
+                border: none;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="no-print-container">
+        <button class="print-btn" onclick="window.print()">Print ID Card</button>
+            <!-- NEW: Download Button -->
+        <button id="downloadBtn" class="btn-download" style="padding: 10px 20px; font-size: 14px; font-weight: 600; background-color: #4f46e5; color: white; border: none; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+            <i class="fas fa-download"></i> Download Image
+        </button>
+    </div>
+
+
+    <!-- Outer Plastic Holder Simulation style -->
+    <div class="card-wrapper">
+        <!-- FIX: Added id="idCard" so the screenshot tool can find it -->
+        <div class="id-card" id="idCard">
+            
+            <!-- Header Section -->
+            <div class="card-header">
+                <div class="logo-container">
+                    <!-- WisBees Logo -->
+                    <img src="{{ url_for('static', filename='logo.png') }}" class="logo-img" alt="WisBees Logo">
+                    <div class="tagline">Creating an impact</div>
+                </div>
+            </div>
+            
+            <!-- Picture Section with custom Orange Circle border -->
+            <div class="avatar-container">
+                {% if emp.profile_pic_data %}
+                    <img src="{{ url_for('get_employee_avatar', emp_id=emp.id) }}" class="id-avatar" alt="Avatar">
+                {% else %}
+                    <div class="id-avatar-placeholder">{{ emp.name[0]|upper }}</div>
+                {% endif %}
+            </div>
+
+            <!-- Card Information Body -->
+            <div class="card-body">
+                <div class="emp-name">{{ emp.name }}</div>
+                
+                <!-- Dynamic Designation from your database models -->
+                <div class="designation-badge">{{ emp.designation or 'Business Associate' }}</div>
+                
+                <!-- Blood Group fallbacks safely if missing -->
+                <div class="blood-group">{{ emp.blood_group or 'B+' }}</div>
+                
+                <div class="details-list">
+                    <div><span class="label-bold">E-mail:</span> {{ emp.email }}</div>
+                    <div><span class="label-bold">Phone:</span> {{ emp.phone or 'N/A' }}</div>
+                </div>
+
+                <!-- Live Dynamic Barcode Generator -->
+                <div class="barcode-container">
+                    <!-- Dynamic ID encoding (e.g. WB1001) -->
+                    <svg id="barcode"></svg>
+                    <div class="barcode-subtext">https://www.wisbees.com/</div>
+                </div>
+
+                <div class="card-footer-text">Timearrow Pvt. Ltd</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 1. Load JsBarcode Library -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+
+    <!-- 2. Load html2canvas Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- 3. Your Custom JS (Isolated in its own script tag) -->
+    <script>
+        // Generate the barcode programmatically using Employee ID 
+        JsBarcode("#barcode", "WB{{ emp.id + 1000 }}", {
+            format: "CODE128",
+            displayValue: false, 
+            lineColor: "#000000",
+            width: 1.5,
+            height: 40,
+            margin: 0
+        });
+        
+        // Download logic (Triggers when the element with id="downloadBtn" is clicked)
+        document.getElementById('downloadBtn').addEventListener('click', function () {
+            const cardElement = document.getElementById('idCard');
+            const downloadButton = this;
+            
+            downloadButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            downloadButton.disabled = true;
+
+            const options = {
+                scale: 3,             // High resolution output
+                useCORS: true,        // Allows capturing photos served from your Flask routes
+                allowTaint: true,     
+                backgroundColor: null // Transparent corners
+            };
+
+            html2canvas(cardElement, options).then(canvas => {
+                const imageURL = canvas.toDataURL("image/png");
+                
+                const downloadLink = document.createElement('a');
+                downloadLink.href = imageURL;
+                
+                // FIX: Changed "employee.name" to "emp.name" to match your template variables
+                const empName = "{{ emp.name }}".replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                downloadLink.download = `${empName}_id_card.png`;
+                
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+
+                downloadButton.innerHTML = '<i class="fas fa-download"></i> Download Image';
+                downloadButton.disabled = false;
+            }).catch(error => {
+                console.error("Error generating ID card image:", error);
+                alert("Failed to generate image.");
+                downloadButton.innerHTML = '<i class="fas fa-download"></i> Download Image';
+                downloadButton.disabled = false;
+            });
+        });
+    </script>
+</body>
+</html>

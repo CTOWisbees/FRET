@@ -1430,6 +1430,77 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
 }
 
+/* Container for the avatar and the hidden upload form elements */
+.profile-avatar-wrapper {
+    position: relative;
+}
+
+/* 1. Styled Uploaded Image (Perfect Circle) */
+.avatar-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    object-fit: cover; /* Prevents squishing/stretching */
+    object-position: center;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background-color: #f8f9fa;
+    display: block;
+}
+
+/* 2. Styled Initials Fallback (When no image exists) */
+.avatar-letters {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #4f46e5, #6366f1); /* Clean modern indigo gradient */
+    color: #ffffff;
+    font-size: 42px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    user-select: none;
+}
+
+/* 3. Text and Details Info Block */
+.profile-info h2 {
+    margin: 0 0 4px 0;
+    font-size: 24px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+.profile-meta {
+    font-size: 14px;
+    color: #6b7280;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 4. Small Pill Badge for Employee Type */
+.profile-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 500;
+    background-color: #e0e7ff; /* Light indigo pill */
+    color: #4338ca;
+    border-radius: 9999px;
+    text-transform: capitalize;
+}
+
+/* Hover effect for the "Change Photo" button label */
+.profile-avatar-wrapper label:hover {
+    background-color: #f3f4f6 !important;
+    border-color: #b3b3b3 !important;
+    transition: all 0.2s ease-in-out;
+}
+
 }
 </style>
 {% block extra_head %}{% endblock %}
