@@ -5,7 +5,7 @@ import base64
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session, Response, abort
 from markupsafe import Markup, escape
 import re
-from flask_sqlalchemy import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy, text
 from flask_login import LoginManager, UserMixin, config, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -2343,14 +2343,27 @@ def init_db():
     os.makedirs(os.path.join(BASE_DIR, 'uploads', 'attachments'), exist_ok=True)
     with app.app_context():
         db.create_all()
+
+        # Automated database migration for Neon Postgres
+        try:
+            with db.engine.connect() as conn:
+                conn.execute(text("ALTER TABLE employee ADD COLUMN IF NOT EXISTS profile_pic_data BYTEA;"))
+                conn.execute(text("ALTER TABLE employee ADD COLUMN IF NOT EXISTS profile_pic_mime VARCHAR(50);"))
+                conn.commit()
+                print("Database migration successful: profile_pic columns verified.")
+        except Exception as e:
+            print(f"Migration note: {e}")
+
         # Create default company settings
         if not CompanySettings.query.first():
             settings = CompanySettings()
             db.session.add(settings)
             db.session.commit()
 
+# Run schema updates on startup (for Gunicorn / Render)
+init_db()
+
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 5000))
     debug = os.environ.get('FLASK_DEBUG', '1') == '1'
     app.run(debug=debug, port=port, host='0.0.0.0')
