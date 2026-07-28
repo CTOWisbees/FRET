@@ -5,7 +5,8 @@ import base64
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session, Response, abort
 from markupsafe import Markup, escape
 import re
-from flask_sqlalchemy import SQLAlchemy, text
+from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import text
 from flask_login import LoginManager, UserMixin, config, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
