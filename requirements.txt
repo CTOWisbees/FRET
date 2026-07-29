@@ -13,4 +13,5 @@ gunicorn>=21.2.0
 psycopg2-binary>=2.9.9
 PyJWT>=2.8.0
 groq>=0.1.0
-yfinance>=0.2.0
+yfinance>=0.2.50
+curl_cffi>=0.7.0

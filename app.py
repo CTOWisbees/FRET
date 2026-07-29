@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 import requests
 import base64
 import yfinance as yf
+from curl_cffi import requests as curl_requests
 
 app = Flask(__name__)
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY")) #for repharsing (Equity research Interns)
@@ -2144,6 +2145,10 @@ def mail_report():
         flash(f"Transmission node failure: {str(e)}", "error")
 
     return redirect(url_for('work'))
+# Helper function to create a browser-impersonating session
+def get_yf_session():
+    return curl_requests.Session(impersonate="chrome")
+
 
 # 1. LIVE SEARCH ENDPOINT (Works from the very first letter)
 @app.route('/api/search-stocks', methods=['GET'])
@@ -2153,10 +2158,13 @@ def search_stocks():
         return jsonify({'success': True, 'results': []})
 
     try:
-        # Fetch top matching stock tickers from Yahoo Finance
-        search = yf.Search(query, max_results=8)
+        session = get_yf_session()
+        # Pass session to yf.Search
+        search = yf.Search(query, max_results=8, session=session)
         results = []
-        for quote in search.quotes:
+        quotes = getattr(search, 'quotes', [])
+        
+        for quote in quotes:
             symbol = quote.get('symbol', '')
             # Filter primarily for Indian equities or clean symbols
             if symbol.endswith('.NS') or symbol.endswith('.BO') or '.' not in symbol:
@@ -2168,6 +2176,7 @@ def search_stocks():
                 })
         return jsonify({'success': True, 'results': results})
     except Exception as e:
+        print(f"Search Error: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
@@ -2187,8 +2196,10 @@ def get_stock_data(symbol):
             ticker_symbol = f"{clean_input}.NS"
             base_ticker = clean_input
 
-        # Query NSE first
-        stock = yf.Ticker(ticker_symbol)
+        session = get_yf_session()
+
+        # Query NSE first with session
+        stock = yf.Ticker(ticker_symbol, session=session)
         info = {}
         try:
             info = stock.info
@@ -2199,7 +2210,7 @@ def get_stock_data(symbol):
         if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
             if not clean_input.endswith('.BO'):
                 ticker_symbol = f"{base_ticker}.BO"
-                stock = yf.Ticker(ticker_symbol)
+                stock = yf.Ticker(ticker_symbol, session=session)
                 try:
                     info = stock.info
                 except Exception:
@@ -2245,13 +2256,15 @@ def get_stock_financials(symbol):
             ticker_symbol = f"{clean_input}.NS"
             base_ticker = clean_input
 
-        stock = yf.Ticker(ticker_symbol)
+        session = get_yf_session()
+
+        stock = yf.Ticker(ticker_symbol, session=session)
         fin = stock.financials
 
         # Fallback to BSE (.BO) if NSE lookup returned no annual statements
         if (fin is None or fin.empty) and not clean_input.endswith('.BO'):
             ticker_symbol = f"{base_ticker}.BO"
-            stock = yf.Ticker(ticker_symbol)
+            stock = yf.Ticker(ticker_symbol, session=session)
             fin = stock.financials
 
         if fin is None or fin.empty or 'Total Revenue' not in fin.index:
