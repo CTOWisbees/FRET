@@ -6,7 +6,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from markupsafe import Markup, escape
 import re
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 from flask_login import LoginManager, UserMixin, config, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -165,6 +165,7 @@ class Employee(db.Model):
     gender = db.Column(db.String(10), nullable=False, default='female')
     profile_pic_data = db.Column(db.LargeBinary, nullable=True)
     profile_pic_mime = db.Column(db.String(20), nullable=True)
+    blood_group = db.Column(db.String(5), nullable=True)
 
 class EmployeeAccount(UserMixin, db.Model):
     __tablename__ = 'employee_accounts'
@@ -1965,7 +1966,14 @@ def update_profile():
         if file and file.filename != '':
             target_user.profile_pic_data = file.read()
             target_user.profile_pic_mime = file.mimetype
-            
+
+    # Blood group (employee self-service only)
+    if isinstance(target_user, Employee) and 'blood_group' in request.form:
+        blood_group = request.form.get('blood_group', '').strip()
+        allowed_groups = {'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'}
+        if blood_group in allowed_groups:
+            target_user.blood_group = blood_group
+
     db.session.commit()
     flash('Profile updated successfully!', 'success')
     
@@ -2345,13 +2353,23 @@ def init_db():
     with app.app_context():
         db.create_all()
 
-        # Automated database migration for Neon Postgres
+        # Automated database migration: add any employee columns missing from
+        # an existing table (SQLite locally, Neon Postgres in production).
         try:
+            is_sqlite = db.engine.dialect.name == 'sqlite'
+            binary_type = 'BLOB' if is_sqlite else 'BYTEA'
+            columns_to_add = {
+                'profile_pic_data': binary_type,
+                'profile_pic_mime': 'VARCHAR(50)',
+                'blood_group': 'VARCHAR(5)',
+            }
+            existing_columns = {col['name'] for col in inspect(db.engine).get_columns('employee')}
             with db.engine.connect() as conn:
-                conn.execute(text("ALTER TABLE employee ADD COLUMN IF NOT EXISTS profile_pic_data BYTEA;"))
-                conn.execute(text("ALTER TABLE employee ADD COLUMN IF NOT EXISTS profile_pic_mime VARCHAR(50);"))
+                for col_name, col_type in columns_to_add.items():
+                    if col_name not in existing_columns:
+                        conn.execute(text(f"ALTER TABLE employee ADD COLUMN {col_name} {col_type};"))
                 conn.commit()
-                print("Database migration successful: profile_pic columns verified.")
+                print("Database migration successful: employee columns verified.")
         except Exception as e:
             print(f"Migration note: {e}")
 
