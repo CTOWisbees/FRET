@@ -22,8 +22,7 @@ from pdf_generator import generate_experience_letter_pdf, generate_offer_letter_
 from datetime import datetime, timedelta
 import requests
 import base64
-import yfinance as yf
-from curl_cffi import requests as curl_requests
+from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY")) #for repharsing (Equity research Interns)
@@ -2145,12 +2144,15 @@ def mail_report():
         flash(f"Transmission node failure: {str(e)}", "error")
 
     return redirect(url_for('work'))
-# Helper function to create a browser-impersonating session
-def get_yf_session():
-    return curl_requests.Session(impersonate="chrome")
 
 
-# 1. LIVE SEARCH ENDPOINT (Works from the very first letter)
+# Helper header to simulate standard browser requests
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept-Language": "en-US,en;q=0.9"
+}
+
+# 1. LIVE SEARCH ENDPOINT
 @app.route('/api/search-stocks', methods=['GET'])
 def search_stocks():
     query = request.args.get('q', '').strip()
@@ -2158,81 +2160,93 @@ def search_stocks():
         return jsonify({'success': True, 'results': []})
 
     try:
-        session = get_yf_session()
-        # Pass session to yf.Search
-        search = yf.Search(query, max_results=8, session=session)
-        results = []
-        quotes = getattr(search, 'quotes', [])
+        # Use Google Finance autocomplete endpoint
+        search_url = f"https://www.google.com/finance/suggest?q={query}&gl=IN"
+        res = requests.get(search_url, headers=HEADERS, timeout=5)
         
-        for quote in quotes:
-            symbol = quote.get('symbol', '')
-            # Filter primarily for Indian equities or clean symbols
-            if symbol.endswith('.NS') or symbol.endswith('.BO') or '.' not in symbol:
-                results.append({
-                    'symbol': symbol.replace('.NS', '').replace('.BO', ''),
-                    'full_symbol': symbol,
-                    'name': quote.get('shortname') or quote.get('longname') or symbol,
-                    'exch': quote.get('exchDisp', '')
-                })
-        return jsonify({'success': True, 'results': results})
+        results = []
+        if res.status_code == 200:
+            data = res.json()
+            candidates = data.get('candidates', [])
+            
+            for item in candidates:
+                exch = item.get('exchange', '').upper()
+                symbol = item.get('ticker', '')
+                
+                # Restrict results strictly to Indian exchanges (NSE & BSE / BOM)
+                if exch in ['NSE', 'BOM', 'BSE']:
+                    results.append({
+                        'symbol': symbol,
+                        'full_symbol': f"{symbol}.NS" if exch == 'NSE' else f"{symbol}.BO",
+                        'name': item.get('title', symbol),
+                        'exch': 'NSE' if exch == 'NSE' else 'BSE'
+                    })
+                    
+        return jsonify({'success': True, 'results': results[:8]})
     except Exception as e:
         print(f"Search Error: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
-# 2. SINGLE STOCK DATA FETCH ENDPOINT (Only fetches requested stock, NO auto peers)
+# 2. SINGLE STOCK DATA FETCH ENDPOINT
 @app.route('/api/get-stock-data/<symbol>', methods=['GET'])
 def get_stock_data(symbol):
     try:
-        clean_input = symbol.strip().upper()
+        clean_input = symbol.strip().upper().replace('.NS', '').replace('.BO', '')
         if not clean_input:
             return jsonify({'success': False, 'message': 'Stock symbol cannot be empty.'}), 400
 
-        # Standardize ticker formatting
-        if clean_input.endswith('.NS') or clean_input.endswith('.BO'):
-            ticker_symbol = clean_input
-            base_ticker = clean_input.split('.')[0]
-        else:
-            ticker_symbol = f"{clean_input}.NS"
-            base_ticker = clean_input
+        # Try NSE first, fallback to BOM (BSE)
+        exchanges = ['NSE', 'BOM']
+        stock_data = None
 
-        session = get_yf_session()
+        for exch in exchanges:
+            url = f"https://www.google.com/finance/quote/{clean_input}:{exch}"
+            res = requests.get(url, headers=HEADERS, timeout=5)
 
-        # Query NSE first with session
-        stock = yf.Ticker(ticker_symbol, session=session)
-        info = {}
-        try:
-            info = stock.info
-        except Exception:
-            info = {}
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Fallback to BSE (.BO) if NSE lookup failed
-        if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
-            if not clean_input.endswith('.BO'):
-                ticker_symbol = f"{base_ticker}.BO"
-                stock = yf.Ticker(ticker_symbol, session=session)
-                try:
-                    info = stock.info
-                except Exception:
-                    info = {}
+                # Google Finance main price container class (YMlKec / fxKbKc)
+                price_div = soup.find('div', {'class': 'YMlKec'}) or soup.find('div', {'class': 'fxKbKc'})
+                if price_div:
+                    price_text = price_div.text.replace('₹', '').replace(',', '').strip()
+                    try:
+                        cmp_val = float(price_text)
 
-        if not info or ('regularMarketPrice' not in info and 'currentPrice' not in info):
+                        # Extract Company Name
+                        name_div = soup.find('div', {'class': 'zzA30b'})
+                        company_name = name_div.text.strip() if name_div else clean_input
+
+                        # Extract Key Ratios Card (Market Cap, P/E ratio, etc.)
+                        stats = {}
+                        stat_rows = soup.find_all('div', {'class': 'gyA43b'})
+                        for row in stat_rows:
+                            label_div = row.find('div', {'class': 'mfs7Fc'})
+                            value_div = row.find('div', {'class': 'P633fc'})
+                            if label_div and value_div:
+                                stats[label_div.text.strip()] = value_div.text.strip()
+
+                        stock_data = {
+                            'company_name': company_name,
+                            'cmp': cmp_val,
+                            'mcap': stats.get('Market cap', 'N/A'),
+                            'pe': stats.get('P/E ratio', 'N/A'),
+                            'roe': stats.get('ROE', 'N/A'),
+                            'roce': 'N/A',
+                            'opm': stats.get('Operating margin', 'N/A'),
+                            'ev': 'N/A',
+                            'exchange': 'NSE' if exch == 'NSE' else 'BSE'
+                        }
+                        break  # Found successfully, break exchange loop
+                    except ValueError:
+                        continue
+
+        if not stock_data:
             return jsonify({
                 'success': False, 
-                'message': f'Symbol "{clean_input}" not found on NSE/BSE or missing market data.'
+                'message': f'Symbol "{clean_input}" not found on NSE or BSE.'
             }), 404
-
-        mcap_raw = info.get('marketCap')
-        stock_data = {
-            'company_name': info.get('longName') or info.get('shortName') or base_ticker,
-            'cmp': info.get('currentPrice') or info.get('regularMarketPrice') or 'N/A',
-            'mcap': round(mcap_raw / 10000000, 2) if mcap_raw else 'N/A', # In Crores
-            'pe': round(info.get('trailingPE'), 2) if info.get('trailingPE') else 'N/A',
-            'roe': round(info.get('returnOnEquity', 0) * 100, 2) if info.get('returnOnEquity') else 'N/A',
-            'roce': round(info.get('returnOnAssets', 0) * 100, 2) if info.get('returnOnAssets') else 'N/A',
-            'opm': round(info.get('operatingMargins', 0) * 100, 2) if info.get('operatingMargins') else 'N/A',
-            'ev': round(info.get('enterpriseToEbitda'), 2) if info.get('enterpriseToEbitda') else 'N/A'
-        }
 
         return jsonify({'success': True, 'data': stock_data})
 
@@ -2241,123 +2255,73 @@ def get_stock_data(symbol):
         return jsonify({'success': False, 'message': f'Backend fetch error: {str(e)}'}), 500
 
 
-# 3. HISTORICAL FINANCIALS FETCH ENDPOINT (Last 3 Fiscal Years, for Financial Year comparison mode)
+# 3. HISTORICAL FINANCIALS FETCH ENDPOINT
 @app.route('/api/get-stock-financials/<symbol>', methods=['GET'])
 def get_stock_financials(symbol):
     try:
-        clean_input = symbol.strip().upper()
+        clean_input = symbol.strip().upper().replace('.NS', '').replace('.BO', '')
         if not clean_input:
             return jsonify({'success': False, 'message': 'Stock symbol cannot be empty.'}), 400
 
-        if clean_input.endswith('.NS') or clean_input.endswith('.BO'):
-            ticker_symbol = clean_input
-            base_ticker = clean_input.split('.')[0]
-        else:
-            ticker_symbol = f"{clean_input}.NS"
-            base_ticker = clean_input
+        exchanges = ['NSE', 'BOM']
+        years = []
 
-        session = get_yf_session()
+        for exch in exchanges:
+            url = f"https://www.google.com/finance/quote/{clean_input}:{exch}"
+            res = requests.get(url, headers=HEADERS, timeout=5)
 
-        stock = yf.Ticker(ticker_symbol, session=session)
-        fin = stock.financials
+            if res.status_code == 200:
+                soup = BeautifulSoup(res.text, 'html.parser')
 
-        # Fallback to BSE (.BO) if NSE lookup returned no annual statements
-        if (fin is None or fin.empty) and not clean_input.endswith('.BO'):
-            ticker_symbol = f"{base_ticker}.BO"
-            stock = yf.Ticker(ticker_symbol, session=session)
-            fin = stock.financials
+                # Google Finance Income Statement Table rows
+                rows = soup.find_all('tr', {'class': 'RO3A8b'})
+                
+                # Extract header columns (Years / Quarters)
+                header_row = soup.find('tr', {'class': 'g22I8d'})
+                period_labels = []
+                if header_row:
+                    cols = header_row.find_all('th')
+                    period_labels = [c.text.strip() for c in cols if c.text.strip()][:3]
 
-        if fin is None or fin.empty or 'Total Revenue' not in fin.index:
+                # Map extracted table values
+                financial_map = {}
+                for row in rows:
+                    cells = row.find_all('td')
+                    if len(cells) >= 2:
+                        metric_name = cells[0].text.strip()
+                        values = [c.text.strip() for c in cells[1:]]
+                        financial_map[metric_name] = values
+
+                revenue_list = financial_map.get('Revenue', [])
+                net_income_list = financial_map.get('Net income', [])
+                op_margin_list = financial_map.get('Operating margin', [])
+                eps_list = financial_map.get('Diluted EPS', [])
+
+                if revenue_list:
+                    for i in range(min(3, len(revenue_list))):
+                        label = period_labels[i] if i < len(period_labels) else f"Y{i+1}"
+                        years.append({
+                            'label': label,
+                            'mcap': revenue_list[i] if i < len(revenue_list) else 'N/A',     # Revenue
+                            'pe': 'N/A',                                                      # EBITDA
+                            'roe': net_income_list[i] if i < len(net_income_list) else 'N/A', # Net Profit
+                            'roce': op_margin_list[i] if i < len(op_margin_list) else 'N/A',  # OPM (%)
+                            'opm': eps_list[i] if i < len(eps_list) else 'N/A',              # EPS
+                            'ev': 'N/A'                                                       # Dividend
+                        })
+                    break
+
+        if not years:
             return jsonify({
                 'success': False,
                 'message': f'No historical financial statements found for "{clean_input}".'
             }), 404
-
-        revenue_row = fin.loc['Total Revenue']
-        # Columns are annual fiscal periods; keep only ones with an actual revenue figure,
-        # oldest -> newest, and take the last 3 completed fiscal years
-        valid_periods = sorted(col for col in fin.columns if pd.notna(revenue_row.get(col)))[-3:]
-
-        if not valid_periods:
-            return jsonify({'success': False, 'message': 'No complete fiscal years of financial data found.'}), 404
-
-        def row_val(name, col):
-            if name in fin.index:
-                v = fin.loc[name].get(col)
-                return None if pd.isna(v) else v
-            return None
-
-        dividends = stock.dividends
-        if dividends is not None and not dividends.empty and dividends.index.tz is not None:
-            dividends = dividends.copy()
-            dividends.index = dividends.index.tz_convert(None)
-
-        years = []
-        for col in valid_periods:
-            revenue = row_val('Total Revenue', col)
-            ebitda = row_val('EBITDA', col)
-            net_income = row_val('Net Income', col)
-            operating_income = row_val('Operating Income', col)
-            eps = row_val('Diluted EPS', col)
-
-            opm = round((operating_income / revenue) * 100, 2) if operating_income is not None and revenue else None
-
-            # Sum dividends paid within the 12 months ending on this fiscal period
-            div_total = None
-            if dividends is not None and not dividends.empty:
-                period_end = pd.Timestamp(col)
-                period_start = period_end - pd.DateOffset(years=1)
-                div_slice = dividends[(dividends.index > period_start) & (dividends.index <= period_end)]
-                if len(div_slice):
-                    div_total = round(float(div_slice.sum()), 2)
-
-            years.append({
-                'label': f"FY{str(pd.Timestamp(col).year)[-2:]}",
-                'mcap': round(revenue / 10000000, 2) if revenue else 'N/A',        # Revenue (Cr)
-                'pe': round(ebitda / 10000000, 2) if ebitda else 'N/A',           # EBITDA (Cr)
-                'roe': round(net_income / 10000000, 2) if net_income else 'N/A',  # Net Profit (Cr)
-                'roce': opm if opm is not None else 'N/A',                        # OPM (%)
-                'opm': round(eps, 2) if eps is not None else 'N/A',               # EPS (Rs)
-                'ev': div_total if div_total is not None else 'N/A'               # Dividend / Share (Rs)
-            })
 
         return jsonify({'success': True, 'years': years})
 
     except Exception as e:
         print(f"Financials Fetch Error for symbol '{symbol}': {str(e)}")
         return jsonify({'success': False, 'message': f'Backend fetch error: {str(e)}'}), 500
-
-@app.route('/api/rephrase-text', methods=['POST'])
-@login_required  # Include if your routes use Flask-Login authentication
-def rephrase_text():
-    data = request.get_json() or {}
-    text = data.get('text', '').strip()
-
-    if not text:
-        return jsonify({'success': False, 'message': 'No text provided.'}), 400
-
-    try:
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a senior equity research editor at an institutional investment firm. "
-                        "Rewrite the text into formal, authoritative, and professional financial prose. "
-                        "Output ONLY the rewritten text without meta-commentary, introductory notes, or quotes."
-                    )
-                },
-                {"role": "user", "content": text}
-            ],
-            temperature=0.3
-        )
-
-        rephrased_text = completion.choices[0].message.content.strip()
-        return jsonify({'success': True, 'rephrased': rephrased_text})
-
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
 
 def init_db():
     # Ensure upload dirs exist before creating DB
