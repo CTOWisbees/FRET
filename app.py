@@ -2160,28 +2160,35 @@ def search_stocks():
         return jsonify({'success': True, 'results': []})
 
     try:
-        # Use Google Finance autocomplete endpoint
-        search_url = f"https://www.google.com/finance/suggest?q={query}&gl=IN"
-        res = requests.get(search_url, headers=HEADERS, timeout=5)
-        
+        # Google's old /finance/suggest endpoint has been retired (now 404s),
+        # so autocomplete is sourced from Yahoo Finance's public search API instead.
+        search_url = "https://query1.finance.yahoo.com/v1/finance/search"
+        res = requests.get(
+            search_url,
+            params={'q': query, 'quotesCount': 10, 'newsCount': 0},
+            headers=HEADERS,
+            timeout=5
+        )
+
         results = []
         if res.status_code == 200:
             data = res.json()
-            candidates = data.get('candidates', [])
-            
-            for item in candidates:
+            for item in data.get('quotes', []):
+                if item.get('quoteType') != 'EQUITY':
+                    continue
+
                 exch = item.get('exchange', '').upper()
-                symbol = item.get('ticker', '')
-                
-                # Restrict results strictly to Indian exchanges (NSE & BSE / BOM)
-                if exch in ['NSE', 'BOM', 'BSE']:
+                symbol = item.get('symbol', '')
+
+                # Restrict results strictly to Indian exchanges (NSE & BSE)
+                if exch in ('NSI', 'BSE'):
                     results.append({
-                        'symbol': symbol,
-                        'full_symbol': f"{symbol}.NS" if exch == 'NSE' else f"{symbol}.BO",
-                        'name': item.get('title', symbol),
-                        'exch': 'NSE' if exch == 'NSE' else 'BSE'
+                        'symbol': symbol.replace('.NS', '').replace('.BO', ''),
+                        'full_symbol': symbol,
+                        'name': item.get('longname') or item.get('shortname', symbol),
+                        'exch': 'NSE' if exch == 'NSI' else 'BSE'
                     })
-                    
+
         return jsonify({'success': True, 'results': results[:8]})
     except Exception as e:
         print(f"Search Error: {str(e)}")
@@ -2207,30 +2214,33 @@ def get_stock_data(symbol):
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
 
-                # Google Finance main price container class (YMlKec / fxKbKc)
-                price_div = soup.find('div', {'class': 'YMlKec'}) or soup.find('div', {'class': 'fxKbKc'})
+                # Google Finance main price container (current markup uses N6SYTe;
+                # older builds used YMlKec/fxKbKc — kept as a fallback)
+                price_div = soup.find('div', {'class': 'N6SYTe'}) \
+                    or soup.find('div', {'class': 'YMlKec'}) \
+                    or soup.find('div', {'class': 'fxKbKc'})
                 if price_div:
                     price_text = price_div.text.replace('₹', '').replace(',', '').strip()
                     try:
                         cmp_val = float(price_text)
 
                         # Extract Company Name
-                        name_div = soup.find('div', {'class': 'zzA30b'})
+                        name_div = soup.find('div', {'class': 'gO24Ff'}) or soup.find('div', {'class': 'zzA30b'})
                         company_name = name_div.text.strip() if name_div else clean_input
 
-                        # Extract Key Ratios Card (Market Cap, P/E ratio, etc.)
+                        # Extract Key Stats card (Market cap, P/E ratio, etc.)
                         stats = {}
-                        stat_rows = soup.find_all('div', {'class': 'gyA43b'})
+                        stat_rows = soup.find_all('div', {'class': 'KxsRFb'})
                         for row in stat_rows:
-                            label_div = row.find('div', {'class': 'mfs7Fc'})
-                            value_div = row.find('div', {'class': 'P633fc'})
+                            label_div = row.find('div', {'class': 'SwQK7'})
+                            value_div = row.find('div', {'class': 'dO6ijd'})
                             if label_div and value_div:
                                 stats[label_div.text.strip()] = value_div.text.strip()
 
                         stock_data = {
                             'company_name': company_name,
                             'cmp': cmp_val,
-                            'mcap': stats.get('Market cap', 'N/A'),
+                            'mcap': stats.get('Mkt. cap', stats.get('Market cap', 'N/A')),
                             'pe': stats.get('P/E ratio', 'N/A'),
                             'roe': stats.get('ROE', 'N/A'),
                             'roce': 'N/A',
@@ -2273,29 +2283,36 @@ def get_stock_financials(symbol):
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
 
-                # Google Finance Income Statement Table rows
-                rows = soup.find_all('tr', {'class': 'RO3A8b'})
-                
+                # Google Finance Income Statement table — looked up by its
+                # aria-label, which is far more stable than the auto-generated
+                # CSS classes (RO3A8b/g22I8d) Google rotates on rebuilds.
+                table = soup.find('table', {'aria-label': 'Income statement'})
+                if not table:
+                    continue
+
                 # Extract header columns (Years / Quarters)
-                header_row = soup.find('tr', {'class': 'g22I8d'})
                 period_labels = []
+                thead = table.find('thead')
+                header_row = thead.find('tr') if thead else None
                 if header_row:
-                    cols = header_row.find_all('th')
-                    period_labels = [c.text.strip() for c in cols if c.text.strip()][:3]
+                    cols = header_row.find_all('th')[1:]  # skip the "All values in INR" column
+                    period_labels = [c.get_text(strip=True) for c in cols][:3]
 
                 # Map extracted table values
                 financial_map = {}
+                tbody = table.find('tbody')
+                rows = tbody.find_all('tr') if tbody else []
                 for row in rows:
                     cells = row.find_all('td')
                     if len(cells) >= 2:
-                        metric_name = cells[0].text.strip()
-                        values = [c.text.strip() for c in cells[1:]]
+                        metric_name = cells[0].get_text(strip=True)
+                        values = [c.get_text(strip=True) for c in cells[1:]]
                         financial_map[metric_name] = values
 
                 revenue_list = financial_map.get('Revenue', [])
                 net_income_list = financial_map.get('Net income', [])
-                op_margin_list = financial_map.get('Operating margin', [])
-                eps_list = financial_map.get('Diluted EPS', [])
+                op_margin_list = financial_map.get('Net profit margin', financial_map.get('Operating margin', []))
+                eps_list = financial_map.get('Earnings per share', financial_map.get('Diluted EPS', []))
 
                 if revenue_list:
                     for i in range(min(3, len(revenue_list))):
