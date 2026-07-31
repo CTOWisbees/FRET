@@ -2152,6 +2152,95 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9"
 }
 
+# Google Finance's scraped quote page (stats card + Income statement table)
+# never contains ROE, ROCE, OPM or EV/EBITDA — those ratios are pulled from
+# Yahoo Finance's quoteSummary API instead, which requires a session cookie
+# and a matching "crumb" token before it will answer.
+_yahoo_session = requests.Session()
+_yahoo_session.headers.update(HEADERS)
+_yahoo_crumb = None
+
+def _get_yahoo_crumb():
+    global _yahoo_crumb
+    if _yahoo_crumb:
+        return _yahoo_crumb
+    try:
+        _yahoo_session.get('https://fc.yahoo.com', timeout=5)
+        res = _yahoo_session.get('https://query1.finance.yahoo.com/v1/test/getcrumb', timeout=5)
+        if res.status_code == 200 and res.text and 'Unauthorized' not in res.text:
+            _yahoo_crumb = res.text.strip()
+    except requests.RequestException:
+        pass
+    return _yahoo_crumb
+
+
+def get_yahoo_ratios(yahoo_symbol):
+    """
+    Fetches ROE / ROCE / OPM / EV-EBITDA for a symbol (e.g. 'RELIANCE.NS') via
+    Yahoo Finance. OPM and EV/EBITDA come straight from Yahoo's own computed
+    fields; ROE and ROCE aren't published directly for most Indian equities,
+    so they're derived from the raw figures Yahoo does provide (profit
+    margin/revenue for net income, book value/shares outstanding for equity).
+    """
+    ratios = {'roe': 'N/A', 'roce': 'N/A', 'opm': 'N/A', 'ev': 'N/A'}
+    crumb = _get_yahoo_crumb()
+    if not crumb:
+        return ratios
+
+    try:
+        res = _yahoo_session.get(
+            f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{yahoo_symbol}",
+            params={'modules': 'financialData,defaultKeyStatistics', 'crumb': crumb},
+            timeout=5
+        )
+        if res.status_code != 200:
+            return ratios
+
+        result = res.json().get('quoteSummary', {}).get('result') or []
+        if not result:
+            return ratios
+
+        fd = result[0].get('financialData', {}) or {}
+        ks = result[0].get('defaultKeyStatistics', {}) or {}
+
+        def raw(block, key):
+            val = block.get(key)
+            return val.get('raw') if isinstance(val, dict) else None
+
+        operating_margin = raw(fd, 'operatingMargins')
+        if operating_margin is not None:
+            ratios['opm'] = round(operating_margin * 100, 2)
+
+        ev_ebitda = raw(ks, 'enterpriseToEbitda')
+        if ev_ebitda is not None:
+            ratios['ev'] = round(ev_ebitda, 2)
+
+        # Net income and shareholder equity aren't exposed directly, so back
+        # them out from profit margin/revenue and book value/shares outstanding.
+        profit_margin = raw(fd, 'profitMargins')
+        total_revenue = raw(fd, 'totalRevenue')
+        book_value = raw(ks, 'bookValue')
+        shares_out = raw(ks, 'sharesOutstanding')
+        total_debt = raw(fd, 'totalDebt') or 0
+
+        equity = book_value * shares_out if book_value and shares_out else None
+        net_income = profit_margin * total_revenue if profit_margin is not None and total_revenue else None
+        operating_income = operating_margin * total_revenue if operating_margin is not None and total_revenue else None
+
+        if net_income is not None and equity:
+            ratios['roe'] = round((net_income / equity) * 100, 2)
+
+        if operating_income is not None and equity is not None:
+            capital_employed = equity + total_debt
+            if capital_employed:
+                ratios['roce'] = round((operating_income / capital_employed) * 100, 2)
+
+    except (requests.RequestException, ValueError, KeyError, TypeError):
+        pass
+
+    return ratios
+
+
 # 1. LIVE SEARCH ENDPOINT
 @app.route('/api/search-stocks', methods=['GET'])
 def search_stocks():
@@ -2237,15 +2326,18 @@ def get_stock_data(symbol):
                             if label_div and value_div:
                                 stats[label_div.text.strip()] = value_div.text.strip()
 
+                        yahoo_symbol = f"{clean_input}{'.NS' if exch == 'NSE' else '.BO'}"
+                        ratios = get_yahoo_ratios(yahoo_symbol)
+
                         stock_data = {
                             'company_name': company_name,
                             'cmp': cmp_val,
                             'mcap': stats.get('Mkt. cap', stats.get('Market cap', 'N/A')),
                             'pe': stats.get('P/E ratio', 'N/A'),
-                            'roe': stats.get('ROE', 'N/A'),
-                            'roce': 'N/A',
-                            'opm': stats.get('Operating margin', 'N/A'),
-                            'ev': 'N/A',
+                            'roe': ratios['roe'],
+                            'roce': ratios['roce'],
+                            'opm': ratios['opm'],
+                            'ev': ratios['ev'],
                             'exchange': 'NSE' if exch == 'NSE' else 'BSE'
                         }
                         break  # Found successfully, break exchange loop
