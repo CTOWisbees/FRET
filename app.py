@@ -22,7 +22,6 @@ from pdf_generator import generate_experience_letter_pdf, generate_offer_letter_
 from datetime import datetime, timedelta
 import requests
 import base64
-from bs4 import BeautifulSoup
 
 app = Flask(__name__)
 groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY")) #for repharsing (Equity research Interns)
@@ -2152,10 +2151,9 @@ HEADERS = {
     "Accept-Language": "en-US,en;q=0.9"
 }
 
-# Google Finance's scraped quote page (stats card + Income statement table)
-# never contains ROE, ROCE, OPM or EV/EBITDA — those ratios are pulled from
-# Yahoo Finance's quoteSummary API instead, which requires a session cookie
-# and a matching "crumb" token before it will answer.
+# All quote, key-stats and historical financial-statement data is sourced
+# from Yahoo Finance's quoteSummary API, which requires a session cookie and
+# a matching "crumb" token before it will answer.
 _yahoo_session = requests.Session()
 _yahoo_session.headers.update(HEADERS)
 _yahoo_crumb = None
@@ -2174,71 +2172,98 @@ def _get_yahoo_crumb():
     return _yahoo_crumb
 
 
-def get_yahoo_ratios(yahoo_symbol):
-    """
-    Fetches ROE / ROCE / OPM / EV-EBITDA for a symbol (e.g. 'RELIANCE.NS') via
-    Yahoo Finance. OPM and EV/EBITDA come straight from Yahoo's own computed
-    fields; ROE and ROCE aren't published directly for most Indian equities,
-    so they're derived from the raw figures Yahoo does provide (profit
-    margin/revenue for net income, book value/shares outstanding for equity).
-    """
-    ratios = {'roe': 'N/A', 'roce': 'N/A', 'opm': 'N/A', 'ev': 'N/A'}
+def _yahoo_quote_summary(yahoo_symbol, modules):
+    """Fetches the given quoteSummary modules (e.g. 'price,summaryDetail') for
+    a symbol (e.g. 'RELIANCE.NS'). Returns the result dict, or None on any
+    failure (missing crumb, non-200, unrecognised symbol, malformed JSON)."""
     crumb = _get_yahoo_crumb()
     if not crumb:
-        return ratios
-
+        return None
     try:
         res = _yahoo_session.get(
             f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{yahoo_symbol}",
-            params={'modules': 'financialData,defaultKeyStatistics', 'crumb': crumb},
-            timeout=5
+            params={'modules': modules, 'crumb': crumb},
+            timeout=8
         )
         if res.status_code != 200:
-            return ratios
-
+            return None
         result = res.json().get('quoteSummary', {}).get('result') or []
-        if not result:
-            return ratios
+        return result[0] if result else None
+    except (requests.RequestException, ValueError, KeyError, TypeError, IndexError):
+        return None
 
-        fd = result[0].get('financialData', {}) or {}
-        ks = result[0].get('defaultKeyStatistics', {}) or {}
 
-        def raw(block, key):
-            val = block.get(key)
-            return val.get('raw') if isinstance(val, dict) else None
+def _raw(block, key):
+    val = (block or {}).get(key)
+    return val.get('raw') if isinstance(val, dict) else None
 
-        operating_margin = raw(fd, 'operatingMargins')
-        if operating_margin is not None:
-            ratios['opm'] = round(operating_margin * 100, 2)
 
-        ev_ebitda = raw(ks, 'enterpriseToEbitda')
-        if ev_ebitda is not None:
-            ratios['ev'] = round(ev_ebitda, 2)
+def _yahoo_fundamentals_timeseries(yahoo_symbol, metric_types):
+    """Fetches multi-year annual fundamentals (e.g. 'annualTotalRevenue,
+    annualEBITDA') via Yahoo's fundamentals-timeseries endpoint. Unlike the
+    legacy quoteSummary incomeStatementHistory module — which leaves
+    operatingIncome/ebit empty for most Indian equities — this endpoint is
+    reliably populated. Returns {metric_type: {asOfDate: raw_value}}."""
+    crumb = _get_yahoo_crumb()
+    if not crumb:
+        return None
+    try:
+        period2 = int(datetime.now().timestamp())
+        period1 = period2 - 5 * 365 * 24 * 3600  # ~5 years back covers the last 3 completed FYs
+        res = _yahoo_session.get(
+            f"https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{yahoo_symbol}",
+            params={'type': metric_types, 'period1': period1, 'period2': period2, 'crumb': crumb},
+            timeout=8
+        )
+        if res.status_code != 200:
+            return None
+        result = res.json().get('timeseries', {}).get('result') or []
 
-        # Net income and shareholder equity aren't exposed directly, so back
-        # them out from profit margin/revenue and book value/shares outstanding.
-        profit_margin = raw(fd, 'profitMargins')
-        total_revenue = raw(fd, 'totalRevenue')
-        book_value = raw(ks, 'bookValue')
-        shares_out = raw(ks, 'sharesOutstanding')
-        total_debt = raw(fd, 'totalDebt') or 0
+        by_type = {}
+        for block in result:
+            meta_types = ((block or {}).get('meta') or {}).get('type') or []
+            if not meta_types:
+                continue
+            t = meta_types[0]
+            entries = block.get(t) or []
+            by_type[t] = {
+                e['asOfDate']: (e.get('reportedValue') or {}).get('raw')
+                for e in entries if e
+            }
+        return by_type
+    except (requests.RequestException, ValueError, KeyError, TypeError, IndexError):
+        return None
 
-        equity = book_value * shares_out if book_value and shares_out else None
-        net_income = profit_margin * total_revenue if profit_margin is not None and total_revenue else None
-        operating_income = operating_margin * total_revenue if operating_margin is not None and total_revenue else None
 
-        if net_income is not None and equity:
-            ratios['roe'] = round((net_income / equity) * 100, 2)
+# AI REPHRASE ENDPOINT — powers the floating "Rephrase with AI" toolbar button
+@app.route('/api/rephrase-text', methods=['POST'])
+def rephrase_text():
+    data = request.get_json(silent=True) or {}
+    text_in = (data.get('text') or '').strip()
+    if not text_in:
+        return jsonify({'success': False, 'message': 'No text provided.'}), 400
 
-        if operating_income is not None and equity is not None:
-            capital_employed = equity + total_debt
-            if capital_employed:
-                ratios['roce'] = round((operating_income / capital_employed) * 100, 2)
-
-    except (requests.RequestException, ValueError, KeyError, TypeError):
-        pass
-
-    return ratios
+    try:
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    'role': 'system',
+                    'content': (
+                        'You rephrase text for an equity research report. Keep the same '
+                        'meaning, facts and approximate length. Return only the rephrased '
+                        'text with no preamble, quotes, or explanation.'
+                    )
+                },
+                {'role': 'user', 'content': text_in}
+            ],
+            temperature=0.5,
+        )
+        rephrased = completion.choices[0].message.content.strip()
+        return jsonify({'success': True, 'rephrased': rephrased})
+    except Exception as e:
+        print(f"Rephrase Error: {str(e)}")
+        return jsonify({'success': False, 'message': f'Backend error: {str(e)}'}), 500
 
 
 # 1. LIVE SEARCH ENDPOINT
@@ -2292,61 +2317,79 @@ def get_stock_data(symbol):
         if not clean_input:
             return jsonify({'success': False, 'message': 'Stock symbol cannot be empty.'}), 400
 
-        # Try NSE first, fallback to BOM (BSE)
-        exchanges = ['NSE', 'BOM']
         stock_data = None
 
-        for exch in exchanges:
-            url = f"https://www.google.com/finance/quote/{clean_input}:{exch}"
-            res = requests.get(url, headers=HEADERS, timeout=5)
+        # Try NSE first, fallback to BSE
+        for suffix, exch_label in (('.NS', 'NSE'), ('.BO', 'BSE')):
+            yahoo_symbol = f"{clean_input}{suffix}"
+            data = _yahoo_quote_summary(yahoo_symbol, 'price,summaryDetail,defaultKeyStatistics,financialData')
+            if not data:
+                continue
 
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, 'html.parser')
+            price = data.get('price', {}) or {}
+            cmp_val = _raw(price, 'regularMarketPrice')
+            if cmp_val is None:
+                continue
 
-                # Google Finance main price container (current markup uses N6SYTe;
-                # older builds used YMlKec/fxKbKc — kept as a fallback)
-                price_div = soup.find('div', {'class': 'N6SYTe'}) \
-                    or soup.find('div', {'class': 'YMlKec'}) \
-                    or soup.find('div', {'class': 'fxKbKc'})
-                if price_div:
-                    price_text = price_div.text.replace('₹', '').replace(',', '').strip()
-                    try:
-                        cmp_val = float(price_text)
+            summary = data.get('summaryDetail', {}) or {}
+            ks = data.get('defaultKeyStatistics', {}) or {}
+            fd = data.get('financialData', {}) or {}
 
-                        # Extract Company Name
-                        name_div = soup.find('div', {'class': 'gO24Ff'}) or soup.find('div', {'class': 'zzA30b'})
-                        company_name = name_div.text.strip() if name_div else clean_input
+            company_name = price.get('longName') or price.get('shortName') or clean_input
 
-                        # Extract Key Stats card (Market cap, P/E ratio, etc.)
-                        stats = {}
-                        stat_rows = soup.find_all('div', {'class': 'KxsRFb'})
-                        for row in stat_rows:
-                            label_div = row.find('div', {'class': 'SwQK7'})
-                            value_div = row.find('div', {'class': 'dO6ijd'})
-                            if label_div and value_div:
-                                stats[label_div.text.strip()] = value_div.text.strip()
+            market_cap = _raw(summary, 'marketCap')
+            mcap = round(market_cap / 1e7, 2) if market_cap else 'N/A'  # INR Crores
 
-                        yahoo_symbol = f"{clean_input}{'.NS' if exch == 'NSE' else '.BO'}"
-                        ratios = get_yahoo_ratios(yahoo_symbol)
+            pe = _raw(summary, 'trailingPE')
+            pe = round(pe, 2) if pe is not None else 'N/A'
 
-                        stock_data = {
-                            'company_name': company_name,
-                            'cmp': cmp_val,
-                            'mcap': stats.get('Mkt. cap', stats.get('Market cap', 'N/A')),
-                            'pe': stats.get('P/E ratio', 'N/A'),
-                            'roe': ratios['roe'],
-                            'roce': ratios['roce'],
-                            'opm': ratios['opm'],
-                            'ev': ratios['ev'],
-                            'exchange': 'NSE' if exch == 'NSE' else 'BSE'
-                        }
-                        break  # Found successfully, break exchange loop
-                    except ValueError:
-                        continue
+            # OPM and EV/EBITDA come straight from Yahoo's own computed fields.
+            # returnOnEquity is left empty by Yahoo for most Indian equities,
+            # so ROE and ROCE are both derived from the raw figures Yahoo does
+            # provide (profit margin/revenue for net income, book value/shares
+            # outstanding for equity).
+            opm_raw = _raw(fd, 'operatingMargins')
+            opm = round(opm_raw * 100, 2) if opm_raw is not None else 'N/A'
+
+            ev = _raw(ks, 'enterpriseToEbitda')
+            ev = round(ev, 2) if ev is not None else 'N/A'
+
+            roe = 'N/A'
+            roce = 'N/A'
+            profit_margin = _raw(fd, 'profitMargins')
+            book_value = _raw(ks, 'bookValue')
+            shares_out = _raw(ks, 'sharesOutstanding')
+            total_revenue = _raw(fd, 'totalRevenue')
+            total_debt = _raw(fd, 'totalDebt') or 0
+
+            equity = book_value * shares_out if book_value and shares_out else None
+            net_income = profit_margin * total_revenue if profit_margin is not None and total_revenue else None
+            operating_income = opm_raw * total_revenue if opm_raw is not None and total_revenue else None
+
+            if net_income is not None and equity:
+                roe = round((net_income / equity) * 100, 2)
+
+            if operating_income is not None and equity is not None:
+                capital_employed = equity + total_debt
+                if capital_employed:
+                    roce = round((operating_income / capital_employed) * 100, 2)
+
+            stock_data = {
+                'company_name': company_name,
+                'cmp': round(cmp_val, 2),
+                'mcap': mcap,
+                'pe': pe,
+                'roe': roe,
+                'roce': roce,
+                'opm': opm,
+                'ev': ev,
+                'exchange': exch_label
+            }
+            break
 
         if not stock_data:
             return jsonify({
-                'success': False, 
+                'success': False,
                 'message': f'Symbol "{clean_input}" not found on NSE or BSE.'
             }), 404
 
@@ -2357,7 +2400,7 @@ def get_stock_data(symbol):
         return jsonify({'success': False, 'message': f'Backend fetch error: {str(e)}'}), 500
 
 
-# 3. HISTORICAL FINANCIALS FETCH ENDPOINT
+# 3. HISTORICAL FINANCIALS FETCH ENDPOINT (last 3 completed fiscal years)
 @app.route('/api/get-stock-financials/<symbol>', methods=['GET'])
 def get_stock_financials(symbol):
     try:
@@ -2365,60 +2408,50 @@ def get_stock_financials(symbol):
         if not clean_input:
             return jsonify({'success': False, 'message': 'Stock symbol cannot be empty.'}), 400
 
-        exchanges = ['NSE', 'BOM']
         years = []
 
-        for exch in exchanges:
-            url = f"https://www.google.com/finance/quote/{clean_input}:{exch}"
-            res = requests.get(url, headers=HEADERS, timeout=5)
+        for suffix in ('.NS', '.BO'):
+            yahoo_symbol = f"{clean_input}{suffix}"
+            by_type = _yahoo_fundamentals_timeseries(
+                yahoo_symbol,
+                'annualTotalRevenue,annualEBITDA,annualNetIncome,annualOperatingIncome,annualDilutedEPS'
+            )
+            revenue_by_date = (by_type or {}).get('annualTotalRevenue') or {}
+            if not revenue_by_date:
+                continue
 
-            if res.status_code == 200:
-                soup = BeautifulSoup(res.text, 'html.parser')
+            ebitda_by_date = (by_type or {}).get('annualEBITDA') or {}
+            net_income_by_date = (by_type or {}).get('annualNetIncome') or {}
+            operating_income_by_date = (by_type or {}).get('annualOperatingIncome') or {}
+            eps_by_date = (by_type or {}).get('annualDilutedEPS') or {}
 
-                # Google Finance Income Statement table — looked up by its
-                # aria-label, which is far more stable than the auto-generated
-                # CSS classes (RO3A8b/g22I8d) Google rotates on rebuilds.
-                table = soup.find('table', {'aria-label': 'Income statement'})
-                if not table:
-                    continue
+            # Last 3 completed fiscal years, oldest -> newest (the contract
+            # the frontend expects — it reverses this list to put the current
+            # year first).
+            for end_date in sorted(revenue_by_date.keys())[-3:]:
+                try:
+                    label = datetime.strptime(end_date, '%Y-%m-%d').strftime('%b %Y')
+                except ValueError:
+                    label = end_date
 
-                # Extract header columns (Years / Quarters)
-                period_labels = []
-                thead = table.find('thead')
-                header_row = thead.find('tr') if thead else None
-                if header_row:
-                    cols = header_row.find_all('th')[1:]  # skip the "All values in INR" column
-                    period_labels = [c.get_text(strip=True) for c in cols][:3]
+                revenue = revenue_by_date.get(end_date)
+                ebitda = ebitda_by_date.get(end_date)
+                net_income = net_income_by_date.get(end_date)
+                operating_income = operating_income_by_date.get(end_date)
+                eps = eps_by_date.get(end_date)
 
-                # Map extracted table values
-                financial_map = {}
-                tbody = table.find('tbody')
-                rows = tbody.find_all('tr') if tbody else []
-                for row in rows:
-                    cells = row.find_all('td')
-                    if len(cells) >= 2:
-                        metric_name = cells[0].get_text(strip=True)
-                        values = [c.get_text(strip=True) for c in cells[1:]]
-                        financial_map[metric_name] = values
+                opm = round((operating_income / revenue) * 100, 2) if operating_income is not None and revenue else 'N/A'
 
-                revenue_list = financial_map.get('Revenue', [])
-                net_income_list = financial_map.get('Net income', [])
-                op_margin_list = financial_map.get('Net profit margin', financial_map.get('Operating margin', []))
-                eps_list = financial_map.get('Earnings per share', financial_map.get('Diluted EPS', []))
-
-                if revenue_list:
-                    for i in range(min(3, len(revenue_list))):
-                        label = period_labels[i] if i < len(period_labels) else f"Y{i+1}"
-                        years.append({
-                            'label': label,
-                            'mcap': revenue_list[i] if i < len(revenue_list) else 'N/A',     # Revenue
-                            'pe': 'N/A',                                                      # EBITDA
-                            'roe': net_income_list[i] if i < len(net_income_list) else 'N/A', # Net Profit
-                            'roce': op_margin_list[i] if i < len(op_margin_list) else 'N/A',  # OPM (%)
-                            'opm': eps_list[i] if i < len(eps_list) else 'N/A',              # EPS
-                            'ev': 'N/A'                                                       # Dividend
-                        })
-                    break
+                years.append({
+                    'label': label,
+                    'mcap': round(revenue / 1e7, 2) if revenue is not None else 'N/A',     # Revenue (Cr)
+                    'pe': round(ebitda / 1e7, 2) if ebitda is not None else 'N/A',          # EBITDA (Cr)
+                    'roe': round(net_income / 1e7, 2) if net_income is not None else 'N/A', # Net Profit (Cr)
+                    'roce': opm,                                                            # OPM (%)
+                    'opm': round(eps, 2) if eps is not None else 'N/A',                     # EPS (₹)
+                    'ev': 'N/A'                                                             # Dividend / Share
+                })
+            break
 
         if not years:
             return jsonify({
