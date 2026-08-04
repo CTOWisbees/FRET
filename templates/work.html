@@ -285,20 +285,12 @@
                         </div>
                     </div>
 
-                    <!-- STREET COVERAGE SECTION WITH BROKERAGE SEARCH BAR -->
+                    <!-- STREET COVERAGE SECTION — PER-ROW BROKERAGE SEARCH -->
                     <div class="fret-step-card">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
                             <label class="fret-nm-form-label" style="margin-bottom:0;">Street Coverage Consensus Analytics</label>
                             <button type="button" onclick="addFretAnalystRow()" class="btn btn-sm btn-outline-primary" style="font-size: 11px; padding: 4px 10px;">
                                 <i class="fas fa-plus"></i> Add Row
-                            </button>
-                        </div>
-
-                        <!-- Live Brokerage Fetch Search Bar -->
-                        <div style="display: flex; gap: 8px; margin-bottom: 14px;">
-                            <input type="text" id="brokerSearchInput" placeholder="Search ticker or brokerage house consensus (e.g. RELIANCE, TATAMOTORS)..." style="flex: 1;">
-                            <button type="button" onclick="searchBrokerageCoverage()" style="background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: var(--radius-sm); padding: 0 16px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
-                                <i class="fas fa-search"></i> Fetch Calls
                             </button>
                         </div>
 
@@ -313,22 +305,13 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td><input type="text" name="an_date[]" placeholder="e.g. May '25"></td>
-                                    <td><input type="text" name="an_broker[]" placeholder="e.g. Yes Securities"></td>
-                                    <td><input type="text" name="an_call[]" placeholder="e.g. BUY"></td>
-                                    <td><input type="number" step="0.01" name="an_target[]" placeholder="e.g. 585"></td>
-                                </tr>
-                                <tr>
-                                    <td><input type="text" name="an_date[]" placeholder="e.g. May '25"></td>
-                                    <td><input type="text" name="an_broker[]" placeholder="e.g. Dolat Capital"></td>
-                                    <td><input type="text" name="an_call[]" placeholder="e.g. BUY"></td>
-                                    <td><input type="number" step="0.01" name="an_target[]" placeholder="e.g. 720"></td>
-                                </tr>
-                                <tr>
-                                    <td><input type="text" name="an_date[]" placeholder="e.g. June '25"></td>
-                                    <td><input type="text" name="an_broker[]" placeholder="e.g. Indsec Research"></td>
-                                    <td><input type="text" name="an_call[]" placeholder="e.g. BUY"></td>
-                                    <td><input type="number" step="0.01" name="an_target[]" placeholder="e.g. 750"></td>
+                                    <td><input type="text" name="an_date[]" id="an_date_1" placeholder="e.g. May '25"></td>
+                                    <td style="position: relative;">
+                                        <input type="text" name="an_broker[]" id="an_broker_1" placeholder="Search brokerage house..." autocomplete="off" oninput="handleBrokerSearch(1)">
+                                        <div id="brokerDropdown_1" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                                    </td>
+                                    <td><input type="text" name="an_call[]" id="an_call_1" placeholder="e.g. BUY"></td>
+                                    <td><input type="number" step="0.01" name="an_target[]" id="an_target_1" placeholder="e.g. 585"></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -361,12 +344,18 @@
 function addFretAnalystRow() {
     const tbody = document.querySelector('#fretAnalystDynamicTable tbody');
     if (!tbody) return;
+
+    analystRowCount++;
+    const rowIndex = analystRowCount;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-        <td><input type="text" name="an_date[]" placeholder="DD/MM/YYYY"></td>
-        <td><input type="text" name="an_broker[]" placeholder="Brokerage"></td>
-        <td><input type="text" name="an_call[]" placeholder="Call"></td>
-        <td><input type="number" step="0.01" name="an_target[]" placeholder="Target"></td>
+        <td><input type="text" name="an_date[]" id="an_date_${rowIndex}" placeholder="DD/MM/YYYY"></td>
+        <td style="position: relative;">
+            <input type="text" name="an_broker[]" id="an_broker_${rowIndex}" placeholder="Search brokerage house..." autocomplete="off" oninput="handleBrokerSearch(${rowIndex})">
+            <div id="brokerDropdown_${rowIndex}" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+        </td>
+        <td><input type="text" name="an_call[]" id="an_call_${rowIndex}" placeholder="Call"></td>
+        <td><input type="number" step="0.01" name="an_target[]" id="an_target_${rowIndex}" placeholder="Target"></td>
     `;
     tbody.appendChild(tr);
 }
@@ -597,44 +586,94 @@ const fyMetrics = [
     { label: "Dividend / Share (₹)", key: "ev" }
 ];
 
-// FETCH STREET COVERAGE CONSENSUS ANALYTICS (OPTION 1 API SCRAPER INTEGRATION)
-async function fetchStreetCoverage(symbol) {
-    if (!symbol) return;
+// STREET COVERAGE CONSENSUS ANALYTICS — per-row brokerage house search.
+// Analyst calls are scraped per target stock (not per brokerage), so the
+// full list is cached quietly once the target stock is fetched, then each
+// row's brokerage field searches/filters that cached list client-side.
+let brokerCoverageCache = null;
+let brokerCoverageCacheSymbol = null;
+let brokerSearchMatches = {};   // rowIndex -> currently displayed dropdown matches
+let brokerSearchDebounce = {};  // rowIndex -> debounce timer
+let analystRowCount = 1;        // number of rows currently in the table
+
+async function getBrokerCoverageData(symbol) {
+    if (!symbol) return [];
+    if (brokerCoverageCacheSymbol === symbol && brokerCoverageCache) {
+        return brokerCoverageCache;
+    }
     try {
-        const response = await fetch(`/api/get-analyst-coverage/${encodeURIComponent(symbol)}`);
-        const result = await response.json();
-
-        if (result.success && result.analysts && result.analysts.length > 0) {
-            const tbody = document.querySelector('#fretAnalystDynamicTable tbody');
-            if (!tbody) return;
-
-            tbody.innerHTML = ''; // Clear default placeholder rows
-
-            result.analysts.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td><input type="text" name="an_date[]" value="${item.date}" placeholder="e.g. May '25"></td>
-                    <td><input type="text" name="an_broker[]" value="${item.broker}" placeholder="e.g. Yes Securities"></td>
-                    <td><input type="text" name="an_call[]" value="${item.call}" placeholder="e.g. BUY"></td>
-                    <td><input type="number" step="0.01" name="an_target[]" value="${item.target !== 'N/A' ? item.target : ''}" placeholder="e.g. 585"></td>
-                `;
-                tbody.appendChild(tr);
-            });
+        const res = await fetch(`/api/get-analyst-coverage/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+        if (result.success && Array.isArray(result.analysts)) {
+            brokerCoverageCache = result.analysts;
+            brokerCoverageCacheSymbol = symbol;
+            return brokerCoverageCache;
         }
     } catch (err) {
         console.error("Failed to load analyst coverage:", err);
     }
+    return [];
 }
 
-// Handler for the manual brokerage coverage search button
-function searchBrokerageCoverage() {
-    const input = document.getElementById('brokerSearchInput');
-    const symbol = input ? input.value.trim() : '';
-    if (symbol) {
-        fetchStreetCoverage(symbol);
-    } else {
-        alert('Please enter a stock symbol or brokerage keyword.');
+function handleBrokerSearch(rowIndex) {
+    const input = document.getElementById(`an_broker_${rowIndex}`);
+    const dropdown = document.getElementById(`brokerDropdown_${rowIndex}`);
+    const query = input ? input.value.trim().toLowerCase() : '';
+    if (!dropdown) return;
+
+    if (!query) {
+        dropdown.style.display = 'none';
+        return;
     }
+
+    clearTimeout(brokerSearchDebounce[rowIndex]);
+    brokerSearchDebounce[rowIndex] = setTimeout(async () => {
+        const symbolInput = document.getElementById('mainCompanyName');
+        const symbol = symbolInput ? (symbolInput.dataset.ticker || symbolInput.value.trim()) : '';
+
+        if (!symbol) {
+            dropdown.innerHTML = `<div style="padding:10px 14px; font-size:0.85rem; color:var(--text2);">Select a target stock above first</div>`;
+            dropdown.style.display = 'block';
+            return;
+        }
+
+        const analysts = await getBrokerCoverageData(symbol);
+        const matches = analysts.filter(a => (a.broker || '').toLowerCase().includes(query));
+        brokerSearchMatches[rowIndex] = matches;
+
+        if (matches.length === 0) {
+            dropdown.innerHTML = `<div style="padding:10px 14px; font-size:0.85rem; color:var(--text2);">No matching brokerage calls found</div>`;
+            dropdown.style.display = 'block';
+            return;
+        }
+
+        dropdown.innerHTML = matches.map((a, i) => `
+            <div onclick="selectBrokerCall(${rowIndex}, ${i})"
+                 style="padding: 10px 14px; cursor: pointer; font-size: 0.85rem; color: var(--text); border-bottom: 1px solid var(--border); transition: background 0.15s;"
+                 onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+                <strong>${a.broker}</strong> — <span style="color: var(--text2);">${a.call}${a.target !== 'N/A' ? ' @ ₹' + a.target : ''}</span>
+                <small style="float: right; opacity: 0.6; font-size: 0.75rem;">${a.date}</small>
+            </div>
+        `).join('');
+        dropdown.style.display = 'block';
+    }, 200);
+}
+
+function selectBrokerCall(rowIndex, matchIdx) {
+    const item = (brokerSearchMatches[rowIndex] || [])[matchIdx];
+    if (!item) return;
+
+    const brokerInput = document.getElementById(`an_broker_${rowIndex}`);
+    const dateInput = document.getElementById(`an_date_${rowIndex}`);
+    const callInput = document.getElementById(`an_call_${rowIndex}`);
+    const targetInput = document.getElementById(`an_target_${rowIndex}`);
+    const dropdown = document.getElementById(`brokerDropdown_${rowIndex}`);
+
+    if (brokerInput) brokerInput.value = item.broker;
+    if (dateInput) dateInput.value = item.date;
+    if (callInput) callInput.value = item.call;
+    if (targetInput && item.target !== 'N/A') targetInput.value = item.target;
+    if (dropdown) dropdown.style.display = 'none';
 }
 
 function updateRecommendationStyle(sel) {
@@ -812,8 +851,10 @@ async function fetchTargetMetrics() {
     if (btn && icon) { btn.disabled = true; icon.classList.add('fa-spin'); }
 
     try {
-        // Automatically fetch Street Coverage Analyst consensus alongside stock metrics
-        fetchStreetCoverage(symbol);
+        // Quietly warm the analyst-coverage cache so the brokerage search
+        // fields have data ready — doesn't touch the table itself, since
+        // rows are added manually and shouldn't get auto-populated.
+        getBrokerCoverageData(symbol);
 
         if (mode === 'financial_year') {
             await fetchTargetFinancialYears(symbol);
