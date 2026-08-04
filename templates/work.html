@@ -67,8 +67,6 @@
     </div>
     <hr class="fret-wh-divider">
 
-
-
     {# --- BLOCK FOR DIGITAL MARKETING INTERNS --- #}
     {% if current_user.designation == 'Digital Marketing Intern' or current_user.department == 'Marketing' %}
         <div class="fret-nm-card" style="margin-bottom:32px;">
@@ -135,8 +133,8 @@
             </div>
         </div>
 
-    {# --- NEW DYNAMIC BLOCK FOR EQUITY RESEARCH INTERNS --- #}
-        {% elif current_user.designation == 'Equity Research Intern' or current_user.department == 'Research' %}
+    {# --- DYNAMIC BLOCK FOR EQUITY RESEARCH INTERNS --- #}
+    {% elif current_user.designation == 'Equity Research Intern' or current_user.department == 'Research' %}
         <div class="fret-nm-card fret-research-form">
             <div class="fret-nm-card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                 <h4 class="fret-nm-card-title"><i class="fas fa-chart-line"></i> Institutional Stock Research Compiler Engine</h4>
@@ -287,15 +285,30 @@
                         </div>
                     </div>
 
+                    <!-- STREET COVERAGE SECTION WITH BROKERAGE SEARCH BAR -->
                     <div class="fret-step-card">
-                        <label class="fret-nm-form-label">Street Coverage Consensus Analytics</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
+                            <label class="fret-nm-form-label" style="margin-bottom:0;">Street Coverage Consensus Analytics</label>
+                            <button type="button" onclick="addFretAnalystRow()" class="btn btn-sm btn-outline-primary" style="font-size: 11px; padding: 4px 10px;">
+                                <i class="fas fa-plus"></i> Add Row
+                            </button>
+                        </div>
+
+                        <!-- Live Brokerage Fetch Search Bar -->
+                        <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+                            <input type="text" id="brokerSearchInput" placeholder="Search ticker or brokerage house consensus (e.g. RELIANCE, TATAMOTORS)..." style="flex: 1;">
+                            <button type="button" onclick="searchBrokerageCoverage()" style="background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; border: none; border-radius: var(--radius-sm); padding: 0 16px; cursor: pointer; font-size: 0.85rem; font-weight: 600;">
+                                <i class="fas fa-search"></i> Fetch Calls
+                            </button>
+                        </div>
+
                         <table class="fret-research-table" id="fretAnalystDynamicTable">
                             <thead>
                                 <tr>
                                     <th>Call Date</th>
                                     <th>Brokerage House</th>
                                     <th>Rating Recommendation</th>
-                                    <th>Target Price</th>
+                                    <th>Target Price (₹)</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -345,7 +358,6 @@
 // SECTION 1: DIGITAL MARKETING INTERN MODULES (GHOST NEWSLETTER & BULK MAIL)
 // ============================================================================
 
-// Logic to dynamically inject infinite brokerage table evaluation matrices inside the hub layout
 function addFretAnalystRow() {
     const tbody = document.querySelector('#fretAnalystDynamicTable tbody');
     if (!tbody) return;
@@ -585,6 +597,46 @@ const fyMetrics = [
     { label: "Dividend / Share (₹)", key: "ev" }
 ];
 
+// FETCH STREET COVERAGE CONSENSUS ANALYTICS (OPTION 1 API SCRAPER INTEGRATION)
+async function fetchStreetCoverage(symbol) {
+    if (!symbol) return;
+    try {
+        const response = await fetch(`/api/get-analyst-coverage/${encodeURIComponent(symbol)}`);
+        const result = await response.json();
+
+        if (result.success && result.analysts && result.analysts.length > 0) {
+            const tbody = document.querySelector('#fretAnalystDynamicTable tbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = ''; // Clear default placeholder rows
+
+            result.analysts.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" name="an_date[]" value="${item.date}" placeholder="e.g. May '25"></td>
+                    <td><input type="text" name="an_broker[]" value="${item.broker}" placeholder="e.g. Yes Securities"></td>
+                    <td><input type="text" name="an_call[]" value="${item.call}" placeholder="e.g. BUY"></td>
+                    <td><input type="number" step="0.01" name="an_target[]" value="${item.target !== 'N/A' ? item.target : ''}" placeholder="e.g. 585"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (err) {
+        console.error("Failed to load analyst coverage:", err);
+    }
+}
+
+// Handler for the manual brokerage coverage search button
+function searchBrokerageCoverage() {
+    const input = document.getElementById('brokerSearchInput');
+    const symbol = input ? input.value.trim() : '';
+    if (symbol) {
+        fetchStreetCoverage(symbol);
+    } else {
+        alert('Please enter a stock symbol or brokerage keyword.');
+    }
+}
+
 function updateRecommendationStyle(sel) {
     sel.classList.remove('rec-buy', 'rec-hold', 'rec-sell');
     if (sel.value === 'Buy') sel.classList.add('rec-buy');
@@ -614,8 +666,6 @@ function toggleComparisonMode() {
 function resetToFYMode() {
     currentPeerCount = 2;
 
-    // India FY runs Apr-Mar; the latest fully completed FY ended this March
-    // if we're past April, otherwise it ended last March.
     const now = new Date();
     const completedFYEndYear = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
     const fyLabel = offset => `FY${String(completedFYEndYear - offset).slice(-2)}`;
@@ -687,10 +737,8 @@ function renderTableRows(metricsList, peerCount) {
     }
 }
 
-// Global Debounce Registry for Inputs
 let searchDebounceTimers = {};
 
-// 1. Unified Instant First-Letter Stock Search Handler
 function handleStockSearch(inputId, dropdownId, selectCallback) {
     const input = document.getElementById(inputId);
     const dropdown = document.getElementById(dropdownId);
@@ -740,21 +788,14 @@ function executeSearchSelection(inputId, dropdownId, symbol, name) {
     }
 }
 
-// Global click event to close dropdowns when clicking outside
 document.addEventListener('click', function(e) {
     if (!e.target.closest('.stock-autocomplete-dropdown') && !e.target.closest('input')) {
         document.querySelectorAll('.stock-autocomplete-dropdown').forEach(d => d.style.display = 'none');
     }
 });
 
-// 2. Target Company Data Fetcher (ONLY Target)
 async function fetchTargetMetrics() {
     const symbolInput = document.getElementById('mainCompanyName');
-    // A successful fetch replaces the visible text with the full company
-    // name (e.g. "Reliance Industries Limited") for display/report-title
-    // purposes, so the actual ticker is tracked separately in data-ticker —
-    // otherwise a second fetch (re-click, or switching comparison mode and
-    // fetching again) would send that display name as the "symbol" and 404.
     const symbol = symbolInput ? (symbolInput.dataset.ticker || symbolInput.value.trim()) : '';
 
     if (!symbol) {
@@ -771,6 +812,9 @@ async function fetchTargetMetrics() {
     if (btn && icon) { btn.disabled = true; icon.classList.add('fa-spin'); }
 
     try {
+        // Automatically fetch Street Coverage Analyst consensus alongside stock metrics
+        fetchStreetCoverage(symbol);
+
         if (mode === 'financial_year') {
             await fetchTargetFinancialYears(symbol);
             return;
@@ -803,7 +847,6 @@ async function fetchTargetMetrics() {
     }
 }
 
-// 2b. Target Company Historical Financials Fetcher (Financial Year mode - last 3 FYs at once)
 async function fetchTargetFinancialYears(symbol) {
     try {
         const res = await fetch(`/api/get-stock-financials/${encodeURIComponent(symbol)}`);
@@ -816,8 +859,6 @@ async function fetchTargetFinancialYears(symbol) {
 
         const companyName = result.company_name || symbol;
 
-        // years[] comes back oldest -> newest; reverse so Col 1 is the current
-        // (most recent) year, descending through prior years after that.
         const descendingYears = [...result.years].reverse();
         descendingYears.forEach((yearData, idx) => {
             const colNum = idx + 1;
@@ -836,7 +877,6 @@ function selectTargetStock(symbol) {
     fetchTargetMetrics();
 }
 
-// 3. Specific Peer Company Data Fetcher (ONLY Selected Peer Column)
 async function selectPeerStock(colNum, symbol) {
     try {
         const res = await fetch(`/api/get-stock-data/${encodeURIComponent(symbol)}`);
@@ -854,7 +894,6 @@ async function selectPeerStock(colNum, symbol) {
     }
 }
 
-// Utility function to populate column input fields safely
 function fillColumnMetrics(colNum, data) {
     const fieldMap = {
         [`mcap_${colNum}`]: data.mcap,
@@ -873,7 +912,6 @@ function fillColumnMetrics(colNum, data) {
     }
 }
 
-// Dynamic Peer Column Expansion Handler
 function addPeerColumn() {
     if (currentPeerCount >= maxPeers) {
         alert("Maximum of 5 peers allowed.");
@@ -881,7 +919,7 @@ function addPeerColumn() {
     }
 
     currentPeerCount++;
-    const colIndex = currentPeerCount + 1; // Col 1 is Target, Col 2 is Peer 1, etc.
+    const colIndex = currentPeerCount + 1;
     const container = document.getElementById('columnLabelsContainer');
 
     const newDiv = document.createElement('div');
@@ -914,7 +952,6 @@ function removePeerColumn(colIndex) {
     renderTableRows(activeMetrics, currentPeerCount);
 }
 
-// Auto-initialize layout setup
 document.addEventListener('DOMContentLoaded', function() {
     if (document.getElementById('comparisonModeSelect')) {
         toggleComparisonMode();
@@ -929,8 +966,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetCompanyField = document.getElementById('comp_1');
     if (companyNameField && targetCompanyField) {
         companyNameField.addEventListener('input', function() {
-            // Manual typing invalidates any remembered ticker from a prior
-            // selection/fetch, so the next fetch uses what's actually typed.
             delete companyNameField.dataset.ticker;
             const modeSelect = document.getElementById('comparisonModeSelect');
             const mode = modeSelect ? modeSelect.value : 'peer';
