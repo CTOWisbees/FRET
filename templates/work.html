@@ -732,7 +732,7 @@ function handleStockSearch(inputId, dropdownId, selectCallback) {
 function executeSearchSelection(inputId, dropdownId, symbol, name) {
     const input = document.getElementById(inputId);
     const dropdown = document.getElementById(dropdownId);
-    if (input) input.value = symbol;
+    if (input) { input.value = symbol; input.dataset.ticker = symbol; }
     if (dropdown) dropdown.style.display = 'none';
 
     if (typeof window[`callback_${inputId}`] === 'function') {
@@ -750,12 +750,18 @@ document.addEventListener('click', function(e) {
 // 2. Target Company Data Fetcher (ONLY Target)
 async function fetchTargetMetrics() {
     const symbolInput = document.getElementById('mainCompanyName');
-    const symbol = symbolInput ? symbolInput.value.trim() : '';
+    // A successful fetch replaces the visible text with the full company
+    // name (e.g. "Reliance Industries Limited") for display/report-title
+    // purposes, so the actual ticker is tracked separately in data-ticker —
+    // otherwise a second fetch (re-click, or switching comparison mode and
+    // fetching again) would send that display name as the "symbol" and 404.
+    const symbol = symbolInput ? (symbolInput.dataset.ticker || symbolInput.value.trim()) : '';
 
     if (!symbol) {
         alert("Please select or type a stock ticker.");
         return;
     }
+    if (symbolInput) symbolInput.dataset.ticker = symbol;
 
     const modeSelect = document.getElementById('comparisonModeSelect');
     const mode = modeSelect ? modeSelect.value : 'peer';
@@ -808,6 +814,8 @@ async function fetchTargetFinancialYears(symbol) {
             return;
         }
 
+        const companyName = result.company_name || symbol;
+
         // years[] comes back oldest -> newest; reverse so Col 1 is the current
         // (most recent) year, descending through prior years after that.
         const descendingYears = [...result.years].reverse();
@@ -816,7 +824,7 @@ async function fetchTargetFinancialYears(symbol) {
             const lbl = document.getElementById(`lbl_comp_${colNum}`);
             const input = document.getElementById(`comp_${colNum}`);
             if (lbl) lbl.textContent = colNum === 1 ? 'Current Year' : `Prior Year ${colNum - 1}`;
-            if (input) input.value = yearData.label;
+            if (input) input.value = `${companyName} (${yearData.label})`;
             fillColumnMetrics(colNum, yearData);
         });
     } catch (e) {
@@ -921,6 +929,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const targetCompanyField = document.getElementById('comp_1');
     if (companyNameField && targetCompanyField) {
         companyNameField.addEventListener('input', function() {
+            // Manual typing invalidates any remembered ticker from a prior
+            // selection/fetch, so the next fetch uses what's actually typed.
+            delete companyNameField.dataset.ticker;
             const modeSelect = document.getElementById('comparisonModeSelect');
             const mode = modeSelect ? modeSelect.value : 'peer';
             if (mode !== 'financial_year') {

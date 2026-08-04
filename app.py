@@ -2409,6 +2409,7 @@ def get_stock_financials(symbol):
             return jsonify({'success': False, 'message': 'Stock symbol cannot be empty.'}), 400
 
         years = []
+        company_name = clean_input
 
         for suffix in ('.NS', '.BO'):
             yahoo_symbol = f"{clean_input}{suffix}"
@@ -2419,6 +2420,11 @@ def get_stock_financials(symbol):
             revenue_by_date = (by_type or {}).get('annualTotalRevenue') or {}
             if not revenue_by_date:
                 continue
+
+            price_data = _yahoo_quote_summary(yahoo_symbol, 'price')
+            if price_data:
+                price = price_data.get('price', {}) or {}
+                company_name = price.get('longName') or price.get('shortName') or clean_input
 
             ebitda_by_date = (by_type or {}).get('annualEBITDA') or {}
             net_income_by_date = (by_type or {}).get('annualNetIncome') or {}
@@ -2459,7 +2465,7 @@ def get_stock_financials(symbol):
                 'message': f'No historical financial statements found for "{clean_input}".'
             }), 404
 
-        return jsonify({'success': True, 'years': years})
+        return jsonify({'success': True, 'company_name': company_name, 'years': years})
 
     except Exception as e:
         print(f"Financials Fetch Error for symbol '{symbol}': {str(e)}")
