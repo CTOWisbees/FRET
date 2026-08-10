@@ -264,6 +264,20 @@
 
             <p><b>End:</b> <span id="expEnd"></span></p>
 
+            <div class="form-group" style="margin-top: 16px; text-align: left;">
+              <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">
+                <i class="fas fa-copy text-accent"></i> CC Email Addresses (Optional)
+              </label>
+              <input type="text"
+                     id="exp_email_cc_input"
+                     class="form-control"
+                     placeholder="e.g. gouri.sankar@wisbees.com, jd@wisbees.com"
+                     style="width: 100%; padding: 10px; border-radius: 6px; box-sizing: border-box;" />
+              <small style="color: var(--text3); display: block; margin-top: 4px; font-size: 0.78rem;">
+                Separate multiple email addresses with a comma ( , )
+              </small>
+            </div>
+
         </div>
 
         <div class="exp-modal-footer">
@@ -279,6 +293,11 @@
                 Download PDF
 
             </a>
+
+            <button class="btn btn-success" id="sendExperienceBtn"
+                    onclick="sendExperienceEmail()">
+                <i class="fas fa-paper-plane"></i> Send Email
+            </button>
 
         </div>
 
@@ -307,9 +326,12 @@ function openOfferModal(id, name, designation) {
   }
 }
 
+let currentExpEmpId = null;
+
 function openExperienceModal(button){
 
     const id = button.dataset.id;
+    currentExpEmpId = id;
 
     document.getElementById("expName").textContent =
         button.dataset.name;
@@ -332,6 +354,8 @@ function openExperienceModal(button){
     document.getElementById("experienceDownloadBtn").href =
         "/experience-letter/" + id;
 
+    document.getElementById("exp_email_cc_input").value = "";
+
     document
         .getElementById("experienceModal")
         .classList.add("show");
@@ -343,6 +367,41 @@ function closeExperienceModal(){
         .getElementById("experienceModal")
         .classList.remove("show");
 
+}
+
+function sendExperienceEmail() {
+  if (!currentExpEmpId) { showToast('No employee selected', 'error'); return; }
+
+  const ccEmails = document.getElementById('exp_email_cc_input') ? document.getElementById('exp_email_cc_input').value : '';
+
+  const sendBtn = document.getElementById('sendExperienceBtn');
+  const originalHtml = sendBtn.innerHTML;
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+  fetch('/send-experience-letter-email', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      employee_id: currentExpEmpId,
+      cc_emails: ccEmails
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    showToast(data.message, data.success ? 'success' : 'error');
+    if (data.success) {
+      closeExperienceModal();
+    }
+  })
+  .catch(err => {
+    console.error(err);
+    showToast('A network connection error occurred.', 'error');
+  })
+  .finally(() => {
+    sendBtn.disabled = false;
+    sendBtn.innerHTML = originalHtml;
+  });
 }
 window.onclick = function(e){
 

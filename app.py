@@ -1269,6 +1269,105 @@ def send_email_route():
         return jsonify({'success': False, 'message': str(e)})
 
 
+@app.route('/send-experience-letter-email', methods=['POST'])
+@login_required
+def send_experience_letter_email():
+    data = request.get_json() or {}
+    emp_id = data.get('employee_id')
+
+    emp = Employee.query.get(emp_id)
+    if not emp:
+        return jsonify({'success': False, 'message': 'Employee not found'})
+
+    if not emp.email:
+        return jsonify({'success': False, 'message': 'This employee has no email address on file'})
+
+    config = EmailConfig.query.filter_by(hr_id=current_user.id).first()
+    if not config or not config.sender_email:
+        return jsonify({'success': False, 'message': 'Email not configured. Go to Settings > Email Config.'})
+
+    settings = CompanySettings.query.first()
+    if not settings:
+        settings = CompanySettings()
+
+    try:
+        gender = getattr(emp, 'gender', 'female') or 'female'
+        salutation_prefix = "Mr." if str(gender).strip().lower() in ['male', 'm'] else "Ms."
+
+        hydrate_company_files(settings)
+        pdf_buf = generate_experience_letter_pdf(emp, settings, prefix=salutation_prefix)
+        pdf_bytes = pdf_buf.getvalue()
+
+        safe_name = emp.name.replace(' ', '_')
+        attachments = [{
+            "@odata.type": "#microsoft.graph.fileAttachment",
+            "name": f"{safe_name}_Experience_Letter.pdf",
+            "contentBytes": base64.b64encode(pdf_bytes).decode('utf-8')
+        }]
+
+        subject = f"{emp.name} | Experience Letter | TimeArrow Pvt. Ltd (WisBees)"
+
+        html_body = f"""
+        <div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:600px;">
+          <p>Dear {emp.name},</p>
+          <p>Please find attached your Experience Letter from <strong>TimeArrow Pvt. Ltd. (WisBees)</strong>.</p>
+          <p>Should you have any questions or require any clarification, please feel free to reach out.</p>
+          <p>We wish you the very best in your future endeavours.</p>
+          <br>
+          <p style="margin:0;">Yours sincerely,</p>
+          <p style="margin:0;"><strong>{current_user.name}</strong></p>
+          <p style="margin:0;">HR-DEPARTMENT</p>
+          <p style="margin:0;"><a href="mailto:info@wisbees.com" style="color:#4f46e5;">info@wisbees.com</a></p>
+          <br>
+          <p style="margin:0;font-size:12px;color:#666;">TimeArrow Private Limited (WisBees)</p>
+          <img src="https://fret.wisbees.com/static/logo.png"
+                   alt="WisBees Logo"
+                   width="120"
+                   style="display: block; border: 0; max-width: 100%; height: auto;" />
+        </div>
+        """
+
+        cc_recipients = []
+        raw_cc_input = data.get('cc_emails', '')
+        if raw_cc_input:
+            parsed_cc_list = [email.strip() for email in raw_cc_input.split(',') if email.strip()]
+            cc_recipients = [{"emailAddress": {"address": email}} for email in parsed_cc_list]
+
+        token = get_graph_token()
+        email_payload = {
+            "message": {
+                "subject": subject,
+                "body": {
+                    "contentType": "HTML",
+                    "content": html_body
+                },
+                "toRecipients": [{"emailAddress": {"address": emp.email}}],
+                "ccRecipients": cc_recipients,
+                "attachments": attachments
+            },
+            "saveToSentItems": True
+        }
+
+        graph_send_url = f"https://graph.microsoft.com/v1.0/users/{config.sender_email}/sendMail"
+
+        response = requests.post(
+            graph_send_url,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json=email_payload
+        )
+
+        if response.status_code != 202:
+            raise Exception(response.text)
+
+        return jsonify({'success': True, 'message': f'Experience letter emailed to {emp.email}'})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+
 # ─────────────── SETTINGS ───────────────
 
 @app.route('/settings', methods=['GET', 'POST'])
