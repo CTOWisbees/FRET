@@ -2258,11 +2258,18 @@ _yahoo_session = requests.Session()
 _yahoo_session.headers.update(HEADERS)
 _yahoo_crumb = None
 
-def _get_yahoo_crumb():
+def _get_yahoo_crumb(force_refresh=False):
+    """Fetches (and caches) the crumb token Yahoo's quoteSummary/fundamentals
+    APIs require. Yahoo periodically rotates the crumb/session cookie pairing,
+    which invalidates whatever we cached — pass force_refresh=True to drop the
+    cache and the session's cookies and fetch a brand new one."""
     global _yahoo_crumb
-    if _yahoo_crumb:
+    if _yahoo_crumb and not force_refresh:
         return _yahoo_crumb
     try:
+        if force_refresh:
+            _yahoo_crumb = None
+            _yahoo_session.cookies.clear()
         _yahoo_session.get('https://fc.yahoo.com', timeout=5)
         res = _yahoo_session.get('https://query1.finance.yahoo.com/v1/test/getcrumb', timeout=5)
         if res.status_code == 200 and res.text and 'Unauthorized' not in res.text:
@@ -2272,24 +2279,43 @@ def _get_yahoo_crumb():
     return _yahoo_crumb
 
 
+def _yahoo_get(url, params):
+    """GET a Yahoo Finance endpoint with the cached crumb attached, retrying
+    once with a freshly fetched crumb + session if the first attempt is
+    rejected. Without this retry, a single crumb rotation on Yahoo's side
+    breaks every quote/financials request for the rest of the server
+    process's life (the crumb is cached at module level), even though the
+    process itself is otherwise perfectly healthy."""
+    for attempt in (1, 2):
+        crumb = _get_yahoo_crumb(force_refresh=(attempt == 2))
+        if not crumb:
+            return None
+        try:
+            res = _yahoo_session.get(url, params={**params, 'crumb': crumb}, timeout=8)
+        except requests.RequestException:
+            return None
+        if res.status_code == 200:
+            return res
+        if res.status_code in (401, 403) and attempt == 1:
+            continue  # crumb/cookie likely stale — refresh and retry once
+        return None
+    return None
+
+
 def _yahoo_quote_summary(yahoo_symbol, modules):
     """Fetches the given quoteSummary modules (e.g. 'price,summaryDetail') for
     a symbol (e.g. 'RELIANCE.NS'). Returns the result dict, or None on any
     failure (missing crumb, non-200, unrecognised symbol, malformed JSON)."""
-    crumb = _get_yahoo_crumb()
-    if not crumb:
-        return None
     try:
-        res = _yahoo_session.get(
+        res = _yahoo_get(
             f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{yahoo_symbol}",
-            params={'modules': modules, 'crumb': crumb},
-            timeout=8
+            {'modules': modules}
         )
-        if res.status_code != 200:
+        if res is None:
             return None
         result = res.json().get('quoteSummary', {}).get('result') or []
         return result[0] if result else None
-    except (requests.RequestException, ValueError, KeyError, TypeError, IndexError):
+    except (ValueError, KeyError, TypeError, IndexError):
         return None
 
 
@@ -2304,18 +2330,14 @@ def _yahoo_fundamentals_timeseries(yahoo_symbol, metric_types):
     legacy quoteSummary incomeStatementHistory module — which leaves
     operatingIncome/ebit empty for most Indian equities — this endpoint is
     reliably populated. Returns {metric_type: {asOfDate: raw_value}}."""
-    crumb = _get_yahoo_crumb()
-    if not crumb:
-        return None
     try:
         period2 = int(datetime.now().timestamp())
         period1 = period2 - 5 * 365 * 24 * 3600  # ~5 years back covers the last 3 completed FYs
-        res = _yahoo_session.get(
+        res = _yahoo_get(
             f"https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{yahoo_symbol}",
-            params={'type': metric_types, 'period1': period1, 'period2': period2, 'crumb': crumb},
-            timeout=8
+            {'type': metric_types, 'period1': period1, 'period2': period2}
         )
-        if res.status_code != 200:
+        if res is None:
             return None
         result = res.json().get('timeseries', {}).get('result') or []
 
