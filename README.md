@@ -143,14 +143,18 @@ Copy `.env.example` to `.env` and fill in what you need. Not every integration i
 Per-HR SMTP/Graph credentials for offer/experience letter emails are configured in-app under **Settings**, not via environment variables.
 
 ---
-
 ## 📧 Email Setup
 
-### Gmail (SMTP, per-HR in Settings)
-1. Enable 2-Factor Authentication on your Google account
-2. Go to: Google Account → Security → 2-Step Verification → App passwords
-3. Create an app password for "Mail"
-4. Use that 16-character password in Settings → Email Config
+### Microsoft Graph API (Per-HR in Settings)
+
+1. Go to **Azure Portal** (`portal.azure.com`) $\rightarrow$ **Microsoft Entra ID** $\rightarrow$ **App registrations**
+2. Click **New registration**, name your app (e.g., *HRMS Email Service*), select **Single tenant**, and register
+3. Note your **Application (Client) ID** and **Directory (Tenant) ID** from the Overview page
+4. Go to **Certificates & secrets** $\rightarrow$ **Client secrets** $\rightarrow$ **New client secret**, copy the Secret **Value** immediately
+5. Go to **API permissions** $\rightarrow$ **Add a permission** $\rightarrow$ **Microsoft Graph** $\rightarrow$ **Application permissions** $\rightarrow$ Add `Mail.Send`
+6. Click **Grant admin consent for [Your Organization]**
+7. Enter your **Sender Email**, **Tenant ID**, **Client ID**, and **Client Secret** in **Settings $\rightarrow$ Email Config**
+
 
 ### Microsoft Graph (OTP, research dossier, newsletter)
 Register an Azure AD app with `Mail.Send` application permission and grant admin consent, then set the corresponding `AZURE_*` / `NEWSLETTER_*` environment variables above.
