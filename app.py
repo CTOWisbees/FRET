@@ -13,6 +13,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.datastructures import MultiDict
 from datetime import datetime, date
 import os
+import time
 from groq import Groq
 import json
 import base64
@@ -2373,41 +2374,64 @@ _yahoo_session = requests.Session()
 _yahoo_session.headers.update(HEADERS)
 _yahoo_crumb = None
 
+# Render's shared outbound IP pool routinely trips Yahoo's rate limiter (429
+# on the crumb endpoint) due to *other* tenants' traffic, not this app's own
+# request volume — so a 429 is usually transient congestion, not a hard block.
+# Retrying with backoff clears it more often than not. Kept short (~2-3
+# attempts, a few seconds of backoff) so a sustained block still fails fast
+# rather than tripping Render's gateway/worker timeout.
+YAHOO_CRUMB_RETRY_BACKOFFS = [0, 2]      # seconds to wait before each getcrumb try
+YAHOO_REQUEST_RETRY_BACKOFFS = [0, 2]    # seconds to wait before each data-request try
+
 def _get_yahoo_crumb(force_refresh=False):
     """Fetches (and caches) the crumb token Yahoo's quoteSummary/fundamentals
     APIs require. Yahoo periodically rotates the crumb/session cookie pairing,
     which invalidates whatever we cached — pass force_refresh=True to drop the
-    cache and the session's cookies and fetch a brand new one."""
+    cache and the session's cookies and fetch a brand new one. Retries with
+    backoff on 429 (rate limited), since that's usually transient IP-pool
+    congestion rather than a hard block."""
     global _yahoo_crumb
     if _yahoo_crumb and not force_refresh:
         return _yahoo_crumb
-    try:
-        if force_refresh:
-            _yahoo_crumb = None
-            _yahoo_session.cookies.clear()
-        _yahoo_session.get('https://fc.yahoo.com', timeout=5)
-        res = _yahoo_session.get('https://query1.finance.yahoo.com/v1/test/getcrumb', timeout=5)
-        if res.status_code == 200 and res.text and 'Unauthorized' not in res.text:
-            _yahoo_crumb = res.text.strip()
-        else:
-            print(f"[YahooFetch] getcrumb rejected: status={res.status_code} body={res.text[:200]!r}")
-    except requests.RequestException as e:
-        print(f"[YahooFetch] getcrumb request failed: {type(e).__name__}: {e}")
+
+    if force_refresh:
+        _yahoo_crumb = None
+        _yahoo_session.cookies.clear()
+
+    for i, wait in enumerate(YAHOO_CRUMB_RETRY_BACKOFFS, start=1):
+        if wait:
+            time.sleep(wait)
+        try:
+            _yahoo_session.get('https://fc.yahoo.com', timeout=5)
+            res = _yahoo_session.get('https://query1.finance.yahoo.com/v1/test/getcrumb', timeout=5)
+            if res.status_code == 200 and res.text and 'Unauthorized' not in res.text:
+                _yahoo_crumb = res.text.strip()
+                return _yahoo_crumb
+            print(f"[YahooFetch] getcrumb rejected (try {i}/{len(YAHOO_CRUMB_RETRY_BACKOFFS)}): status={res.status_code} body={res.text[:200]!r}")
+            if res.status_code != 429:
+                break  # not a rate-limit — retrying won't help, stop early
+        except requests.RequestException as e:
+            print(f"[YahooFetch] getcrumb request failed (try {i}/{len(YAHOO_CRUMB_RETRY_BACKOFFS)}): {type(e).__name__}: {e}")
     return _yahoo_crumb
 
 
 def _yahoo_get(url, params):
-    """GET a Yahoo Finance endpoint with the cached crumb attached, retrying
-    once with a freshly fetched crumb + session if the first attempt is
-    rejected. Without this retry, a single crumb rotation on Yahoo's side
-    breaks every quote/financials request for the rest of the server
-    process's life (the crumb is cached at module level), even though the
-    process itself is otherwise perfectly healthy."""
-    for attempt in (1, 2):
-        crumb = _get_yahoo_crumb(force_refresh=(attempt == 2))
+    """GET a Yahoo Finance endpoint with the cached crumb attached. On 401/403
+    (stale crumb/cookie) forces a fresh crumb before the next try. On 429
+    (rate limited) waits and retries with the same crumb, WITHOUT re-running
+    _get_yahoo_crumb's own retry loop again — that already tried hard once;
+    doing it again per attempt here would multiply the backoff and risk
+    tripping Render's request timeout instead of just failing fast."""
+    force_refresh = False
+    attempts = len(YAHOO_REQUEST_RETRY_BACKOFFS)
+    for i, wait in enumerate(YAHOO_REQUEST_RETRY_BACKOFFS, start=1):
+        if wait:
+            time.sleep(wait)
+        crumb = _get_yahoo_crumb(force_refresh=force_refresh)
+        force_refresh = False
         if not crumb:
-            print(f"[YahooFetch] no crumb available (attempt {attempt}) for {url} — cannot request")
-            return None
+            print(f"[YahooFetch] no crumb available (try {i}/{attempts}) for {url} — giving up")
+            return None  # _get_yahoo_crumb already retried internally; no point looping again
         try:
             res = _yahoo_session.get(url, params={**params, 'crumb': crumb}, timeout=8)
         except requests.RequestException as e:
@@ -2415,10 +2439,11 @@ def _yahoo_get(url, params):
             return None
         if res.status_code == 200:
             return res
-        print(f"[YahooFetch] {url} returned status={res.status_code} (attempt {attempt}) body={res.text[:200]!r}")
-        if res.status_code in (401, 403, 429) and attempt == 1:
-            continue  # crumb/cookie likely stale, or rate-limited — refresh and retry once
-        return None
+        print(f"[YahooFetch] {url} returned status={res.status_code} (try {i}/{attempts}) body={res.text[:200]!r}")
+        if res.status_code in (401, 403):
+            force_refresh = True  # crumb/cookie likely stale — refresh before the next try
+        elif res.status_code != 429:
+            return None  # not rate-limiting or a stale crumb — retrying won't help
     return None
 
 
