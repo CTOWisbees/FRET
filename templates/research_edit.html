@@ -1,0 +1,746 @@
+{% extends "employee_base.html" %}
+{% block title %}Edit Research Report{% endblock %}
+{% block page_title %}Edit Research Report{% endblock %}
+
+{% block content %}
+<style>
+    .fret-nm-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--card-shadow); overflow: hidden; max-width: 750px; margin: 0 auto; }
+    .fret-nm-card-header { background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.05)); border-bottom: 1px solid var(--border); padding: 20px 24px; }
+    .fret-nm-card-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; margin: 0; }
+    .fret-nm-card-title i { color: var(--accent); }
+    .fret-nm-card-body { padding: 24px; }
+    .fret-nm-form-block { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+    .fret-nm-form-label { font-size: 0.85rem; font-weight: 600; color: var(--text2); }
+    .fret-nm-submit-btn { width: 100%; height: 48px; background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #ffffff; border: none; border-radius: var(--radius-sm); font-size: 0.9rem; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 16px rgba(99, 102, 241, 0.25); transition: all 0.2s; }
+    .fret-nm-submit-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(99, 102, 241, 0.4); }
+    .fret-nm-card-badge { background: rgba(99, 102, 241, 0.15); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.25); padding: 4px 12px; font-size: 0.72rem; font-weight: 700; border-radius: 999px; letter-spacing: 0.3px; }
+
+    .fret-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .fret-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .fret-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    .fret-research-form input, .fret-research-form select, .fret-research-form textarea {
+        width: 100%; padding: 10px 14px; background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text); font-size: 0.9rem; outline: none; box-sizing: border-box; transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .fret-research-form input:focus, .fret-research-form select:focus, .fret-research-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
+    .fret-research-table { width: 100%; border-collapse: collapse; margin-top: 8px; border-radius: var(--radius-sm); overflow: hidden; }
+    .fret-research-table th, .fret-research-table td { padding: 10px; border: 1px solid var(--border); text-align: center; font-size: 0.85rem; color: var(--text); }
+    .fret-research-table th { background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.06)); font-weight: 700; color: var(--text); text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.4px; }
+    .fret-research-table tr:hover td { background: var(--bg3); }
+    .fret-research-table input { padding: 6px 10px; text-align: center; }
+
+    .fret-step-card { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 18px 20px; margin-bottom: 20px; }
+    .fret-step-card .fret-nm-form-block:last-child { margin-bottom: 0; }
+    .fret-research-form select#recommendationSelect { font-weight: 700; }
+    .fret-research-form select#recommendationSelect.rec-buy { color: var(--green); border-color: rgba(16, 185, 129, 0.4); }
+    .fret-research-form select#recommendationSelect.rec-hold { color: var(--yellow); border-color: rgba(245, 158, 11, 0.4); }
+    .fret-research-form select#recommendationSelect.rec-sell { color: var(--red); border-color: rgba(239, 68, 68, 0.4); }
+</style>
+
+<div style="max-width:750px; margin: 0 auto 16px auto; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+    <div>
+        <h2 style="margin:0; font-size:1.3rem;">Editing Record: {{ report.company_name or 'Untitled Report' }}</h2>
+        <p style="margin:4px 0 0 0; color:var(--text2); font-size:0.85rem;">Originally compiled {{ report.created_at.strftime('%d %b %Y, %I:%M %p') }} — this record stays editable for a limited window before it's purged.</p>
+    </div>
+    <a href="{{ url_for('research_history') }}" class="fret-nm-card-badge" style="text-decoration:none;"><i class="fas fa-arrow-left"></i> Back to History</a>
+</div>
+
+<div class="fret-nm-card fret-research-form">
+    <div class="fret-nm-card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <h4 class="fret-nm-card-title"><i class="fas fa-pen"></i> Institutional Stock Research Compiler Engine</h4>
+        <span class="fret-nm-card-badge"><i class="fas fa-bolt"></i> Auto-Fill Enabled</span>
+    </div>
+    <div class="fret-nm-card-body">
+        <form action="{{ url_for('update_research_report', report_id=report.id) }}" method="POST" enctype="multipart/form-data" target="_blank">
+
+            <div class="fret-step-card">
+                <div class="fret-nm-form-block">
+                    <div class="fret-grid-4">
+                        <div style="position: relative;">
+                            <label class="fret-nm-form-label">Search Target Stock</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="text" id="mainCompanyName" name="company_name" value="{{ data.get('company_name', '') }}" placeholder="Type first letter (e.g. T, R, A)..." autocomplete="off" oninput="handleStockSearch('mainCompanyName', 'stockSearchDropdown', selectTargetStock)" required>
+                                <button type="button" id="btnFetchMetrics" class="btn btn-sm" onclick="fetchTargetMetrics()"
+                                        style="background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #ffffff; border: none; border-radius: var(--radius-sm); padding: 0 14px; cursor: pointer; white-space: nowrap; font-size: 0.82rem; font-weight: 600; transition: transform 0.15s;"
+                                        onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+                                    <i class="fas fa-sync" id="fetchIcon"></i> Fetch
+                                </button>
+                            </div>
+                            <div id="stockSearchDropdown" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:100; top:100%; left:0; right:0; margin-top:4px; max-height:220px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                        </div>
+                        <div>
+                            <label class="fret-nm-form-label">Current Price (₹)</label>
+                            <input type="number" step="0.01" name="cmp" id="cmpInput" value="{{ data.get('cmp', '') }}" placeholder="564" required>
+                        </div>
+                        <div>
+                            <label class="fret-nm-form-label">Price As On</label>
+                            <input type="date" name="cmp_date" id="cmpDateInput" value="{{ data.get('cmp_date', '') }}" required>
+                        </div>
+                        <div>
+                            <label class="fret-nm-form-label">Target Price (₹)</label>
+                            <input type="number" step="0.01" name="target_price" value="{{ data.get('target_price', '') }}" placeholder="1000" required>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fret-step-card">
+                <div class="fret-nm-form-block">
+                    <div class="fret-grid-2">
+                        <div>
+                            <label class="fret-nm-form-label">Comparison Mode</label>
+                            <select name="comparison_mode" id="comparisonModeSelect" onchange="toggleComparisonMode()">
+                                <option value="peer" {% if data.get('comparison_mode', 'peer') == 'peer' %}selected{% endif %}>Peer Comparison (Target Co. vs Peers)</option>
+                                <option value="financial_year" {% if data.get('comparison_mode') == 'financial_year' %}selected{% endif %}>Same Stock Financial Year Comparison (Current FY vs Prior FYs)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="fret-nm-form-label">Recommendation</label>
+                            <select name="recommendation" id="recommendationSelect" class="rec-buy" onchange="updateRecommendationStyle(this)">
+                                <option value="Buy" {% if data.get('recommendation', 'Buy') == 'Buy' %}selected{% endif %}>Buy</option>
+                                <option value="Sell" {% if data.get('recommendation') == 'Sell' %}selected{% endif %}>Sell</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fret-step-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+                    <label class="fret-nm-form-label" id="columnBlockTitle" style="margin-bottom:0;">Peer Comparison Identifiers</label>
+                    <div id="peerControlButtons">
+                        <button type="button" class="btn btn-sm btn-outline-primary" id="addPeerBtn" onclick="addPeerColumn()" style="font-size: 11px; padding: 4px 10px;">
+                            <i class="fas fa-plus"></i> Add Peer Column (Max 5)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="fret-grid-3" id="columnLabelsContainer" style="display: grid; gap: 10px;">
+                    <div>
+                        <label class="fret-nm-form-label" id="lbl_comp_1">Target Company</label>
+                        <input type="text" name="comp_1" id="comp_1" value="{{ data.get('comp_1', '') }}" placeholder="Target Co. Name" required>
+                    </div>
+
+                    <div style="position: relative;" id="peer_wrap_2">
+                        <label class="fret-nm-form-label" id="lbl_comp_2">Peer 1 Search</label>
+                        <input type="text" name="comp_2" id="comp_2" value="{{ data.get('comp_2', '') }}" placeholder="Type Peer 1 (e.g. VEDL)..." autocomplete="off" oninput="handleStockSearch('comp_2', 'peerDropdown_2', (sym) => selectPeerStock(2, sym))" required>
+                        <div id="peerDropdown_2" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                    </div>
+
+                    <div style="position: relative;" id="peer_wrap_3">
+                        <label class="fret-nm-form-label" id="lbl_comp_3">Peer 2 Search</label>
+                        <input type="text" name="comp_3" id="comp_3" value="{{ data.get('comp_3', '') }}" placeholder="Type Peer 2 (e.g. HINDALCO)..." autocomplete="off" oninput="handleStockSearch('comp_3', 'peerDropdown_3', (sym) => selectPeerStock(3, sym))" required>
+                        <div id="peerDropdown_3" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fret-step-card">
+                <div class="fret-nm-form-block">
+                    <div class="fret-grid-3">
+                        <div>
+                            <label class="fret-nm-form-label">Industry Sector</label>
+                            <input type="text" name="industry" value="{{ data.get('industry', '') }}" placeholder="e.g. Zinc & Silver Mining" required>
+                        </div>
+                        <div>
+                            <label class="fret-nm-form-label">Time Horizon</label>
+                            <input type="text" name="view" value="{{ data.get('view', '') }}" placeholder="e.g. 2-3 yrs" required>
+                        </div>
+                        <div>
+                            <label class="fret-nm-form-label">Upload Chart</label>
+                            <input type="file" name="chart_img" accept="image/*" style="padding: 6px 10px;">
+                            {% if report.chart_filename %}
+                            <div style="margin-top:6px; font-size:0.78rem; color:var(--text2);"><i class="fas fa-image"></i> Keeping current chart: {{ report.chart_filename }} (upload a new file to replace it)</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fret-step-card">
+                <div style="overflow-x: auto;">
+                    <table class="fret-research-table" id="metricsTable">
+                        <thead>
+                            <tr id="metricsHeaderRow">
+                                <th>Metric Dimension</th>
+                                <th id="th_col_1">Target Co.</th>
+                                <th id="th_col_2">Peer 1</th>
+                                <th id="th_col_3">Peer 2</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metricsTableBody">
+                            <!-- Dynamic rows rendered via JavaScript, then filled from the saved record -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="fret-step-card">
+                <div class="fret-nm-form-block">
+                    <label class="fret-nm-form-label">Business Overview (Moat)</label>
+                    <textarea name="business_overview" rows="4" placeholder="Describe competitive core structures, expansions, operations..." required>{{ data.get('business_overview', '') }}</textarea>
+                </div>
+
+                <div class="fret-nm-form-block">
+                    <div class="fret-grid-2">
+                        <div>
+                            <label class="fret-nm-form-label">Relative Valuation Thesis</label>
+                            <textarea name="relative_valuation" rows="3" placeholder="Compare multiples..." required>{{ data.get('relative_valuation', '') }}</textarea>
+                        </div>
+                        <div>
+                            <label class="fret-nm-form-label">Technical Chart Analysis</label>
+                            <textarea name="technicals" rows="3" placeholder="Pattern formations..." required>{{ data.get('technicals', '') }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="fret-step-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; gap: 12px; flex-wrap: wrap;">
+                    <label class="fret-nm-form-label" style="margin-bottom:0;">Street Coverage Consensus Analytics</label>
+                    <button type="button" onclick="addFretAnalystRow()" class="btn btn-sm btn-outline-primary" style="font-size: 11px; padding: 4px 10px;">
+                        <i class="fas fa-plus"></i> Add Row
+                    </button>
+                </div>
+
+                <table class="fret-research-table" id="fretAnalystDynamicTable">
+                    <thead>
+                        <tr>
+                            <th>Call Date</th>
+                            <th>Brokerage House</th>
+                            <th>Rating Recommendation</th>
+                            <th>Target Price (₹)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><input type="text" name="an_date[]" id="an_date_1" placeholder="e.g. May '25"></td>
+                            <td style="position: relative;">
+                                <input type="text" name="an_broker[]" id="an_broker_1" placeholder="Search brokerage house..." autocomplete="off" oninput="handleBrokerSearch(1)">
+                                <div id="brokerDropdown_1" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                            </td>
+                            <td><input type="text" name="an_call[]" id="an_call_1" placeholder="e.g. BUY"></td>
+                            <td><input type="number" step="0.01" name="an_target[]" id="an_target_1" placeholder="e.g. 585"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Submit Button -->
+            <button type="submit" class="fret-nm-submit-btn" style="margin-top:16px;">
+                <i class="fas fa-save"></i> Save Changes to This Record
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+const RESEARCH_PREFILL = {{ prefill_json | safe }};
+
+let currentPeerCount = 2;
+const maxPeers = 5;
+
+const peerMetrics = [
+    { label: "Market Cap (Cr)", key: "mcap" },
+    { label: "P/E Ratio", key: "pe" },
+    { label: "ROE (%)", key: "roe" },
+    { label: "ROCE (%)", key: "roce" },
+    { label: "OPM (%)", key: "opm" },
+    { label: "EV / EBITDA", key: "ev" }
+];
+
+const fyMetrics = [
+    { label: "Revenue (Cr)", key: "mcap" },
+    { label: "EBITDA (Cr)", key: "pe" },
+    { label: "Net Profit (Cr)", key: "roe" },
+    { label: "OPM (%)", key: "roce" },
+    { label: "EPS (₹)", key: "opm" },
+    { label: "Dividend / Share (₹)", key: "ev" }
+];
+
+let brokerCoverageCache = null;
+let brokerCoverageCacheSymbol = null;
+let brokerSearchMatches = {};
+let brokerSearchDebounce = {};
+let analystRowCount = 1;
+
+async function getBrokerCoverageData(symbol) {
+    if (!symbol) return [];
+    if (brokerCoverageCacheSymbol === symbol && brokerCoverageCache) {
+        return brokerCoverageCache;
+    }
+    try {
+        const res = await fetch(`/api/get-analyst-coverage/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+        if (result.success && Array.isArray(result.analysts)) {
+            brokerCoverageCache = result.analysts;
+            brokerCoverageCacheSymbol = symbol;
+            return brokerCoverageCache;
+        }
+    } catch (err) {
+        console.error("Failed to load analyst coverage:", err);
+    }
+    return [];
+}
+
+function handleBrokerSearch(rowIndex) {
+    const input = document.getElementById(`an_broker_${rowIndex}`);
+    const dropdown = document.getElementById(`brokerDropdown_${rowIndex}`);
+    const query = input ? input.value.trim().toLowerCase() : '';
+    if (!dropdown) return;
+
+    if (!query) {
+        dropdown.style.display = 'none';
+        return;
+    }
+
+    clearTimeout(brokerSearchDebounce[rowIndex]);
+    brokerSearchDebounce[rowIndex] = setTimeout(async () => {
+        const symbolInput = document.getElementById('mainCompanyName');
+        const symbol = symbolInput ? (symbolInput.dataset.ticker || symbolInput.value.trim()) : '';
+
+        if (!symbol) {
+            dropdown.innerHTML = `<div style="padding:10px 14px; font-size:0.85rem; color:var(--text2);">Select a target stock above first</div>`;
+            dropdown.style.display = 'block';
+            return;
+        }
+
+        const analysts = await getBrokerCoverageData(symbol);
+        const matches = analysts.filter(a => (a.broker || '').toLowerCase().includes(query));
+        brokerSearchMatches[rowIndex] = matches;
+
+        if (matches.length === 0) {
+            dropdown.innerHTML = `<div style="padding:10px 14px; font-size:0.85rem; color:var(--text2);">No matching brokerage calls found</div>`;
+            dropdown.style.display = 'block';
+            return;
+        }
+
+        dropdown.innerHTML = matches.map((a, i) => `
+            <div onclick="selectBrokerCall(${rowIndex}, ${i})"
+                 style="padding: 10px 14px; cursor: pointer; font-size: 0.85rem; color: var(--text); border-bottom: 1px solid var(--border); transition: background 0.15s;"
+                 onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+                <strong>${a.broker}</strong> — <span style="color: var(--text2);">${a.call}${a.target !== 'N/A' ? ' @ ₹' + a.target : ''}</span>
+                <small style="float: right; opacity: 0.6; font-size: 0.75rem;">${a.date}</small>
+            </div>
+        `).join('');
+        dropdown.style.display = 'block';
+    }, 200);
+}
+
+function selectBrokerCall(rowIndex, matchIdx) {
+    const item = (brokerSearchMatches[rowIndex] || [])[matchIdx];
+    if (!item) return;
+
+    const brokerInput = document.getElementById(`an_broker_${rowIndex}`);
+    const dateInput = document.getElementById(`an_date_${rowIndex}`);
+    const callInput = document.getElementById(`an_call_${rowIndex}`);
+    const targetInput = document.getElementById(`an_target_${rowIndex}`);
+    const dropdown = document.getElementById(`brokerDropdown_${rowIndex}`);
+
+    if (brokerInput) brokerInput.value = item.broker;
+    if (dateInput) dateInput.value = item.date;
+    if (callInput) callInput.value = item.call;
+    if (targetInput && item.target !== 'N/A') targetInput.value = item.target;
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+function updateRecommendationStyle(sel) {
+    sel.classList.remove('rec-buy', 'rec-hold', 'rec-sell');
+    if (sel.value === 'Buy') sel.classList.add('rec-buy');
+    else if (sel.value === 'Hold') sel.classList.add('rec-hold');
+    else if (sel.value === 'Sell') sel.classList.add('rec-sell');
+}
+
+function toggleComparisonMode() {
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    if (!modeSelect) return;
+
+    const mode = modeSelect.value;
+    const addPeerBtn = document.getElementById('addPeerBtn');
+    const colBlockTitle = document.getElementById('columnBlockTitle');
+
+    if (mode === 'financial_year') {
+        resetToFYMode();
+        if (addPeerBtn) addPeerBtn.style.display = 'none';
+        if (colBlockTitle) colBlockTitle.textContent = "Financial Year Identifiers";
+    } else {
+        if (addPeerBtn) addPeerBtn.style.display = 'inline-block';
+        if (colBlockTitle) colBlockTitle.textContent = "Peer Comparison Identifiers";
+        renderPeerMode();
+    }
+}
+
+function resetToFYMode() {
+    currentPeerCount = 2;
+
+    const now = new Date();
+    const completedFYEndYear = now.getMonth() + 1 >= 4 ? now.getFullYear() : now.getFullYear() - 1;
+    const fyLabel = offset => `FY${String(completedFYEndYear - offset).slice(-2)}`;
+
+    const lbl1 = document.getElementById('lbl_comp_1'); if (lbl1) lbl1.textContent = "Current Year";
+    const comp1 = document.getElementById('comp_1'); if (comp1 && !comp1.value) comp1.value = fyLabel(0);
+
+    const lbl2 = document.getElementById('lbl_comp_2'); if (lbl2) lbl2.textContent = "Prior Year 1";
+    const comp2 = document.getElementById('comp_2'); if (comp2 && !comp2.value) comp2.value = fyLabel(1);
+
+    const lbl3 = document.getElementById('lbl_comp_3'); if (lbl3) lbl3.textContent = "Prior Year 2";
+    const comp3 = document.getElementById('comp_3'); if (comp3 && !comp3.value) comp3.value = fyLabel(2);
+
+    const container = document.getElementById('columnLabelsContainer');
+    if (container) {
+        while (container.children.length > 3) {
+            container.removeChild(container.lastChild);
+        }
+    }
+
+    renderTableRows(fyMetrics, 2);
+}
+
+function renderPeerMode() {
+    const lbl1 = document.getElementById('lbl_comp_1'); if (lbl1) lbl1.textContent = "Target Company";
+    const comp1 = document.getElementById('comp_1');
+    if (comp1) comp1.placeholder = "Target Co. Name";
+
+    const lbl2 = document.getElementById('lbl_comp_2'); if (lbl2) lbl2.textContent = "Peer 1";
+    const comp2 = document.getElementById('comp_2'); if (comp2) comp2.placeholder = "Type Peer 1...";
+
+    const lbl3 = document.getElementById('lbl_comp_3'); if (lbl3) lbl3.textContent = "Peer 2";
+    const comp3 = document.getElementById('comp_3'); if (comp3) comp3.placeholder = "Type Peer 2...";
+
+    renderTableRows(peerMetrics, currentPeerCount);
+}
+
+function renderTableRows(metricsList, peerCount) {
+    const headerRow = document.getElementById('metricsHeaderRow');
+    const tableBody = document.getElementById('metricsTableBody');
+    if (!headerRow || !tableBody) return;
+
+    let headerHTML = `<th>Metric Dimension</th><th>Col 1 (Target / Y1)</th>`;
+    for (let i = 1; i <= peerCount; i++) {
+        headerHTML += `<th id="th_col_${i+1}">Col ${i+1} (Peer ${i} / Y${i+1})</th>`;
+    }
+    headerRow.innerHTML = headerHTML;
+
+    let bodyHTML = '';
+    metricsList.forEach(m => {
+        bodyHTML += `<tr><td><strong>${m.label}</strong></td>`;
+        bodyHTML += `<td><input type="text" name="${m.key}_1" placeholder="Val 1" required></td>`;
+        for (let i = 1; i <= peerCount; i++) {
+            const colNum = i + 1;
+            bodyHTML += `<td><input type="text" name="${m.key}_${colNum}" placeholder="Val ${colNum}"></td>`;
+        }
+        bodyHTML += `</tr>`;
+    });
+    tableBody.innerHTML = bodyHTML;
+
+    const container = document.getElementById('columnLabelsContainer');
+    if (container) {
+        const totalCols = peerCount + 1;
+        container.style.gridTemplateColumns = `repeat(${Math.min(totalCols, 4)}, 1fr)`;
+    }
+}
+
+let searchDebounceTimers = {};
+
+function handleStockSearch(inputId, dropdownId, selectCallback) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    const query = input ? input.value.trim() : '';
+
+    if (!query) {
+        if (dropdown) dropdown.style.display = 'none';
+        return;
+    }
+
+    clearTimeout(searchDebounceTimers[inputId]);
+    searchDebounceTimers[inputId] = setTimeout(async () => {
+        try {
+            const res = await fetch(`/api/search-stocks?q=${encodeURIComponent(query)}`);
+            const data = await res.json();
+
+            if (data.success && data.results.length > 0) {
+                dropdown.innerHTML = data.results.map(s => `
+                    <div onclick="executeSearchSelection('${inputId}', '${dropdownId}', '${s.full_symbol}', '${s.name.replace(/'/g, "")}')"
+                         style="padding: 10px 14px; cursor: pointer; font-size: 0.88rem; color: var(--text); border-bottom: 1px solid var(--border); transition: background 0.15s;"
+                         onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background='transparent'">
+                        <strong>${s.symbol}</strong> — <span style="color: var(--text2);">${s.name}</span>
+                        <small style="float: right; opacity: 0.6; font-size: 0.75rem;">${s.exch}</small>
+                    </div>
+                `).join('');
+
+                window[`callback_${inputId}`] = selectCallback;
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.innerHTML = `<div style="padding:10px 14px; font-size:0.85rem; color:var(--text2);">No matching stocks found</div>`;
+                dropdown.style.display = 'block';
+            }
+        } catch (err) {
+            console.error("Search error:", err);
+        }
+    }, 200);
+}
+
+function executeSearchSelection(inputId, dropdownId, symbol, name) {
+    const input = document.getElementById(inputId);
+    const dropdown = document.getElementById(dropdownId);
+    if (input) { input.value = symbol; input.dataset.ticker = symbol; }
+    if (dropdown) dropdown.style.display = 'none';
+
+    if (typeof window[`callback_${inputId}`] === 'function') {
+        window[`callback_${inputId}`](symbol, name);
+    }
+}
+
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.stock-autocomplete-dropdown') && !e.target.closest('input')) {
+        document.querySelectorAll('.stock-autocomplete-dropdown').forEach(d => d.style.display = 'none');
+    }
+});
+
+async function fetchTargetMetrics() {
+    const symbolInput = document.getElementById('mainCompanyName');
+    const symbol = symbolInput ? (symbolInput.dataset.ticker || symbolInput.value.trim()) : '';
+
+    if (!symbol) {
+        alert("Please select or type a stock ticker.");
+        return;
+    }
+    if (symbolInput) symbolInput.dataset.ticker = symbol;
+
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    const mode = modeSelect ? modeSelect.value : 'peer';
+
+    const btn = document.getElementById('btnFetchMetrics');
+    const icon = document.getElementById('fetchIcon');
+    if (btn && icon) { btn.disabled = true; icon.classList.add('fa-spin'); }
+
+    try {
+        getBrokerCoverageData(symbol);
+
+        if (mode === 'financial_year') {
+            await fetchTargetFinancialYears(symbol);
+            return;
+        }
+
+        const res = await fetch(`/api/get-stock-data/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+
+        if (result.success) {
+            const data = result.data;
+            if (data.company_name) symbolInput.value = data.company_name;
+
+            const cmpField = document.getElementById('cmpInput');
+            if (cmpField && data.cmp !== 'N/A') cmpField.value = data.cmp;
+
+            const cmpDateField = document.getElementById('cmpDateInput');
+            if (cmpDateField && data.cmp !== 'N/A') cmpDateField.value = new Date().toISOString().split('T')[0];
+
+            const comp1 = document.getElementById('comp_1');
+            if (comp1) comp1.value = data.company_name;
+
+            fillColumnMetrics(1, data);
+        } else {
+            alert(result.message || "Failed to fetch stock data.");
+        }
+    } catch (e) {
+        alert("Error fetching stock data.");
+    } finally {
+        if (btn && icon) { btn.disabled = false; icon.classList.remove('fa-spin'); }
+    }
+}
+
+async function fetchTargetFinancialYears(symbol) {
+    try {
+        const res = await fetch(`/api/get-stock-financials/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+
+        if (!result.success) {
+            alert(result.message || "Failed to fetch historical financials.");
+            return;
+        }
+
+        const companyName = result.company_name || symbol;
+
+        const descendingYears = [...result.years].reverse();
+        descendingYears.forEach((yearData, idx) => {
+            const colNum = idx + 1;
+            const lbl = document.getElementById(`lbl_comp_${colNum}`);
+            const input = document.getElementById(`comp_${colNum}`);
+            if (lbl) lbl.textContent = colNum === 1 ? 'Current Year' : `Prior Year ${colNum - 1}`;
+            if (input) input.value = `${companyName} (${yearData.label})`;
+            fillColumnMetrics(colNum, yearData);
+        });
+    } catch (e) {
+        alert("Error fetching historical financial data.");
+    }
+}
+
+function selectTargetStock(symbol) {
+    fetchTargetMetrics();
+}
+
+async function selectPeerStock(colNum, symbol) {
+    try {
+        const res = await fetch(`/api/get-stock-data/${encodeURIComponent(symbol)}`);
+        const result = await res.json();
+
+        if (result.success) {
+            const data = result.data;
+            const peerInput = document.getElementById(`comp_${colNum}`);
+            if (peerInput) peerInput.value = data.company_name;
+
+            fillColumnMetrics(colNum, data);
+        }
+    } catch (e) {
+        console.error(`Error fetching data for peer column ${colNum}:`, e);
+    }
+}
+
+function fillColumnMetrics(colNum, data) {
+    const fieldMap = {
+        [`mcap_${colNum}`]: data.mcap,
+        [`pe_${colNum}`]: data.pe,
+        [`roe_${colNum}`]: data.roe,
+        [`roce_${colNum}`]: data.roce,
+        [`opm_${colNum}`]: data.opm,
+        [`ev_${colNum}`]: data.ev
+    };
+
+    for (const [key, val] of Object.entries(fieldMap)) {
+        const inp = document.querySelector(`input[name="${key}"]`);
+        if (inp && val !== undefined && val !== 'N/A') {
+            inp.value = val;
+        }
+    }
+}
+
+function addPeerColumn() {
+    if (currentPeerCount >= maxPeers) {
+        alert("Maximum of 5 peers allowed.");
+        return;
+    }
+
+    currentPeerCount++;
+    const colIndex = currentPeerCount + 1;
+    const container = document.getElementById('columnLabelsContainer');
+
+    const newDiv = document.createElement('div');
+    newDiv.id = `peer_wrap_${colIndex}`;
+    newDiv.style.position = 'relative';
+    newDiv.innerHTML = `
+        <label class="fret-nm-form-label" id="lbl_comp_${colIndex}">Peer ${currentPeerCount} Search</label>
+        <div style="display: flex; gap: 4px;">
+            <input type="text" name="comp_${colIndex}" id="comp_${colIndex}" placeholder="Type Peer ${currentPeerCount}..." autocomplete="off" oninput="handleStockSearch('comp_${colIndex}', 'peerDropdown_${colIndex}', (sym) => selectPeerStock(${colIndex}, sym))" required>
+            <button type="button" onclick="removePeerColumn(${colIndex})" class="btn btn-sm btn-outline-danger" style="padding:2px 8px;"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="peerDropdown_${colIndex}" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+    `;
+    container?.appendChild(newDiv);
+
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    const mode = modeSelect ? modeSelect.value : 'peer';
+    const activeMetrics = mode === 'financial_year' ? fyMetrics : peerMetrics;
+    renderTableRows(activeMetrics, currentPeerCount);
+}
+
+function removePeerColumn(colIndex) {
+    const wrap = document.getElementById(`peer_wrap_${colIndex}`);
+    if (wrap) wrap.remove();
+
+    currentPeerCount--;
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    const mode = modeSelect ? modeSelect.value : 'peer';
+    const activeMetrics = mode === 'financial_year' ? fyMetrics : peerMetrics;
+    renderTableRows(activeMetrics, currentPeerCount);
+}
+
+// --- Prefill this edit form from the saved record (RESEARCH_PREFILL is a
+// dict of arrays, matching request.form.to_dict(flat=False) on the server) ---
+function prefillVal(key, idx) {
+    idx = idx || 0;
+    const arr = RESEARCH_PREFILL ? RESEARCH_PREFILL[key] : null;
+    return (arr && arr.length > idx) ? arr[idx] : '';
+}
+
+function setFieldByName(name, value) {
+    const el = document.querySelector(`[name="${name}"]`);
+    if (el && value !== '' && value !== undefined) el.value = value;
+}
+
+function setFieldById(id, value) {
+    const el = document.getElementById(id);
+    if (el && value !== '' && value !== undefined) el.value = value;
+}
+
+function applyResearchPrefill() {
+    if (!RESEARCH_PREFILL) return;
+
+    const mode = prefillVal('comparison_mode') || 'peer';
+    const modeSelect = document.getElementById('comparisonModeSelect');
+    if (modeSelect) {
+        modeSelect.value = mode;
+        toggleComparisonMode();
+    }
+
+    if (mode !== 'financial_year') {
+        let targetPeerCount = 2;
+        for (let n = 5; n >= 3; n--) {
+            if (prefillVal(`comp_${n}`)) { targetPeerCount = n - 1; break; }
+        }
+        while (currentPeerCount < targetPeerCount) addPeerColumn();
+    }
+
+    const recSelect = document.getElementById('recommendationSelect');
+    if (recSelect) {
+        recSelect.value = prefillVal('recommendation') || 'Buy';
+        updateRecommendationStyle(recSelect);
+    }
+
+    const maxCol = (mode === 'financial_year' ? 3 : currentPeerCount + 1);
+    for (let c = 1; c <= maxCol; c++) {
+        setFieldById(`comp_${c}`, prefillVal(`comp_${c}`));
+        ['mcap', 'pe', 'roe', 'roce', 'opm', 'ev'].forEach(key => setFieldByName(`${key}_${c}`, prefillVal(`${key}_${c}`)));
+    }
+
+    const dates = RESEARCH_PREFILL['an_date[]'] || [];
+    for (let i = 0; i < dates.length; i++) {
+        const rowIndex = i + 1;
+        if (rowIndex > analystRowCount) {
+            analystRowCount++;
+            const tbody = document.querySelector('#fretAnalystDynamicTable tbody');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" name="an_date[]" id="an_date_${analystRowCount}" placeholder="DD/MM/YYYY"></td>
+                <td style="position: relative;">
+                    <input type="text" name="an_broker[]" id="an_broker_${analystRowCount}" placeholder="Search brokerage house..." autocomplete="off" oninput="handleBrokerSearch(${analystRowCount})">
+                    <div id="brokerDropdown_${analystRowCount}" class="stock-autocomplete-dropdown" style="display:none; position:absolute; z-index:90; top:100%; left:0; right:0; margin-top:4px; max-height:200px; overflow-y:auto; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: var(--card-shadow);"></div>
+                </td>
+                <td><input type="text" name="an_call[]" id="an_call_${analystRowCount}" placeholder="Call"></td>
+                <td><input type="number" step="0.01" name="an_target[]" id="an_target_${analystRowCount}" placeholder="Target"></td>
+            `;
+            tbody.appendChild(tr);
+        }
+        setFieldById(`an_date_${rowIndex}`, dates[i]);
+        setFieldById(`an_broker_${rowIndex}`, (RESEARCH_PREFILL['an_broker[]'] || [])[i]);
+        setFieldById(`an_call_${rowIndex}`, (RESEARCH_PREFILL['an_call[]'] || [])[i]);
+        setFieldById(`an_target_${rowIndex}`, (RESEARCH_PREFILL['an_target[]'] || [])[i]);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    applyResearchPrefill();
+
+    const companyNameField = document.querySelector('input[name="company_name"]');
+    const targetCompanyField = document.getElementById('comp_1');
+    if (companyNameField && targetCompanyField) {
+        companyNameField.addEventListener('input', function() {
+            delete companyNameField.dataset.ticker;
+            const modeSelect = document.getElementById('comparisonModeSelect');
+            const mode = modeSelect ? modeSelect.value : 'peer';
+            if (mode !== 'financial_year') {
+                targetCompanyField.value = companyNameField.value;
+            }
+        });
+    }
+});
+</script>
+{% endblock %}

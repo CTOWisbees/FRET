@@ -10,6 +10,7 @@ from sqlalchemy import text, inspect
 from flask_login import LoginManager, UserMixin, config, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from werkzeug.datastructures import MultiDict
 from datetime import datetime, date
 import os
 from groq import Groq
@@ -320,7 +321,22 @@ class Announcement(db.Model):
         default=True
     )
 
-    expires_at = db.Column(db.DateTime) 
+    expires_at = db.Column(db.DateTime)
+
+class ResearchReport(db.Model):
+    """Persisted record of an equity research report compiled by an intern.
+    Kept as a history record for RESEARCH_REPORT_RETENTION_DAYS days and
+    editable by its author during that window (see _purge_expired_research_reports)."""
+    __tablename__ = "research_reports"
+
+    id = db.Column(db.Integer, primary_key=True)
+    company_name = db.Column(db.String(200))
+    form_data = db.Column(db.Text, nullable=False)  # JSON dump of the submitted form (list-valued, so repeated fields like an_date[] survive)
+    chart_filename = db.Column(db.String(255))
+    created_by = db.Column(db.Integer, db.ForeignKey('employee_accounts.id'))
+    author_name = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 def get_graph_token():
     """
@@ -2103,17 +2119,13 @@ def nl2p(text):
         rendered.append(f'<p class="dossier-paragraph">{safe}</p>')
     return Markup('\n'.join(rendered))
 
-@app.route('/research/generate', methods=['POST'])
-@login_required
-def generate_report():
-    form_data = request.form.to_dict()
-    
-    # Process the incoming chart attachment stream
-    chart_file = request.files.get('chart_img')
-    filename = None
-    if chart_file and chart_file.filename != '':
-        filename = secure_filename(chart_file.filename)
-        chart_file.save(os.path.join(RESEARCH_UPLOAD_DIR, filename))
+RESEARCH_REPORT_RETENTION_DAYS = 3
+
+def _compile_research_context(form, chart_filename):
+    """Builds the render context premium_report.html needs, from any MultiDict-like
+    `form` (either request.form on submit, or a MultiDict rebuilt from a saved
+    ResearchReport's stored JSON when viewing/editing a history record)."""
+    form_data = form.to_dict()
 
     # Calculate targeted performance upside potential percentage
     try:
@@ -2125,11 +2137,11 @@ def generate_report():
     form_data['upside'] = upside
 
     # Standard collection of dynamic analyst metrics arrays
-    dates = request.form.getlist('an_date[]')
-    brokers = request.form.getlist('an_broker[]')
-    calls = request.form.getlist('an_call[]')
-    targets = request.form.getlist('an_target[]')
-    
+    dates = form.getlist('an_date[]')
+    brokers = form.getlist('an_broker[]')
+    calls = form.getlist('an_call[]')
+    targets = form.getlist('an_target[]')
+
     analysts_list = []
     for i in range(len(dates)):
         if dates[i] or brokers[i]:
@@ -2174,16 +2186,119 @@ def generate_report():
             })
         col_index += 1
 
-    # Defaults to the compact modern dashboard summary we built first
-    return render_template(
-        'premium_report.html',
-        data=form_data,
+    return {
+        'data': form_data,
+        'chart_filename': chart_filename,
+        'analysts': analysts_list,
+        'comparison_mode': comparison_mode,
+        'comparison_columns': comparison_columns,
+        'metric_labels': metric_labels,
+    }
+
+def _purge_expired_research_reports():
+    """Deletes ResearchReport records older than the retention window. Called
+    lazily on the routes that touch report history, instead of a cron job."""
+    cutoff = datetime.utcnow() - timedelta(days=RESEARCH_REPORT_RETENTION_DAYS)
+    expired = ResearchReport.query.filter(ResearchReport.created_at < cutoff).all()
+    if expired:
+        for report in expired:
+            db.session.delete(report)
+        db.session.commit()
+
+def _research_report_or_403(report_id):
+    """Loads a ResearchReport, 404s if missing/expired, 403s if the current
+    user isn't its author (HR/admins may still view via the HR account type)."""
+    report = ResearchReport.query.get_or_404(report_id)
+    if isinstance(current_user, EmployeeAccount) and report.created_by != current_user.id:
+        abort(403)
+    return report
+
+@app.route('/research/generate', methods=['POST'])
+@login_required
+def generate_report():
+    # Process the incoming chart attachment stream
+    chart_file = request.files.get('chart_img')
+    filename = None
+    if chart_file and chart_file.filename != '':
+        filename = secure_filename(chart_file.filename)
+        chart_file.save(os.path.join(RESEARCH_UPLOAD_DIR, filename))
+
+    _purge_expired_research_reports()
+
+    report = ResearchReport(
+        company_name=request.form.get('company_name', '')[:200],
+        form_data=json.dumps(request.form.to_dict(flat=False)),
         chart_filename=filename,
-        analysts=analysts_list,
-        comparison_mode=comparison_mode,
-        comparison_columns=comparison_columns,
-        metric_labels=metric_labels
+        created_by=current_user.id if isinstance(current_user, EmployeeAccount) else None,
+        author_name=getattr(current_user, 'name', ''),
     )
+    db.session.add(report)
+    db.session.commit()
+
+    context = _compile_research_context(request.form, filename)
+    return render_template('premium_report.html', report=report, **context)
+
+@app.route('/research/history')
+@login_required
+def research_history():
+    _purge_expired_research_reports()
+
+    query = ResearchReport.query
+    if isinstance(current_user, EmployeeAccount):
+        query = query.filter_by(created_by=current_user.id)
+    reports = query.order_by(ResearchReport.created_at.desc()).all()
+
+    retention = timedelta(days=RESEARCH_REPORT_RETENTION_DAYS)
+    return render_template(
+        'research_history.html',
+        employee=current_user,
+        reports=reports,
+        retention_days=RESEARCH_REPORT_RETENTION_DAYS,
+        now=datetime.utcnow(),
+        retention=retention
+    )
+
+@app.route('/research/view/<int:report_id>')
+@login_required
+def view_research_report(report_id):
+    report = _research_report_or_403(report_id)
+    raw_form = MultiDict(json.loads(report.form_data))
+    context = _compile_research_context(raw_form, report.chart_filename)
+    return render_template('premium_report.html', report=report, **context)
+
+@app.route('/research/edit/<int:report_id>')
+@login_required
+def edit_research_report(report_id):
+    report = _research_report_or_403(report_id)
+    raw_form = json.loads(report.form_data)
+    # Flatten to first-value-per-field for simple input prefills; the full
+    # list-valued payload also goes to the template for the dynamic-row JS.
+    flat_data = {k: (v[0] if v else '') for k, v in raw_form.items()}
+    return render_template(
+        'research_edit.html',
+        employee=current_user,
+        report=report,
+        data=flat_data,
+        prefill_json=json.dumps(raw_form)
+    )
+
+@app.route('/research/update/<int:report_id>', methods=['POST'])
+@login_required
+def update_research_report(report_id):
+    report = _research_report_or_403(report_id)
+
+    chart_file = request.files.get('chart_img')
+    if chart_file and chart_file.filename != '':
+        filename = secure_filename(chart_file.filename)
+        chart_file.save(os.path.join(RESEARCH_UPLOAD_DIR, filename))
+        report.chart_filename = filename
+
+    report.company_name = request.form.get('company_name', '')[:200]
+    report.form_data = json.dumps(request.form.to_dict(flat=False))
+    db.session.commit()
+
+    context = _compile_research_context(request.form, report.chart_filename)
+    return render_template('premium_report.html', report=report, **context)
 
 @app.route('/research/mail', methods=['POST'])
 @login_required

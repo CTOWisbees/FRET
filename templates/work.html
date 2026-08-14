@@ -138,7 +138,10 @@
         <div class="fret-nm-card fret-research-form">
             <div class="fret-nm-card-header" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                 <h4 class="fret-nm-card-title"><i class="fas fa-chart-line"></i> Institutional Stock Research Compiler Engine</h4>
-                <span class="fret-nm-card-badge"><i class="fas fa-bolt"></i> Auto-Fill Enabled</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <a href="{{ url_for('research_history') }}" class="fret-nm-card-badge" style="text-decoration:none; cursor:pointer;"><i class="fas fa-clock-rotate-left"></i> Report History</a>
+                    <span class="fret-nm-card-badge"><i class="fas fa-bolt"></i> Auto-Fill Enabled</span>
+                </div>
             </div>
             <div class="fret-nm-card-body">
                 <form action="{{ url_for('generate_report') }}" method="POST" enctype="multipart/form-data" target="_blank">

@@ -1,0 +1,68 @@
+{% extends "employee_base.html" %}
+{% block title %}Research Report History{% endblock %}
+{% block page_title %}Research Report History{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-head">
+        <h2 class="card-title"><i class="fas fa-clock-rotate-left"></i> Compiled Report Records</h2>
+        <a href="{{ url_for('work') }}" class="card-link"><i class="fas fa-arrow-left"></i> Back to Compiler</a>
+    </div>
+    <p style="color: var(--text2); font-size: 0.85rem; margin-top: -8px; margin-bottom: 20px;">
+        Every report you compile is kept here as an editable record for {{ retention_days }} days from its compile date, then it's removed automatically.
+    </p>
+
+    {% if reports %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Company</th>
+                    <th>Compiled On</th>
+                    <th>Last Edited</th>
+                    <th>Expires In</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for report in reports %}
+                {% set expires_at = report.created_at + retention %}
+                {% set remaining = expires_at - now %}
+                <tr>
+                    <td><strong>{{ report.company_name or 'Untitled Report' }}</strong></td>
+                    <td>{{ report.created_at.strftime('%d %b %Y, %I:%M %p') }}</td>
+                    <td>
+                        {% if report.updated_at and report.updated_at != report.created_at %}
+                            {{ report.updated_at.strftime('%d %b %Y, %I:%M %p') }}
+                        {% else %}
+                            <span style="color: var(--text3);">Not edited</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if remaining.total_seconds() > 0 %}
+                            {{ remaining.days }}d {{ (remaining.seconds // 3600) }}h
+                        {% else %}
+                            <span style="color: var(--text3);">Expiring</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('view_research_report', report_id=report.id) }}" class="btn btn-sm btn-secondary" target="_blank">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="{{ url_for('edit_research_report', report_id=report.id) }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-pen"></i> Edit
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align:center; padding: 40px 0; color: var(--text2);">
+        <i class="fas fa-inbox" style="font-size: 2rem; opacity: 0.4; display:block; margin-bottom: 10px;"></i>
+        No reports compiled in the last {{ retention_days }} days.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
