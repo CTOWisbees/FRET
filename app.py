@@ -2389,8 +2389,10 @@ def _get_yahoo_crumb(force_refresh=False):
         res = _yahoo_session.get('https://query1.finance.yahoo.com/v1/test/getcrumb', timeout=5)
         if res.status_code == 200 and res.text and 'Unauthorized' not in res.text:
             _yahoo_crumb = res.text.strip()
-    except requests.RequestException:
-        pass
+        else:
+            print(f"[YahooFetch] getcrumb rejected: status={res.status_code} body={res.text[:200]!r}")
+    except requests.RequestException as e:
+        print(f"[YahooFetch] getcrumb request failed: {type(e).__name__}: {e}")
     return _yahoo_crumb
 
 
@@ -2404,15 +2406,18 @@ def _yahoo_get(url, params):
     for attempt in (1, 2):
         crumb = _get_yahoo_crumb(force_refresh=(attempt == 2))
         if not crumb:
+            print(f"[YahooFetch] no crumb available (attempt {attempt}) for {url} — cannot request")
             return None
         try:
             res = _yahoo_session.get(url, params={**params, 'crumb': crumb}, timeout=8)
-        except requests.RequestException:
+        except requests.RequestException as e:
+            print(f"[YahooFetch] request to {url} failed: {type(e).__name__}: {e}")
             return None
         if res.status_code == 200:
             return res
-        if res.status_code in (401, 403) and attempt == 1:
-            continue  # crumb/cookie likely stale — refresh and retry once
+        print(f"[YahooFetch] {url} returned status={res.status_code} (attempt {attempt}) body={res.text[:200]!r}")
+        if res.status_code in (401, 403, 429) and attempt == 1:
+            continue  # crumb/cookie likely stale, or rate-limited — refresh and retry once
         return None
     return None
 
@@ -2429,8 +2434,11 @@ def _yahoo_quote_summary(yahoo_symbol, modules):
         if res is None:
             return None
         result = res.json().get('quoteSummary', {}).get('result') or []
+        if not result:
+            print(f"[YahooFetch] quoteSummary for {yahoo_symbol} returned no result (empty/unrecognised symbol)")
         return result[0] if result else None
-    except (ValueError, KeyError, TypeError, IndexError):
+    except (ValueError, KeyError, TypeError, IndexError) as e:
+        print(f"[YahooFetch] quoteSummary for {yahoo_symbol} raised {type(e).__name__}: {e}")
         return None
 
 
@@ -2690,6 +2698,7 @@ def get_stock_data(symbol):
             break
 
         if not stock_data:
+            print(f"[YahooFetch] get_stock_data: both NSE and BSE attempts failed for '{clean_input}' — see [YahooFetch] lines above for the actual Yahoo response/status")
             return jsonify({
                 'success': False,
                 'message': f'Symbol "{clean_input}" not found on NSE or BSE.'
