@@ -1255,13 +1255,10 @@ textarea.form-control{
       <label class="form-label">Internship Role (for Offer Letter)</label>
       <select class="form-control" id="emailRoleSelect">
         <option value="">— Select role —</option>
-        <option>IT Intern – Web & Automation Developer</option>
-        <option>Equity Research Intern</option>
-        <option>HR Intern</option>
-        <option>Legal Intern</option>
-        <option>Digital Marketing Intern</option>
-        <option>Finance Content Writer Intern</option>
-        <option>Wealth Management Intern</option>
+        {% for rk in ALL_ROLE_KEYS %}
+        <option>{{ rk }}</option>
+        {% endfor %}
+        <option value="__other__">Other / Custom Role</option>
       </select>
     </div>
     <div class="form-group">

@@ -189,25 +189,48 @@
 
     <div class="form-group">
       <label class="form-label">Select Role</label>
-      <select class="form-control" id="offerRoleSelect">
+      <select class="form-control" id="offerRoleSelect" onchange="loadOfferFields()">
         <option value="">— Select role —</option>
-        <option>IT Intern – Web & Automation Developer</option>
-        <option>Equity Research Intern</option>
-        <option>HR Intern</option>
-        <option>Legal, Secretarial and Compliance Intern</option>
-        <option>Digital Marketing Intern</option>
-        <option>Finance Content Writer Intern</option>
-        <option>Wealth Management Intern</option>
-        <option>Research and Content Analyst Intern</option>
+        {% for rk in ALL_ROLE_KEYS %}
+        <option>{{ rk }}</option>
+        {% endfor %}
+        <option value="__other__">Other / Custom Role</option>
       </select>
     </div>
 
-    <div id="offerPreviewArea" style="display:none;">
-      <div style="font-size:0.82rem;color:var(--text3);margin-bottom:6px;">
-        Edit before sending — this text goes into the PDF
+    <div id="offerPreviewArea" style="display:none;max-height:50vh;overflow-y:auto;padding-right:2px;">
+      <div style="font-size:0.82rem;color:var(--text3);margin-bottom:10px;">
+        Edit before sending — Save persists your edits; Download/Send use whatever is currently in these fields.
       </div>
-      <textarea id="offerEditBox" class="form-control" rows="12" 
-                style="font-size:0.82rem;line-height:1.7;resize:vertical;"></textarea>
+
+      <div class="form-group">
+        <label class="form-label">Role Title (appears in the letter)</label>
+        <input type="text" id="offerRoleTitle" class="form-control" placeholder="e.g. Custom role title" />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Introduction Paragraph</label>
+        <textarea id="offerIntro" class="form-control" rows="4"
+                  style="font-size:0.82rem;line-height:1.6;resize:vertical;"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Key Roles &amp; Responsibilities <small style="color:var(--text3);font-weight:400;">(one per line)</small></label>
+        <textarea id="offerResponsibilities" class="form-control" rows="6"
+                  style="font-size:0.82rem;line-height:1.6;resize:vertical;"></textarea>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Email Body <small style="color:var(--text3);font-weight:400;">(paragraphs separated by a blank line)</small></label>
+        <textarea id="offerEmailBody" class="form-control" rows="6"
+                  style="font-size:0.82rem;line-height:1.6;resize:vertical;"></textarea>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px;">
+        <button class="btn btn-secondary" type="button" onclick="saveOfferDraft()" id="saveOfferBtn">
+          <i class="fas fa-save"></i> Save
+        </button>
+      </div>
     </div>
 
     <div class="form-group" style="margin-top: 16px; margin-bottom: 20px; text-align: left;">
@@ -239,9 +262,6 @@
       <button class="btn btn-secondary" 
               onclick="document.getElementById('offerModal').classList.remove('open')">
         Cancel
-      </button>
-      <button class="btn btn-secondary" onclick="previewOffer()" id="previewBtn">
-        <i class="fas fa-eye"></i> Preview
       </button>
       <button class="btn btn-primary" onclick="downloadOffer()" id="downloadBtn">
         <i class="fas fa-download"></i> Download PDF
@@ -382,19 +402,72 @@ function openOfferModal(button) {
   currentEmpEnd = button.dataset.end || '';
 
   document.getElementById('offerModal').classList.add('open');
-  document.getElementById('offerPreviewArea').style.display = 'none';
+  document.getElementById('offerPreviewArea').style.display = 'block';
   document.querySelectorAll('.offer-cc-checkbox').forEach(cb => cb.checked = false);
   document.getElementById('email_cc_input').value = '';
 
-  // Pre-select role from employee's designation
+  // Pre-select role from employee's designation; if it doesn't match any canonical
+  // role, fall back to "Other / Custom Role" — loadOfferFields() then fills the Role
+  // Title field from the employee's own custom designation automatically.
   const roleSelect = document.getElementById('offerRoleSelect');
+  let matched = false;
   for (let i = 0; i < roleSelect.options.length; i++) {
     if (roleSelect.options[i].value === designation ||
         roleSelect.options[i].text === designation) {
       roleSelect.selectedIndex = i;
+      matched = true;
       break;
     }
   }
+  if (!matched) {
+    roleSelect.value = '__other__';
+  }
+
+  loadOfferFields();
+}
+
+// Fetches the saved draft (or seeded defaults) for the selected employee + role
+// and fills the editable Role Title / Intro / Responsibilities / Email Body fields.
+function loadOfferFields() {
+  const role = document.getElementById('offerRoleSelect').value;
+  if (!role || !currentEmpId) return;
+  fetch(`/api/offer-draft?emp_id=${currentEmpId}&role_key=${encodeURIComponent(role)}`)
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('offerRoleTitle').value = data.role_title || '';
+      document.getElementById('offerIntro').value = data.intro_text || '';
+      document.getElementById('offerResponsibilities').value = (data.responsibilities || []).join('\n');
+      document.getElementById('offerEmailBody').value = data.email_body_text || '';
+    })
+    .catch(() => showToast('Could not load offer letter content', 'error'));
+}
+
+// Persists the current field values so Download/Send reflect them even after
+// closing and reopening the modal.
+function saveOfferDraft() {
+  const role = document.getElementById('offerRoleSelect').value;
+  if (!role) { showToast('Please select a role first', 'error'); return; }
+  const btn = document.getElementById('saveOfferBtn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+  fetch('/api/offer-draft', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      emp_id: currentEmpId,
+      role_key: role,
+      role_title: document.getElementById('offerRoleTitle').value,
+      intro_text: document.getElementById('offerIntro').value,
+      responsibilities: document.getElementById('offerResponsibilities').value.split('\n').map(s => s.trim()).filter(Boolean),
+      email_body_text: document.getElementById('offerEmailBody').value
+    })
+  })
+  .then(r => r.json())
+  .then(data => showToast(data.success ? 'Draft saved' : (data.message || 'Save failed'), data.success ? 'success' : 'error'))
+  .catch(() => showToast('A network connection error occurred.', 'error'))
+  .finally(() => { btn.disabled = false; btn.innerHTML = originalHtml; });
 }
 
 // Combines ticked CC checkboxes with any extra emails typed in the free-text field
@@ -538,26 +611,20 @@ window.onclick = function(e){
 
 }
 
-function previewOffer() {
-  const role = document.getElementById('offerRoleSelect').value;
-  if (!role) { showToast('Please select a role first', 'error'); return; }
-  document.getElementById('offerPreviewArea').style.display = 'block';
-  document.getElementById('offerEditBox').value = 'Loading preview...';
-  fetch(`/api/offer-preview?emp_id=${currentEmpId}&role=${encodeURIComponent(role)}`)
-    .then(r => r.json())
-    .then(data => {
-      document.getElementById('offerEditBox').value = data.preview;
-    });
-}
-
 function downloadOffer() {
-  const role  = document.getElementById('offerRoleSelect').value;
-  const notes = document.getElementById('offerEditBox').value;
+  const role = document.getElementById('offerRoleSelect').value;
   if (!role) { showToast('Please select a role', 'error'); return; }
+  const fields = {
+    employee_id: currentEmpId,
+    role_key: role,
+    role_title: document.getElementById('offerRoleTitle').value,
+    intro_text: document.getElementById('offerIntro').value,
+    responsibilities_text: document.getElementById('offerResponsibilities').value,
+    email_body_text: document.getElementById('offerEmailBody').value
+  };
   const form = document.createElement('form');
   form.method = 'POST';
   form.action = '/generate-offer-letter';
-  const fields = { employee_id: currentEmpId, role_key: role, custom_notes: notes };
   for (const [k, v] of Object.entries(fields)) {
     const inp = document.createElement('input');
     inp.type = 'hidden'; inp.name = k; inp.value = v;
@@ -596,11 +663,15 @@ function doSendOfferEmail() {
   fetch('/send-email', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ 
-      employee_id: currentEmpId, 
-      type: 'both', 
+    body: JSON.stringify({
+      employee_id: currentEmpId,
+      type: 'both',
       role_key: role,
-      cc_emails: ccEmails // <-- ADDED THIS PARAMETER
+      role_title: document.getElementById('offerRoleTitle').value,
+      intro_text: document.getElementById('offerIntro').value,
+      responsibilities: document.getElementById('offerResponsibilities').value.split('\n').map(s => s.trim()).filter(Boolean),
+      email_body_text: document.getElementById('offerEmailBody').value,
+      cc_emails: ccEmails
     })
   })
   .then(r => r.json())

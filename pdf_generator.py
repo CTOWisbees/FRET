@@ -188,6 +188,23 @@ ROLE_DATA = {
 }
 ROLE_KEYS = list(ROLE_DATA.keys())
 
+# ── Generic fallback template ─────────────────────────────────────────────────
+# Used to seed a custom ("Other") role that isn't one of the canned ROLE_DATA
+# entries — HR can edit the intro/responsibilities before saving/sending.
+GENERIC_ROLE_TEMPLATE = {
+    "intro": (
+        "This internship is designed to provide hands-on exposure to the role's core "
+        "function, working closely with the relevant team on real-world projects and "
+        "day-to-day responsibilities within the organisation."
+    ),
+    "responsibilities": [
+        "Assist the team with day-to-day tasks and projects related to the role.",
+        "Support process documentation, coordination, and reporting as required.",
+        "Collaborate with WisBees mentors and team members to deliver quality outcomes.",
+        "Adhere to company policies, maintain confidentiality, and ensure timely communication.",
+    ],
+}
+
 
 # ── Letterhead background ─────────────────────────────────────────────────────
 def _draw_letterhead(c, letterhead_path):
@@ -210,14 +227,18 @@ def _draw_letterhead(c, letterhead_path):
 
 
 # ── Main generator ────────────────────────────────────────────────────────────
-def generate_offer_letter_pdf(emp, hr_user, settings, role_key, custom_notes=''):
+def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
+                               intro_text=None, responsibilities=None):
     """
     Returns a BytesIO buffer containing the offer letter PDF.
 
-    emp         — Employee ORM object (needs: name, emp_id, joining_date, end_date, salary)
-    hr_user     — HR ORM object (needs: name, designation, signature_path)
-    settings    — CompanySettings ORM object
-    role_key    — str, one of ROLE_KEYS
+    emp              — Employee ORM object (needs: name, emp_id, joining_date, end_date, salary)
+    hr_user          — HR ORM object (needs: name, designation, signature_path)
+    settings         — CompanySettings ORM object
+    role_key         — str, one of ROLE_KEYS, or a custom/unrecognized value (e.g. '__other__')
+    role_title       — display title shown in the letter; defaults to role_key
+    intro_text       — overrides the role's canned intro paragraph
+    responsibilities — overrides the role's canned responsibilities list
     """
     buf = io.BytesIO()
 
@@ -226,7 +247,10 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, custom_notes='')
     company_email   = getattr(settings, 'company_email',   '') or ''
     company_phone   = getattr(settings, 'company_phone',   '') or ''
 
-    role_info = ROLE_DATA.get(role_key, list(ROLE_DATA.values())[0])
+    role_info = ROLE_DATA.get(role_key, GENERIC_ROLE_TEMPLATE)
+    display_title = role_title or role_key
+    intro = intro_text or role_info["intro"]
+    resp_list = responsibilities or role_info["responsibilities"]
 
     # Dates
     today_str    = date.today().strftime('%d-%b-%Y')
@@ -290,13 +314,13 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, custom_notes='')
 
     # ── Opening paragraph ─────────────────────────────────────────────────────
     story.append(Paragraph(
-        f"We are pleased to offer you the position of <b>{role_key}</b> at "
+        f"We are pleased to offer you the position of <b>{display_title}</b> at "
         f"<b>{company_name}</b>.",
         sty_body
     ))
 
     # ── Role intro (changes per role) ─────────────────────────────────────────
-    story.append(Paragraph(role_info["intro"], sty_body))
+    story.append(Paragraph(intro, sty_body))
 
     # ── Duration / mode paragraph ─────────────────────────────────────────────
     story.append(Paragraph(
@@ -312,7 +336,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, custom_notes='')
     story.append(Paragraph("Key Roles &amp; Responsibilities", sty_bold))
     story.append(Paragraph("During your internship, you will be expected to:", sty_body))
 
-    for item in role_info["responsibilities"]:
+    for item in resp_list:
         story.append(Paragraph(f"·&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {item}", sty_bullet))
 
 
@@ -347,7 +371,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, custom_notes='')
     ))
     story.append(Paragraph(
         f"We look forward to having you onboard and contributing to your professional growth in "
-        f"{role_key.lower().replace(' intern', '')} and related domains.",
+        f"{display_title.lower().replace(' intern', '')} and related domains.",
         sty_body
     ))
 

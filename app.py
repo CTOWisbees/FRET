@@ -20,7 +20,7 @@ import base64
 from io import BytesIO
 import pandas as pd
 from docx import Document
-from pdf_generator import generate_experience_letter_pdf, generate_offer_letter_pdf, ROLE_KEYS
+from pdf_generator import generate_experience_letter_pdf, generate_offer_letter_pdf, ROLE_KEYS, ROLE_DATA, GENERIC_ROLE_TEMPLATE
 from datetime import datetime, timedelta
 import requests
 import base64
@@ -84,6 +84,11 @@ def load_user(user_id):
         return account
         
     return None
+
+
+@app.context_processor
+def inject_role_keys():
+    return dict(ALL_ROLE_KEYS=ROLE_KEYS)
 
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
@@ -288,6 +293,17 @@ class CompanySettings(db.Model):
     nda_filename = db.Column(db.String(200))
     letterhead_data = db.Column(db.LargeBinary)
     letterhead_mime = db.Column(db.String(20))
+
+class OfferLetterDraft(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    employee_id = db.Column(db.Integer, db.ForeignKey('employee.id'), unique=True, nullable=False)
+    role_key = db.Column(db.String(120))
+    role_title = db.Column(db.String(200))
+    intro_text = db.Column(db.Text)
+    responsibilities_text = db.Column(db.Text)
+    email_body_text = db.Column(db.Text)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    employee = db.relationship('Employee', backref=db.backref('offer_draft', uselist=False))
 
 class Announcement(db.Model):
     __tablename__ = "announcements"
@@ -1053,27 +1069,130 @@ def offer_letter_page():
     return render_template('offer_letter.html', employees=employees_list,
                            role_keys=ROLE_KEYS, settings=settings)
 
+# ── Offer-letter draft helpers ──────────────────────────────────────────────
+# A per-employee draft (OfferLetterDraft) is how edits made in the "Generate
+# Offer Letter" modal survive Save / Download / Send instead of being thrown
+# away, and how a custom ("Other") role typed at intern-add time carries
+# through to the letter and email automatically.
+
+def _default_email_body_text(emp, role_key, role_title):
+    role_display = (role_title or role_key or 'Intern').replace(' Intern', '').replace('Intern – ', '').strip()
+    joining_str = (
+        emp.joining_date.strftime('%d %B %Y').lstrip('0')
+        if emp.joining_date else 'the agreed date'
+    )
+    return (
+        f"We are pleased to offer you the position of Intern – {role_display} with "
+        f"TimeArrow Pvt. Ltd. (WisBees), effective {joining_str}.\n\n"
+        "Please find attached:\n(1) Internship Offer Letter\n(2) Non-Disclosure Agreement (NDA)\n\n"
+        "Please return the signed copies at your earliest convenience to confirm your acceptance of the offer.\n\n"
+        "Should you have any questions or require any clarification, please feel free to reach out.\n\n"
+        "We look forward to your continued association and contribution to WisBees."
+    )
+
+def _seed_offer_draft_fields(emp, role_key):
+    """Fresh (unsaved) defaults for a role: canonical ROLE_DATA when recognized,
+    otherwise the generic template with the employee's own custom designation as title."""
+    role_info = ROLE_DATA.get(role_key, GENERIC_ROLE_TEMPLATE)
+    role_title = role_key if role_key in ROLE_KEYS else (emp.designation or role_key or '')
+    return {
+        'role_key': role_key,
+        'role_title': role_title,
+        'intro_text': role_info['intro'],
+        'responsibilities': list(role_info['responsibilities']),
+        'email_body_text': _default_email_body_text(emp, role_key, role_title),
+    }
+
+def _get_offer_draft_data(emp, role_key):
+    """Saved draft if one exists for this employee AND role, else seeded defaults."""
+    draft = OfferLetterDraft.query.filter_by(employee_id=emp.id).first()
+    if draft and draft.role_key == role_key:
+        return {
+            'role_key': draft.role_key,
+            'role_title': draft.role_title or draft.role_key or '',
+            'intro_text': draft.intro_text or '',
+            'responsibilities': [r for r in (draft.responsibilities_text or '').split('\n') if r.strip()],
+            'email_body_text': draft.email_body_text or '',
+        }
+    return _seed_offer_draft_fields(emp, role_key)
+
+def _upsert_offer_draft(emp, role_key, role_title, intro_text, responsibilities_list, email_body_text):
+    draft = OfferLetterDraft.query.filter_by(employee_id=emp.id).first()
+    if not draft:
+        draft = OfferLetterDraft(employee_id=emp.id)
+        db.session.add(draft)
+    draft.role_key = role_key
+    draft.role_title = role_title
+    draft.intro_text = intro_text
+    draft.responsibilities_text = '\n'.join(responsibilities_list)
+    draft.email_body_text = email_body_text
+    db.session.commit()
+    return draft
+
+@app.route('/api/offer-draft')
+@login_required
+def api_offer_draft_get():
+    emp_id = request.args.get('emp_id')
+    role_key = request.args.get('role_key', '')
+    emp = Employee.query.get_or_404(emp_id)
+    return jsonify(_get_offer_draft_data(emp, role_key))
+
+@app.route('/api/offer-draft', methods=['POST'])
+@login_required
+def api_offer_draft_save():
+    data = request.get_json() or {}
+    emp = Employee.query.get_or_404(data.get('emp_id'))
+    role_key = data.get('role_key', '')
+    if not role_key:
+        return jsonify({'success': False, 'message': 'Please select a role first'}), 400
+    role_title = data.get('role_title') or role_key
+    intro_text = data.get('intro_text', '')
+    responsibilities = [r for r in (data.get('responsibilities') or []) if str(r).strip()]
+    email_body_text = data.get('email_body_text', '')
+    draft = _upsert_offer_draft(emp, role_key, role_title, intro_text, responsibilities, email_body_text)
+    return jsonify({
+        'success': True,
+        'role_key': draft.role_key,
+        'role_title': draft.role_title,
+        'intro_text': draft.intro_text,
+        'responsibilities': responsibilities,
+        'email_body_text': draft.email_body_text,
+    })
+
 @app.route('/generate-offer-letter', methods=['POST'])
 @login_required
 def generate_offer_letter():
     emp_id  = request.form.get('employee_id')
     role_key = request.form.get('role_key', '')
     emp     = Employee.query.get_or_404(emp_id)
-    custom_notes = request.form.get('custom_notes', '')
     settings = CompanySettings.query.first()
     if not settings:
         settings = CompanySettings()
 
-    # Validate role
-    if role_key not in ROLE_KEYS:
-        flash('Please select a valid role category.', 'error')
+    # A role must be selected — canonical or custom ("__other__" / any free value).
+    if not role_key:
+        flash('Please select a role.', 'error')
         return redirect(url_for('offer_letter_page'))
+
+    # Fall back to the employee's existing saved draft (not a fresh template) when
+    # the caller doesn't supply these — e.g. the plain /offer-letter page only posts
+    # employee_id + role_key, and shouldn't clobber edits already saved via the
+    # "Generate Offer Letter" modal.
+    existing = _get_offer_draft_data(emp, role_key)
+    role_title = request.form.get('role_title') or existing['role_title'] or role_key
+    intro_text = request.form.get('intro_text') or existing['intro_text']
+    responsibilities = [r for r in request.form.get('responsibilities_text', '').split('\n') if r.strip()] \
+        or existing['responsibilities']
+    email_body_text = request.form.get('email_body_text') or existing['email_body_text']
+
+    _upsert_offer_draft(emp, role_key, role_title, intro_text, responsibilities, email_body_text)
 
     try:
         hydrate_hr_signature(current_user)
         hydrate_company_files(settings)
-        buf = generate_offer_letter_pdf(emp, current_user, settings, role_key, custom_notes)
-        
+        buf = generate_offer_letter_pdf(emp, current_user, settings, role_key,
+                                         role_title=role_title, intro_text=intro_text,
+                                         responsibilities=responsibilities)
 
     except Exception as e:
         flash(f'PDF generation failed: {e}', 'error')
@@ -1083,7 +1202,7 @@ def generate_offer_letter():
     db.session.commit()
 
     safe_name = emp.name.replace(' ', '_')
-    safe_role = role_key.replace(' ', '_').replace('–', '-')[:30]
+    safe_role = (role_title or role_key).replace(' ', '_').replace('–', '-')[:30]
     filename = f"Offer_Letter_{safe_name}_{safe_role}.pdf"
     return send_file(buf, as_attachment=True, download_name=filename,
                      mimetype='application/pdf')
@@ -1143,25 +1262,29 @@ def send_email_route():
 
     try:
         attachments = []
-        role_display = data.get('role_key', 'Intern').replace(' Intern', '').replace('Intern – ', '').strip()
-        
-        joining_str = (
-            emp.joining_date.strftime('%d %B %Y').lstrip('0')
-            if emp.joining_date
-            else 'the agreed date'
-        )
+        role_key = data.get('role_key', '')
+        draft_data = _get_offer_draft_data(emp, role_key) if role_key else {}
+        role_title = data.get('role_title') or draft_data.get('role_title') or role_key or 'Intern'
+        intro_text = data.get('intro_text') or draft_data.get('intro_text') or ''
+        responsibilities = data.get('responsibilities') or draft_data.get('responsibilities') or []
+        email_body_text = data.get('email_body_text') or draft_data.get('email_body_text') or ''
+        role_display = role_title.replace(' Intern', '').replace('Intern – ', '').strip()
+
+        if role_key:
+            _upsert_offer_draft(emp, role_key, role_title, intro_text, responsibilities, email_body_text)
+
         subject = f"{emp.name} | Internship Offer Letter – {role_display} | TimeArrow Pvt. Ltd (WisBees)"
 
-        body = f"""Dear {emp.name},...""" # Keeping your fallback plain string format intact
+        if not email_body_text:
+            email_body_text = _default_email_body_text(emp, role_key, role_title)
+        body_paragraphs = ''.join(
+            f"<p>{escape(p.strip())}</p>\n" for p in email_body_text.split('\n\n') if p.strip()
+        )
 
         html_body = f"""
         <div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:600px;">
           <p>Dear {emp.name},</p>
-          <p>We are pleased to offer you the position of <strong>Intern – {role_display}</strong> with <strong>TimeArrow Pvt. Ltd. (WisBees)</strong>, effective {joining_str}.</p>
-          <p>Please find attached:<br>&nbsp;&nbsp;(1) Internship Offer Letter<br>&nbsp;&nbsp;(2) Non-Disclosure Agreement (NDA)</p>
-          <p>Please return the signed copies at your earliest convenience to confirm your acceptance of the offer.</p>
-          <p>Should you have any questions or require any clarification, please feel free to reach out.</p>
-          <p>We look forward to your continued association and contribution to WisBees.</p>
+          {body_paragraphs}
           <br>
           <p style="margin:0;">Yours sincerely,</p>
           <p style="margin:0;"><strong>{current_user.name}</strong></p>
@@ -1169,17 +1292,16 @@ def send_email_route():
           <p style="margin:0;"><a href="mailto:info@wisbees.com" style="color:#4f46e5;">info@wisbees.com</a></p>
           <br>
           <p style="margin:0;font-size:12px;color:#666;">TimeArrow Private Limited (WisBees)</p>
-          <img src="https://fret.wisbees.com/static/logo.png" 
-                   alt="WisBees Logo" 
-                   width="120" 
+          <img src="https://fret.wisbees.com/static/logo.png"
+                   alt="WisBees Logo"
+                   width="120"
                    style="display: block; border: 0; max-width: 100%; height: auto;" />
         </div>
-        """    
+        """
 
         # Attach offer letter PDF
         if email_type in ['offer', 'both']:
-            role_key = data.get('role_key', '')
-            if role_key in ROLE_KEYS:
+            if role_key:
                 try:
                     sender_hr = HR.query.get(emp.created_by) or HR.query.first()
                     hydrate_hr_signature(sender_hr)
@@ -1188,7 +1310,10 @@ def send_email_route():
                         emp,
                         sender_hr,
                         settings,
-                        role_key
+                        role_key,
+                        role_title=role_title,
+                        intro_text=intro_text,
+                        responsibilities=responsibilities,
                     )
                     safe_name = emp.name.replace(' ', '_')
                     pdf_bytes = pdf_buf.getvalue()

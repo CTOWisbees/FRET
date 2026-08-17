@@ -78,14 +78,9 @@
         <label class="form-label">Role *</label>
         <select name="designation" class="form-control" required id="internRole" onchange="checkOtherRole()">
           <option value="">— Select role —</option>
-          <option>IT Intern – Web & Automation Developer</option>
-          <option>Equity Research Intern</option>
-          <option>HR Intern</option>
-          <option>Legal Intern</option>
-          <option>Digital Marketing Intern</option>
-          <option>Finance Content Writer Intern</option>
-          <option>Wealth Management Intern</option>
-          <option>Research and Content Analyst Intern</option>
+          {% for rk in ALL_ROLE_KEYS %}
+          <option>{{ rk }}</option>
+          {% endfor %}
           <option value="other">Other (please specify)</option>
         </select>
       </div>
