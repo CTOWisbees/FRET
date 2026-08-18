@@ -1159,6 +1159,38 @@ def api_offer_draft_save():
         'email_body_text': draft.email_body_text,
     })
 
+@app.route('/api/offer-letter-preview-pdf', methods=['POST'])
+@login_required
+def api_offer_letter_preview_pdf():
+    """Renders the offer letter PDF from the (possibly unsaved) modal fields
+    so it can be shown inline as a full preview — same renderer used by
+    Download/Send, so what you preview is exactly what gets sent."""
+    data = request.get_json() or {}
+    emp = Employee.query.get_or_404(data.get('employee_id'))
+    settings = CompanySettings.query.first() or CompanySettings()
+
+    role_key = data.get('role_key', '')
+    if not role_key:
+        return jsonify({'success': False, 'message': 'Please select a role first'}), 400
+
+    existing = _get_offer_draft_data(emp, role_key)
+    role_title = data.get('role_title') or existing['role_title'] or role_key
+    intro_text = data.get('intro_text') or existing['intro_text']
+    responsibilities = [r for r in (data.get('responsibilities_text') or '').split('\n') if r.strip()] \
+        or existing['responsibilities']
+
+    try:
+        hydrate_hr_signature(current_user)
+        hydrate_company_files(settings)
+        buf = generate_offer_letter_pdf(emp, current_user, settings, role_key,
+                                         role_title=role_title, intro_text=intro_text,
+                                         responsibilities=responsibilities)
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'PDF generation failed: {e}'}), 500
+
+    return send_file(buf, as_attachment=False, download_name='offer_letter_preview.pdf',
+                     mimetype='application/pdf')
+
 @app.route('/generate-offer-letter', methods=['POST'])
 @login_required
 def generate_offer_letter():
