@@ -8,6 +8,7 @@ Margins: top=5cm, bottom=4.42cm, left=1.39cm, right=1.39cm
 import io
 import os
 from datetime import date, timedelta
+from xml.sax.saxutils import escape as xml_escape
 from pydoc import doc
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
@@ -228,7 +229,7 @@ def _draw_letterhead(c, letterhead_path):
 
 # ── Main generator ────────────────────────────────────────────────────────────
 def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
-                               intro_text=None, responsibilities=None):
+                               full_body_text=None):
     """
     Returns a BytesIO buffer containing the offer letter PDF.
 
@@ -237,34 +238,16 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     settings         — CompanySettings ORM object
     role_key         — str, one of ROLE_KEYS, or a custom/unrecognized value (e.g. '__other__')
     role_title       — display title shown in the letter; defaults to role_key
-    intro_text       — overrides the role's canned intro paragraph
-    responsibilities — overrides the role's canned responsibilities list
+    full_body_text   — the entire letter body (everything between the salutation and the
+                        signature), as free-form text. Blank lines separate paragraphs; a
+                        line starting with "-" or "•" renders as a bullet point.
     """
     buf = io.BytesIO()
 
     letterhead_path = getattr(settings, 'letterhead_path', None)
     company_name    = getattr(settings, 'company_name',    'TimeArrow Pvt. Ltd. (WisBees)') or 'TimeArrow Pvt. Ltd. (WisBees)'
-    company_email   = getattr(settings, 'company_email',   '') or ''
-    company_phone   = getattr(settings, 'company_phone',   '') or ''
 
-    role_info = ROLE_DATA.get(role_key, GENERIC_ROLE_TEMPLATE)
-    display_title = role_title or role_key
-    intro = intro_text or role_info["intro"]
-    resp_list = responsibilities or role_info["responsibilities"]
-
-    # Dates
-    today_str    = date.today().strftime('%d-%b-%Y')
-    start_str    = emp.joining_date.strftime('%d-%b-%Y') if emp.joining_date else '___________'
-    end_date_val = getattr(emp, 'end_date', None)
-    end_str      = end_date_val.strftime('%d-%b-%Y') if end_date_val else '___________'
-
-    # Duration in months (approximate)
-    if emp.joining_date and end_date_val:
-        delta_days = (end_date_val - emp.joining_date).days
-        months = round(delta_days / 30)
-        duration_str = f"{months} month{'s' if months != 1 else ''}"
-    else:
-        duration_str = "3 months"
+    today_str = date.today().strftime('%d-%b-%Y')
 
     # ── Document setup ────────────────────────────────────────────────────────
     doc = SimpleDocTemplate(
@@ -288,8 +271,6 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     sty_salute  = PS('Salute',  fontSize=10, textColor=DARK, spaceAfter=6,  fontName='Helvetica', leading=15)
     sty_body    = PS('Body',    fontSize=10, textColor=DARK, spaceAfter=7,
                      alignment=TA_JUSTIFY, fontName='Helvetica', leading=15)
-    sty_bold    = PS('Bold',    fontSize=10, textColor=BLACK, spaceAfter=4,
-                     fontName='Helvetica-Bold', leading=14)
     sty_bullet  = PS('Bullet',  fontSize=10, textColor=DARK, spaceAfter=3,
                      fontName='Helvetica', leading=14, leftIndent=10)
     sty_sign    = PS('Sign',    fontSize=10, textColor=DARK, spaceAfter=2,
@@ -312,68 +293,21 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     story.append(Paragraph(f"Dear {emp.name},", sty_salute))
     story.append(Spacer(1, 0.1*cm))
 
-    # ── Opening paragraph ─────────────────────────────────────────────────────
-    story.append(Paragraph(
-        f"We are pleased to offer you the position of <b>{display_title}</b> at "
-        f"<b>{company_name}</b>.",
-        sty_body
-    ))
-
-    # ── Role intro (changes per role) ─────────────────────────────────────────
-    story.append(Paragraph(intro, sty_body))
-
-    # ── Duration / mode paragraph ─────────────────────────────────────────────
-    story.append(Paragraph(
-        f"Your internship duration will be <b>{duration_str}</b>, commencing from "
-        f"<b>{start_str}</b> to <b>{end_str}</b> and the mode of work will be <b>remote</b>. "
-        f"This is an <b>unpaid internship</b>, intended for practical learning, research "
-        f"exposure, and professional skill development.",
-        sty_body
-    ))
-
-    # ── Key Roles & Responsibilities ──────────────────────────────────────────
-    story.append(Spacer(1, 0.15*cm))
-    story.append(Paragraph("Key Roles &amp; Responsibilities", sty_bold))
-    story.append(Paragraph("During your internship, you will be expected to:", sty_body))
-
-    for item in resp_list:
-        story.append(Paragraph(f"·&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {item}", sty_bullet))
-
-
-    # ── NDA paragraph ─────────────────────────────────────────────────────────
-    story.append(Paragraph(
-        "You are required to sign the attached <b>Non-Disclosure Agreement (NDA)</b> and strictly "
-        "maintain confidentiality regarding all company research data, reports, internal tools, "
-        "strategies, and proprietary information.",
-        sty_body
-    ))
-
-    story.append(Spacer(1, 0.15*cm))
-
-    # ── Upon completion ────────────────────────────────────────────────────────
-    story.append(Paragraph(
-        "Upon successful completion of the internship and fulfilment of assigned responsibilities, "
-        "you will receive:",
-        sty_body
-    ))
-    for benefit in [
-        "Internship Experience Letter",
-        "Letter of Recommendation (if applicable)",
-    ]:
-        story.append(Paragraph(f"·&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {benefit}", sty_bullet))
-
-    story.append(Spacer(1, 0.25*cm))
-
-    # ── Acceptance paragraph ──────────────────────────────────────────────────
-    story.append(Paragraph(
-        "To formally accept this offer, please sign and return a copy of this letter along with the NDA.",
-        sty_body
-    ))
-    story.append(Paragraph(
-        f"We look forward to having you onboard and contributing to your professional growth in "
-        f"{display_title.lower().replace(' intern', '')} and related domains.",
-        sty_body
-    ))
+    # ── Letter body — free-form text edited by HR. Blank lines separate
+    # paragraphs; a line starting with "-" or "•" renders as a bullet point. ──
+    for block in (full_body_text or '').split('\n\n'):
+        lines = [ln.strip() for ln in block.split('\n') if ln.strip()]
+        for line in lines:
+            if line[:1] in ('-', '•'):
+                content = line[1:].strip()
+                story.append(Paragraph(
+                    f"·&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {xml_escape(content)}",
+                    sty_bullet
+                ))
+            else:
+                story.append(Paragraph(xml_escape(line), sty_body))
+        if lines:
+            story.append(Spacer(1, 0.05*cm))
 
     # ── Signature block ───────────────────────────────────────────────────────
     story.append(Spacer(1, 0.4*cm))
