@@ -1086,6 +1086,8 @@ def _default_email_body_text(emp, role_key, role_title):
         "Please find attached:\n(1) Internship Offer Letter\n(2) Non-Disclosure Agreement (NDA)\n\n"
         "Please return the signed copies at your earliest convenience to confirm your acceptance of the offer.\n\n"
         "Should you have any questions or require any clarification, please feel free to reach out.\n\n"
+        "Your login email is {emp.email}.\n"
+        "Your Default Password for the WisBees portal is: Wisbees@2026. Please log in and change your password immediately after your first login.\n\n"
         "We look forward to your continued association and contribution to WisBees."
     )
 
