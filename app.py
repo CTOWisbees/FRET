@@ -1125,6 +1125,8 @@ def _default_full_letter_text(emp, role_key, role_title):
         "Upon successful completion of the internship and fulfilment of assigned responsibilities, you "
         "will receive:\n- Internship Experience Letter\n- Letter of Recommendation (if applicable)",
         "To formally accept this offer, please sign and return a copy of this letter along with the NDA.",
+        "Your login email is {emp.email}.\n"
+        "Your Default Password for the WisBees portal is: Wisbees@2026. Please log in and change your password immediately after your first login.\n\n"
         f"We look forward to having you onboard and contributing to your professional growth in "
         f"{role_display} and related domains.",
     ])
