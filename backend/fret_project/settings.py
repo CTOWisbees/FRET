@@ -50,30 +50,9 @@ MIDDLEWARE = [
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https://.*\.onrender\.com$",
-    r"^http://localhost:\d+$",
-    r"^http://127\.0\.0\.1:\d+$",
+CORS_ALLOW_HEADERS = [
+    '*',
 ]
-
-CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000',
-    'https://fret.wisbees.com',
-    'https://beta-fret-frontend.onrender.com',
-    'https://beta-fret.onrender.com',
-]
-
-from corsheaders.defaults import default_headers
-
-CORS_ALLOW_HEADERS = list(default_headers) + [
-    'x-user-auth',
-    'x-csrftoken',
-    'x-requested-with',
-]
-
 CORS_ALLOW_METHODS = [
     'DELETE',
     'GET',
