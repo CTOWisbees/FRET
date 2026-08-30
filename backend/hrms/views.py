@@ -74,6 +74,16 @@ def index(request):
 
 @csrf_exempt
 def login_view(request):
+    if request.method == 'OPTIONS':
+        response = HttpResponse(status=200)
+        origin = request.headers.get('Origin')
+        if origin:
+            response['Access-Control-Allow-Origin'] = origin
+            response['Access-Control-Allow-Credentials'] = 'true'
+        response['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, X-Requested-With, X-CSRFToken'
+        return response
+
     if request.method == 'GET':
         if getattr(request, 'current_user', None) and request.current_user.is_authenticated:
             is_hr = isinstance(request.current_user, HR)
