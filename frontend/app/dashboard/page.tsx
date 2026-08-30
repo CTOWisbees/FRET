@@ -94,7 +94,7 @@ export default function HRDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '28px' }}>
             <div>
               <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: '1.6rem', fontWeight: 800 }}>
-                Good {greeting}, HR 👋
+                Good {greeting}, {statsData?.hr_name ? statsData.hr_name.split(' ')[0] : 'HR'} 👋
               </div>
               <div style={{ color: 'var(--text3)', fontSize: '0.87rem', marginTop: '3px' }}>
                 Here&apos;s what&apos;s happening with your team today.

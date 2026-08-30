@@ -1494,7 +1494,9 @@ def api_stats(request):
         'type_labels': ['Interns', 'Normal Employees'],
         'type_data': [total_interns, total_normal],
         'recent_employees': recent_employees,
-        'active_announcements': active_announcements
+        'active_announcements': active_announcements,
+        'hr_name': getattr(request.current_user, 'name', 'HR Admin'),
+        'hr_designation': getattr(request.current_user, 'designation', 'HR Manager'),
     })
 
 

@@ -21,8 +21,22 @@ export default function Sidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [internalOpen, setInternalOpen] = React.useState(false);
+  const [currentUser, setCurrentUser] = React.useState<any>(user);
 
-  const isHr = user?.role === 'hr' || (!user?.emp_type && user?.role !== 'employee');
+  React.useEffect(() => {
+    if (user && user.name) {
+      setCurrentUser(user);
+    } else if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('fret_user');
+      if (stored) {
+        try {
+          setCurrentUser(JSON.parse(stored));
+        } catch (e) {}
+      }
+    }
+  }, [user]);
+
+  const isHr = currentUser?.role === 'hr' || (!currentUser?.emp_type && currentUser?.role !== 'employee');
   const isCurrentlyOpen = mobileOpen !== undefined ? mobileOpen : internalOpen;
 
   React.useEffect(() => {
@@ -318,11 +332,11 @@ export default function Sidebar({
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3 overflow-hidden">
               <div className="w-9 h-9 rounded-full bg-[var(--accent)] text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
-                {user?.name ? user.name[0].toUpperCase() : 'H'}
+                {currentUser?.name ? currentUser.name[0].toUpperCase() : 'H'}
               </div>
               <div className="truncate">
-                <p className="text-xs font-bold text-[var(--text)] truncate">{user?.name || (isHr ? 'HR Admin' : 'Employee')}</p>
-                <p className="text-[11px] text-[var(--text3)] truncate">{user?.designation || (isHr ? 'HR Manager' : 'Team Member')}</p>
+                <p className="text-xs font-bold text-[var(--text)] truncate">{currentUser?.name || (isHr ? 'HR Admin' : 'Employee')}</p>
+                <p className="text-[11px] text-[var(--text3)] truncate">{currentUser?.designation || (isHr ? 'HR Manager' : 'Team Member')}</p>
               </div>
             </div>
             <button
