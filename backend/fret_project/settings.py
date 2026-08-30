@@ -36,10 +36,10 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -48,8 +48,12 @@ MIDDLEWARE = [
     'hrms.middleware.AuthMiddleware',
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.onrender\.com$",
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
 
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
@@ -59,6 +63,27 @@ CORS_ALLOWED_ORIGINS = [
     'https://fret.wisbees.com',
     'https://beta-fret-frontend.onrender.com',
     'https://beta-fret.onrender.com',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
