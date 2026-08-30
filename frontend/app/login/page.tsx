@@ -48,6 +48,13 @@ export default function LoginPage() {
         }
       });
 
+      if (res.data?.token) {
+        localStorage.setItem('fret_token', res.data.token);
+      }
+      if (res.data?.user) {
+        localStorage.setItem('fret_user', JSON.stringify(res.data.user));
+      }
+
       const targetUrl = (res.data && res.data.redirect) 
         ? res.data.redirect 
         : (loginType === 'hr' ? '/dashboard' : '/employee-dashboard');

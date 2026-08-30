@@ -20,6 +20,24 @@ class AuthMiddleware:
         hr_id = request.session.get('hr_id')
         account_id = request.session.get('account_id')
 
+        # Check Authorization header or X-User-Auth header (for cross-domain API calls)
+        auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
+        if not hr_id and not account_id and auth_header:
+            try:
+                if auth_header.startswith('Bearer '):
+                    token = auth_header[7:].strip()
+                else:
+                    token = auth_header.strip()
+
+                if ':' in token:
+                    role, uid = token.split(':', 1)
+                    if role == 'hr':
+                        hr_id = int(uid)
+                    elif role == 'emp':
+                        account_id = int(uid)
+            except Exception:
+                pass
+
         if hr_id:
             try:
                 user = HR.objects.get(id=hr_id)
@@ -39,7 +57,6 @@ class AuthMiddleware:
                 request.session.pop('account_id', None)
 
         request.current_user = user
-        # Also alias to request.user for Django built-in templates if needed
         if not hasattr(request, 'user') or not request.user.is_authenticated:
             request.user = user
 

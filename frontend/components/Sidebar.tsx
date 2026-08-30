@@ -46,7 +46,11 @@ export default function Sidebar({
     } catch (e) {
       console.error(e);
     }
-    router.push('/login');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('fret_token');
+      localStorage.removeItem('fret_user');
+    }
+    window.location.replace('/login');
   };
 
   const closeMobile = () => {

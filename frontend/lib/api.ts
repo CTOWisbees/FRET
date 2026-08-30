@@ -19,12 +19,20 @@ export const api = axios.create({
   withCredentials: true,
   headers: {
     'Accept': 'application/json',
+    'Content-Type': 'application/json',
   },
 });
 
 api.interceptors.request.use((config) => {
-  if (typeof window !== 'undefined' && (!config.baseURL || config.baseURL.includes('localhost:8000')) && window.location.hostname.includes('onrender.com')) {
-    config.baseURL = 'https://beta-fret.onrender.com';
+  if (typeof window !== 'undefined') {
+    if ((!config.baseURL || config.baseURL.includes('localhost:8000')) && window.location.hostname.includes('onrender.com')) {
+      config.baseURL = 'https://beta-fret.onrender.com';
+    }
+    const token = localStorage.getItem('fret_token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+      config.headers['X-User-Auth'] = token;
+    }
   }
   return config;
 });

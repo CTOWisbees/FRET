@@ -115,10 +115,12 @@ def login_view(request):
             if user and user.check_password(password):
                 request.session.flush()
                 request.session['hr_id'] = user.id
+                token = f"hr:{user.id}"
                 if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
                     return JsonResponse({
                         'success': True,
                         'redirect': '/dashboard',
+                        'token': token,
                         'user': {
                             'id': user.id,
                             'name': user.name,
@@ -146,11 +148,12 @@ def login_view(request):
                     account.save()
 
             if account and account.check_password(password):
+                token = f"emp:{account.id}"
                 if account.must_change_password:
                     request.session.flush()
                     request.session['employee_id'] = account.employee_id
                     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
-                        return JsonResponse({'success': True, 'redirect': '/change-password'})
+                        return JsonResponse({'success': True, 'redirect': '/change-password', 'token': token})
                     return redirect('change_password')
 
                 request.session.flush()
@@ -162,6 +165,7 @@ def login_view(request):
                     return JsonResponse({
                         'success': True,
                         'redirect': redirect_url,
+                        'token': token,
                         'user': {
                             'id': employee.id if employee else account.employee_id,
                             'name': employee.name if employee else 'Employee',
