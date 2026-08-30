@@ -2,13 +2,12 @@ import os
 import sys
 from pathlib import Path
 import urllib.parse as urlparse
-from dotenv import load_dotenv
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-PROJECT_ROOT = BASE_DIR.parent
-
-load_dotenv(BASE_DIR / '.env')
-load_dotenv(PROJECT_ROOT / '.env')
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / '.env')
+    load_dotenv(PROJECT_ROOT / '.env')
+except ImportError:
+    pass
 
 if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
