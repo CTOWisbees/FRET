@@ -48,10 +48,23 @@ MIDDLEWARE = [
     'hrms.middleware.AuthMiddleware',
 ]
 
+from corsheaders.defaults import default_headers
+
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_HEADERS = [
-    '*',
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'authorization',
+    'x-user-auth',
+    'x-csrftoken',
+    'x-requested-with',
+    'accept',
+    'accept-encoding',
+    'content-type',
+    'origin',
+    'user-agent',
+    'dnt',
+    'cache-control',
+    'pragma',
 ]
 CORS_ALLOW_METHODS = [
     'DELETE',

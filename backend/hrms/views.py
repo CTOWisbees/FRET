@@ -81,7 +81,7 @@ def login_view(request):
             response['Access-Control-Allow-Origin'] = origin
             response['Access-Control-Allow-Credentials'] = 'true'
         response['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
-        response['Access-Control-Allow-Headers'] = '*'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, authorization, Accept, X-Requested-With, X-CSRFToken, X-User-Auth, x-user-auth, *'
         return response
 
     if request.method == 'GET':
