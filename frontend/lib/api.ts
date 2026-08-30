@@ -9,13 +9,11 @@ export const getBaseUrl = () => {
       return 'https://beta-fret.onrender.com';
     }
   }
-  return 'http://localhost:8000';
+  return 'http://localhost:5000';
 };
 
-const API_BASE_URL = getBaseUrl();
-
 export const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getBaseUrl(),
   withCredentials: true,
   headers: {
     'Accept': 'application/json',
@@ -25,9 +23,12 @@ export const api = axios.create({
 
 api.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
-    if ((!config.baseURL || config.baseURL.includes('localhost:8000')) && window.location.hostname.includes('onrender.com')) {
-      config.baseURL = 'https://beta-fret.onrender.com';
-    }
+    const isRender = window.location.hostname.includes('onrender.com');
+    const targetBase = process.env.NEXT_PUBLIC_API_URL || (isRender ? 'https://beta-fret.onrender.com' : 'http://localhost:5000');
+    
+    // Always enforce targetBase in browser to ensure correct backend is targeted
+    config.baseURL = targetBase;
+
     const token = localStorage.getItem('fret_token');
     if (token) {
       config.headers['Authorization'] = `Bearer ${token}`;
@@ -40,8 +41,6 @@ api.interceptors.request.use((config) => {
 export const getApiUrl = (path: string) => {
   if (path.startsWith('http')) return path;
   const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  const base = typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')
-    ? (process.env.NEXT_PUBLIC_API_URL || 'https://beta-fret.onrender.com')
-    : API_BASE_URL;
+  const base = getBaseUrl();
   return `${base}${cleanPath}`;
 };

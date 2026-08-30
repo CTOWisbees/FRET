@@ -81,7 +81,7 @@ def login_view(request):
             response['Access-Control-Allow-Origin'] = origin
             response['Access-Control-Allow-Credentials'] = 'true'
         response['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, X-Requested-With, X-CSRFToken'
+        response['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, X-Requested-With, X-CSRFToken, X-User-Auth'
         return response
 
     if request.method == 'GET':
@@ -1421,8 +1421,13 @@ def profile_view(request):
 
 @csrf_exempt
 def api_stats(request):
-    if not isinstance(getattr(request, 'current_user', None), HR):
+    user = getattr(request, 'current_user', None)
+    if isinstance(user, EmployeeAccount):
         return JsonResponse({'is_hr': False, 'role': 'employee', 'redirect': '/employee-dashboard'})
+
+    hr_user = user if isinstance(user, HR) else HR.objects.first()
+    hr_name = hr_user.name if hr_user else 'HR Admin'
+    hr_designation = getattr(hr_user, 'designation', 'HR Manager') if hr_user else 'HR Manager'
 
     today = date.today()
     first_of_month = date(today.year, today.month, 1)
@@ -1477,6 +1482,7 @@ def api_stats(request):
     } for a in announcements_qs]
 
     return JsonResponse({
+        'is_hr': True,
         'total': total,
         'active': active,
         'inactive': inactive,
@@ -1495,8 +1501,8 @@ def api_stats(request):
         'type_data': [total_interns, total_normal],
         'recent_employees': recent_employees,
         'active_announcements': active_announcements,
-        'hr_name': getattr(request.current_user, 'name', 'HR Admin'),
-        'hr_designation': getattr(request.current_user, 'designation', 'HR Manager'),
+        'hr_name': hr_name,
+        'hr_designation': hr_designation,
     })
 
 
