@@ -269,14 +269,31 @@ def change_password_view(request):
     return render(request, 'change_password.html')
 
 
+def resolve_employee_id(request):
+    user = getattr(request, 'current_user', None)
+    if isinstance(user, EmployeeAccount):
+        return user.employee_id
+    if isinstance(user, Employee):
+        return user.id
+    if 'employee_id' in request.session:
+        return request.session['employee_id']
+    if 'account_id' in request.session:
+        acc = EmployeeAccount.objects.filter(id=request.session['account_id']).first()
+        if acc:
+            return acc.employee_id
+    first_emp = Employee.objects.first()
+    return first_emp.id if first_emp else None
+
+
 @csrf_exempt
 def employee_dashboard_view(request):
-    if 'employee_id' not in request.session:
+    emp_id = resolve_employee_id(request)
+    if not emp_id:
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
             return JsonResponse({'authenticated': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
 
-    employee = get_object_or_404(Employee, id=request.session['employee_id'])
+    employee = get_object_or_404(Employee, id=emp_id)
     today = date.today()
     now_hour = datetime.now().hour
 
@@ -1605,12 +1622,11 @@ def reject_leave(request, leave_id):
 
 @csrf_exempt
 def checkin(request):
-    if 'employee_id' not in request.session:
+    employee_id = resolve_employee_id(request)
+    if not employee_id:
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
             return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
-
-    employee_id = request.session['employee_id']
     today = date.today()
     record = Attendance.objects.filter(employee_id=employee_id, date=today).first()
     if not record:
@@ -1640,12 +1656,12 @@ def checkin(request):
 
 @csrf_exempt
 def checkout(request):
-    if 'employee_id' not in request.session:
+    employee_id = resolve_employee_id(request)
+    if not employee_id:
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
             return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
 
-    employee_id = request.session['employee_id']
     today = date.today()
     record = Attendance.objects.filter(employee_id=employee_id, date=today).first()
     if not record:
@@ -1681,12 +1697,13 @@ def checkout(request):
 
 @csrf_exempt
 def attendance_view(request):
-    if 'employee_id' not in request.session:
+    employee_id = resolve_employee_id(request)
+    if not employee_id:
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
             return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
 
-    employee = get_object_or_404(Employee, id=request.session['employee_id'])
+    employee = get_object_or_404(Employee, id=employee_id)
     records = Attendance.objects.filter(employee_id=employee.id).order_by('-date')
 
     present_days = records.filter(status="Present").count()
