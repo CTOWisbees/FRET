@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Run server from project root: python run.py
+Run server: python run.py
 """
 import os
 import sys
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BACKEND_DIR = os.path.join(BASE_DIR, 'backend')
+# Ensure backend directory is in sys.path
+BACKEND_DIR = os.path.dirname(os.path.abspath(__file__))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
