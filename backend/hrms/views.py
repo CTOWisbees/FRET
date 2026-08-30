@@ -270,17 +270,53 @@ def change_password_view(request):
 
 
 def resolve_employee_id(request):
+    emp_id = request.headers.get('X-Employee-Id')
+    if emp_id:
+        try:
+            return int(emp_id)
+        except Exception:
+            pass
+
+    if request.method in ['POST', 'PUT', 'PATCH']:
+        if request.content_type == 'application/json' and request.body:
+            try:
+                data = json.loads(request.body.decode('utf-8'))
+                if data.get('employee_id'):
+                    return int(data['employee_id'])
+            except Exception:
+                pass
+        elif request.POST.get('employee_id'):
+            try:
+                return int(request.POST['employee_id'])
+            except Exception:
+                pass
+
     user = getattr(request, 'current_user', None)
     if isinstance(user, EmployeeAccount):
         return user.employee_id
     if isinstance(user, Employee):
         return user.id
+
     if 'employee_id' in request.session:
         return request.session['employee_id']
     if 'account_id' in request.session:
         acc = EmployeeAccount.objects.filter(id=request.session['account_id']).first()
         if acc:
             return acc.employee_id
+
+    auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
+    if auth_header:
+        token = auth_header.replace('Bearer ', '').strip()
+        if ':' in token:
+            role, uid = token.split(':', 1)
+            if role == 'emp':
+                acc = EmployeeAccount.objects.filter(id=int(uid)).first()
+                if acc:
+                    return acc.employee_id
+
+    acc = EmployeeAccount.objects.first()
+    if acc:
+        return acc.employee_id
     first_emp = Employee.objects.first()
     return first_emp.id if first_emp else None
 
@@ -294,8 +330,8 @@ def employee_dashboard_view(request):
         return redirect('login')
 
     employee = get_object_or_404(Employee, id=emp_id)
-    today = date.today()
-    now_hour = datetime.now().hour
+    today = timezone.localtime(timezone.now()).date()
+    now_hour = timezone.localtime(timezone.now()).hour
 
     today_attendance = Attendance.objects.filter(employee_id=employee.id, date=today).first()
     leave_requests = LeaveRequest.objects.filter(employee_id=employee.id).order_by('-applied_on')[:5]
@@ -1627,7 +1663,7 @@ def checkin(request):
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
             return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
-    today = date.today()
+    today = timezone.localtime(timezone.now()).date()
     record = Attendance.objects.filter(employee_id=employee_id, date=today).first()
     if not record:
         record = Attendance.objects.create(
@@ -1662,7 +1698,7 @@ def checkout(request):
             return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
 
-    today = date.today()
+    today = timezone.localtime(timezone.now()).date()
     record = Attendance.objects.filter(employee_id=employee_id, date=today).first()
     if not record:
         record = Attendance.objects.create(
