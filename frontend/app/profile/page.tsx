@@ -10,7 +10,7 @@ import {
   CreditCard, Droplet, Camera, Key, Check, AlertCircle,
   FileSignature, Upload, RefreshCw, X, Printer, Download, FileText
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiUrl } from '@/lib/api';
 import JsBarcode from 'jsbarcode';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -32,6 +32,7 @@ export default function ProfilePage() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalCardRef = useRef<HTMLDivElement>(null);
+  const modalBarcodeRef = useRef<SVGSVGElement>(null);
 
   // HR Profile State
   const [hrUser, setHrUser] = useState<any>(null);
@@ -44,6 +45,27 @@ export default function ProfilePage() {
   const [sigPreview, setSigPreview] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [savingHr, setSavingHr] = useState(false);
+
+  // Preload cached user from storage
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('fret_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u.role === 'employee' || u.emp_type) {
+          setIsHr(false);
+          setEmployee(u);
+          if (u.blood_group) setSelectedBloodGroup(u.blood_group);
+        } else if (u.role === 'hr') {
+          setIsHr(true);
+          setHrUser(u);
+          setHrName(u.name || '');
+          setHrPhone(u.phone || '');
+          setHrDesignation(u.designation || 'HR Manager');
+        }
+      }
+    } catch (e) {}
+  }, []);
 
   // Fetch current user profile
   const fetchProfile = async () => {
@@ -59,18 +81,25 @@ export default function ProfilePage() {
           setHrDesignation(res.data.user?.designation || 'HR Manager');
         } else {
           setEmployee(res.data.employee);
-          setSelectedBloodGroup(res.data.employee?.blood_group || '');
+          if (res.data.employee?.blood_group) {
+            setSelectedBloodGroup(res.data.employee.blood_group);
+          }
+          if (res.data.employee) {
+            localStorage.setItem('fret_user', JSON.stringify(res.data.employee));
+          }
         }
       }
     } catch (e: any) {
       console.error('Failed to load profile:', e);
-      // Fallback check to employee me endpoint
       try {
         const empRes = await api.get('/api/employee/me');
         if (empRes.data?.authenticated) {
           setIsHr(false);
           setEmployee(empRes.data);
-          setSelectedBloodGroup(empRes.data?.blood_group || '');
+          if (empRes.data?.blood_group) {
+            setSelectedBloodGroup(empRes.data.blood_group);
+          }
+          localStorage.setItem('fret_user', JSON.stringify(empRes.data));
         }
       } catch (err) {
         console.error('Auth check error:', err);
@@ -83,6 +112,31 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  // Code128 Barcode Renderer for ID Card Modal
+  useEffect(() => {
+    if (showIdCardModal && modalBarcodeRef.current && employee) {
+      const renderBarcode = () => {
+        try {
+          const barcodeVal = employee.emp_id || `WB${1000 + (employee.id || 1)}`;
+          JsBarcode(modalBarcodeRef.current, barcodeVal, {
+            format: 'CODE128',
+            displayValue: false,
+            lineColor: '#000000',
+            width: 1.5,
+            height: 38,
+            margin: 0,
+          });
+        } catch (e) {
+          console.error('Barcode error:', e);
+        }
+      };
+
+      renderBarcode();
+      const t = setTimeout(renderBarcode, 50);
+      return () => clearTimeout(t);
+    }
+  }, [showIdCardModal, employee]);
 
   const showAlert = (text: string, type: 'success' | 'error' = 'success') => {
     setAlertMsg({ type, text });
@@ -564,118 +618,233 @@ export default function ProfilePage() {
             /* 2. HR ADMIN PROFILE VIEW                                       */
             /* ═══════════════════════════════════════════════════════════════ */
             <div className="max-w-3xl mx-auto space-y-6">
-              <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
-                <div>
-                  <h2 className="text-xl font-extrabold text-[var(--text)] tracking-tight font-['Plus_Jakarta_Sans']">
-                    HR Administrator Profile
-                  </h2>
-                  <p className="text-xs sm:text-sm text-[var(--text3)] mt-1">
-                    Manage administrative contact details and digital authorization signature.
-                  </p>
-                </div>
+              <form onSubmit={handleHrSave} className="space-y-6">
+                {/* 1. Identity Card */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+                  {/* Avatar & User Header */}
+                  <div className="flex items-center gap-5 pb-5 border-b border-[var(--border)]">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent2)] flex items-center justify-center text-white font-extrabold text-2xl shadow-md flex-shrink-0 select-none">
+                      {hrName ? hrName[0].toUpperCase() : (hrUser?.name ? hrUser.name[0].toUpperCase() : 'H')}
+                    </div>
+                    <div>
+                      <div className="text-xl font-extrabold text-[var(--text)] tracking-tight font-['Plus_Jakarta_Sans']">
+                        {hrName || hrUser?.name || 'HR Administrator'}
+                      </div>
+                      <div className="text-xs sm:text-sm text-[var(--text3)] font-medium mt-0.5">
+                        {hrDesignation || hrUser?.designation || 'HR Manager'} · {hrUser?.email || 'hr@wisbees.com'}
+                      </div>
+                      <div className="text-[11px] text-[var(--text3)] mt-1">
+                        Member since {hrUser?.created_at || 'August 2024'}
+                      </div>
+                    </div>
+                  </div>
 
-                <form onSubmit={handleHrSave} className="space-y-5">
+                  {/* Identity Form Fields */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-[var(--text3)] mb-1 uppercase">Full Name</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-2">
+                        Full Name *
+                      </label>
                       <input
                         type="text"
+                        required
                         value={hrName}
                         onChange={(e) => setHrName(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm font-medium focus:outline-none focus:border-[#6366F1]"
+                        placeholder="e.g. Hr test"
+                        className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-medium text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-[var(--text3)] mb-1 uppercase">Contact Phone</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-2">
+                        Phone
+                      </label>
                       <input
-                        type="text"
+                        type="tel"
                         value={hrPhone}
                         onChange={(e) => setHrPhone(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm font-medium focus:outline-none focus:border-[#6366F1]"
+                        placeholder="e.g. +91 9876543210"
+                        className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-medium text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition"
                       />
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-[var(--text3)] mb-1 uppercase">Official Designation</label>
-                    <input
-                      type="text"
-                      value={hrDesignation}
-                      onChange={(e) => setHrDesignation(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm font-medium focus:outline-none focus:border-[#6366F1]"
-                    />
-                  </div>
-
-                  {/* Digital Signature Upload */}
-                  <div>
-                    <label className="block text-xs font-bold text-[var(--text3)] mb-1 uppercase">Digital Authorization Signature</label>
-                    <div 
-                      onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
-                      onDragLeave={() => setIsDragOver(false)}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        setIsDragOver(false);
-                        const f = e.dataTransfer.files?.[0];
-                        if (f) setSigFile(f);
-                      }}
-                      className={`p-6 border-2 border-dashed rounded-2xl text-center cursor-pointer transition ${
-                        isDragOver ? 'border-[#6366F1] bg-[#EEF2FF]' : 'border-[var(--border)] bg-[var(--bg)]'
-                      }`}
-                    >
-                      <input
-                        type="file"
-                        accept="image/png,image/jpeg"
-                        onChange={(e) => setSigFile(e.target.files?.[0] || null)}
-                        className="hidden"
-                        id="hr_signature"
-                      />
-                      <label htmlFor="hr_signature" className="cursor-pointer block space-y-2">
-                        <FileSignature className="w-8 h-8 text-[#6366F1] mx-auto" />
-                        <div className="text-xs font-bold text-[var(--text)]">
-                          {sigFile ? sigFile.name : 'Upload signature image (PNG / JPG)'}
-                        </div>
-                        <div className="text-[11px] text-[var(--text3)]">Used for official Offer Letter signing</div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-2">
+                        Official Designation
                       </label>
+                      <select
+                        value={hrDesignation}
+                        onChange={(e) => setHrDesignation(e.target.value)}
+                        className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-medium text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition"
+                      >
+                        <option value="HR Manager">HR Manager</option>
+                        <option value="Senior HR Manager">Senior HR Manager</option>
+                        <option value="HR Director">HR Director</option>
+                        <option value="Talent Acquisition Specialist">Talent Acquisition Specialist</option>
+                        <option value="HR Business Partner">HR Business Partner</option>
+                        <option value="Chief People Officer">Chief People Officer</option>
+                      </select>
                     </div>
                   </div>
+                </div>
 
-                  {/* Password Update */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-[var(--border)]">
+                {/* 2. Digital Signature Card */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 font-bold text-base text-[var(--text)] font-['Plus_Jakarta_Sans']">
+                      <FileSignature className="w-4 h-4 text-[var(--accent)]" />
+                      <span>Digital Signature</span>
+                    </div>
+                    {hrUser?.has_signature || sigFile ? (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                        <Check className="w-3 h-3" /> Uploaded
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                        Missing
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-[var(--text3)]">
+                    This signature is automatically embedded at the bottom of every offer letter and official document you generate.
+                  </p>
+
+                  {/* Existing Signature Preview */}
+                  {hrUser?.has_signature && !sigPreview && (
+                    <div className="p-4 bg-white border border-[var(--border)] rounded-xl text-center max-w-sm mx-auto shadow-xs">
+                      <img
+                        src={getApiUrl(hrUser.signature_url || `/signature/${hrUser.id}`)}
+                        alt="Current HR signature"
+                        className="max-h-20 max-w-[260px] mx-auto object-contain"
+                      />
+                    </div>
+                  )}
+
+                  {/* Signature Upload Dropzone */}
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragOver(false);
+                      const f = e.dataTransfer.files?.[0];
+                      if (f) {
+                        setSigFile(f);
+                        setSigPreview(URL.createObjectURL(f));
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition relative ${
+                      isDragOver
+                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                        : 'border-[var(--border)] hover:border-[var(--accent)] bg-[var(--input-bg)]'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      id="hr_signature_file"
+                      accept="image/png,image/jpeg"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setSigFile(file);
+                          setSigPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+
+                    {sigPreview ? (
+                      <div className="space-y-2">
+                        <img
+                          src={sigPreview}
+                          alt="New Signature Preview"
+                          className="max-h-20 max-w-[240px] mx-auto object-contain bg-white p-2 rounded-lg border border-[var(--border)]"
+                        />
+                        <div className="text-xs font-semibold text-emerald-600">
+                          {sigFile?.name} ready to save
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        <div className="text-2xl select-none">✍️</div>
+                        <div className="text-sm font-semibold text-[var(--text2)]">
+                          {hrUser?.has_signature ? 'Replace signature' : 'Upload your signature'}
+                        </div>
+                        <div className="text-[11px] text-[var(--text3)]">
+                          PNG with transparent background · Max 2MB
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Password Card */}
+                <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 sm:p-8 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 font-bold text-base text-[var(--text)] font-['Plus_Jakarta_Sans']">
+                    <Key className="w-4 h-4 text-[var(--accent)]" />
+                    <span>Change Password</span>
+                  </div>
+                  <p className="text-xs text-[var(--text3)]">
+                    Leave blank to keep your current password unchanged.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-[var(--text3)] mb-1 uppercase">New Password</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-2">
+                        New Password
+                      </label>
                       <input
                         type="password"
                         value={hrNewPassword}
                         onChange={(e) => setHrNewPassword(e.target.value)}
-                        placeholder="Leave blank to keep same"
-                        className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:border-[#6366F1]"
+                        placeholder="Min. 8 characters"
+                        className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-medium text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-[var(--text3)] mb-1 uppercase">Confirm Password</label>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-2">
+                        Confirm New Password
+                      </label>
                       <input
                         type="password"
                         value={hrConfirmPassword}
                         onChange={(e) => setHrConfirmPassword(e.target.value)}
-                        placeholder="Repeat new password"
-                        className="w-full px-4 py-2.5 rounded-xl border border-[var(--border)] bg-[var(--bg)] text-[var(--text)] text-sm focus:outline-none focus:border-[#6366F1]"
+                        placeholder="Repeat password"
+                        className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-medium text-[var(--text)] focus:outline-none focus:border-[var(--primary)] transition"
                       />
                     </div>
                   </div>
+                </div>
 
-                  <div className="pt-2">
-                    <button
-                      type="submit"
-                      disabled={savingHr}
-                      className="px-6 py-2.5 bg-[#6366F1] hover:bg-[#4F46E5] text-white text-xs font-bold rounded-xl shadow-sm transition disabled:opacity-50 active:scale-95"
-                    >
-                      {savingHr ? 'Saving...' : 'Save Profile Changes'}
-                    </button>
-                  </div>
-                </form>
-              </div>
+                {/* 4. Action Buttons */}
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <Link
+                    href="/dashboard"
+                    className="px-5 py-3 rounded-xl border border-[var(--border)] text-xs font-bold text-[var(--text2)] hover:bg-[var(--hover)] transition"
+                  >
+                    Cancel
+                  </Link>
+
+                  <button
+                    type="submit"
+                    disabled={savingHr}
+                    className="px-6 py-3 bg-[var(--accent)] hover:bg-[var(--accent2)] text-white text-xs font-bold rounded-xl shadow-md transition flex items-center gap-2 disabled:opacity-50 active:scale-95 cursor-pointer"
+                  >
+                    {savingHr ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Saving...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Save Profile Changes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           )}
 
@@ -755,12 +924,13 @@ export default function ProfilePage() {
                       <div className="-mt-8 z-10 flex justify-center">
                         {employee?.avatar_url || employee?.has_photo ? (
                           <img 
-                            src={employee.avatar_url || `/employee/${employee.id}/avatar`}
+                            src={getApiUrl(employee.avatar_url || `/employee/${employee.id}/avatar`)}
                             alt={employee?.name}
+                            crossOrigin="anonymous"
                             className="w-28 h-28 rounded-full object-cover border-[4px] border-[#F28500] shadow-md bg-white mx-auto"
                           />
                         ) : (
-                          <div className="w-28 h-28 rounded-full bg-[#F28500] text-white flex items-center justify-center font-bold text-4xl border-[4px] border-[#F28500] shadow-md bg-white mx-auto select-none">
+                          <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#6366F1] text-white flex items-center justify-center font-extrabold text-4xl border-[4px] border-[#F28500] shadow-md mx-auto select-none">
                             {employee?.name ? employee.name[0].toUpperCase() : 'C'}
                           </div>
                         )}
@@ -797,20 +967,7 @@ export default function ProfilePage() {
                         {/* Real Code128 Barcode */}
                         <div className="pt-2 flex flex-col items-center justify-center w-full">
                           <svg 
-                            ref={(el) => {
-                              if (el && employee) {
-                                try {
-                                  JsBarcode(el, `WB${1000 + (employee.id || 1)}`, {
-                                    format: 'CODE128',
-                                    displayValue: false,
-                                    lineColor: '#000000',
-                                    width: 1.5,
-                                    height: 38,
-                                    margin: 0,
-                                  });
-                                } catch (e) {}
-                              }
-                            }}
+                            ref={modalBarcodeRef}
                             className="max-w-[200px] h-[38px]"
                           ></svg>
                           <div className="text-[9px] text-[#4A5568] font-medium tracking-wider mt-0.5">

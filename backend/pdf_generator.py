@@ -613,3 +613,139 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms."):
     
     buf.seek(0)
     return buf
+
+
+def generate_leave_approval_pdf(leave_request, settings=None, hr_user=None):
+    """
+    Generates a Leave Approval Letter / Sanction Order on official company letterhead.
+    """
+    buf = io.BytesIO()
+
+    letterhead_path = getattr(settings, 'letterhead_path', None)
+    company_name = getattr(settings, 'company_name', 'TimeArrow Pvt. Ltd. (WisBees)') or 'TimeArrow Pvt. Ltd. (WisBees)'
+    emp = leave_request.employee
+
+    today_str = date.today().strftime('%d %B %Y')
+    ref_no = f"WIS/LV/{date.today().year}/{leave_request.id:04d}"
+
+    from_str = leave_request.from_date.strftime('%d %b %Y') if leave_request.from_date else 'N/A'
+    to_str = leave_request.to_date.strftime('%d %b %Y') if leave_request.to_date else 'N/A'
+    total_days = ((leave_request.to_date - leave_request.from_date).days + 1) if (leave_request.from_date and leave_request.to_date) else 1
+    resume_date = (leave_request.to_date + timedelta(days=1)) if leave_request.to_date else None
+    resume_str = resume_date.strftime('%d %b %Y') if resume_date else 'the next working day'
+
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        topMargin=MAR_TOP,
+        bottomMargin=MAR_BOTTOM,
+        leftMargin=MAR_LEFT,
+        rightMargin=MAR_RIGHT,
+    )
+
+    def PS(name, **kw):
+        return ParagraphStyle(name, **kw)
+
+    BASE = dict(fontName='Helvetica', textColor=DARK, leading=15)
+    sty_title = PS('Title', fontName='Helvetica-Bold', fontSize=13, textColor=HexColor("#004D40"), alignment=TA_CENTER, spaceAfter=14, leading=17)
+    sty_date = PS('Date', fontSize=9, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2, **{k: v for k, v in BASE.items() if k != 'textColor'})
+    sty_ref = PS('Ref', fontSize=9, alignment=TA_LEFT, fontName='Helvetica-Bold', textColor=DARK, spaceAfter=8, **{k: v for k, v in BASE.items() if k != 'textColor'})
+    sty_to = PS('To', fontSize=9.5, textColor=DARK, spaceAfter=3, fontName='Helvetica', leading=14)
+    sty_tob = PS('ToB', fontSize=9.5, textColor=DARK, spaceAfter=3, fontName='Helvetica-Bold', leading=14)
+    sty_subj = PS('Subj', fontSize=10, textColor=DARK, fontName='Helvetica-Bold', spaceAfter=10, leading=15)
+    sty_body = PS('Body', fontSize=9.5, textColor=DARK, spaceAfter=8, alignment=TA_JUSTIFY, fontName='Helvetica', leading=15)
+    sty_sign = PS('Sign', fontSize=9, textColor=DARK, spaceAfter=2, fontName='Helvetica', leading=13)
+    sty_signb = PS('SignB', fontSize=9.5, textColor=DARK, spaceAfter=2, fontName='Helvetica-Bold', leading=14)
+
+    story = []
+
+    # Date and Ref Header
+    story.append(Paragraph(f"<b>Date:</b> {today_str}", sty_date))
+    story.append(Paragraph(f"<b>Ref No:</b> {ref_no}", sty_ref))
+    story.append(Spacer(1, 0.2 * cm))
+
+    # Recipient Block
+    story.append(Paragraph("<b>To,</b>", sty_to))
+    story.append(Paragraph(f"<b>{emp.name if emp else 'Employee'}</b>", sty_tob))
+    if emp:
+        story.append(Paragraph(f"Employee ID: <b>{emp.emp_id}</b>", sty_to))
+        story.append(Paragraph(f"Designation: {emp.designation or 'Staff'} ({emp.emp_type or 'Normal'})", sty_to))
+        story.append(Paragraph(f"Department: {emp.department or 'General'}", sty_to))
+    story.append(Spacer(1, 0.4 * cm))
+
+    # Subject
+    story.append(Paragraph(f"<b>Subject: Leave Sanction Order — {leave_request.leave_type or 'Casual Leave'}</b>", sty_subj))
+    story.append(Spacer(1, 0.2 * cm))
+
+    # Main Body
+    story.append(Paragraph(f"Dear <b>{emp.name if emp else 'Employee'}</b>,", sty_body))
+    story.append(Paragraph(
+        f"With reference to your leave request submitted on <b>{leave_request.applied_on.strftime('%d %B %Y') if leave_request.applied_on else today_str}</b>, "
+        f"we are pleased to inform you that your application for <b>{leave_request.leave_type or 'Leave'}</b> has been "
+        f"<b>APPROVED</b> by the management.",
+        sty_body
+    ))
+
+    # Table of details
+    tbl_data = [
+        [Paragraph("<b>Leave Type</b>", sty_to), Paragraph(f": {leave_request.leave_type or 'Casual Leave'}", sty_to)],
+        [Paragraph("<b>From Date</b>", sty_to), Paragraph(f": {from_str}", sty_to)],
+        [Paragraph("<b>To Date</b>", sty_to), Paragraph(f": {to_str}", sty_to)],
+        [Paragraph("<b>Total Duration</b>", sty_to), Paragraph(f": <b>{total_days} Day(s)</b>", sty_to)],
+        [Paragraph("<b>Reason Stated</b>", sty_to), Paragraph(f": {leave_request.reason or 'Personal reasons'}", sty_to)],
+        [Paragraph("<b>Approval Status</b>", sty_to), Paragraph(": <font color='#059669'><b>SANCTIONED & APPROVED</b></font>", sty_to)],
+    ]
+    tbl = Table(tbl_data, colWidths=[3.2 * cm, BODY_W - 3.2 * cm])
+    tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('BACKGROUND', (0, 0), (-1, -1), HexColor('#F8FAFC')),
+        ('BOX', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.3, HexColor('#E2E8F0')),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 0.4 * cm))
+
+    story.append(Paragraph(
+        f"You are expected to resume your duties on <b>{resume_str}</b>. "
+        "Kindly ensure that all pending deliverables and urgent operational handovers are coordinated with your team lead.",
+        sty_body
+    ))
+    story.append(Paragraph("We wish you a restful time off.", sty_body))
+    story.append(Spacer(1, 0.5 * cm))
+
+    # Sign-off
+    story.append(Paragraph("Yours sincerely,", sty_sign))
+    story.append(Spacer(1, 0.2 * cm))
+
+    hr_sig_path = getattr(hr_user, 'signature_path', None) if hr_user else None
+    if hr_sig_path and os.path.exists(hr_sig_path):
+        try:
+            sig = RLImage(hr_sig_path, width=4.5 * cm, height=1.6 * cm)
+            sig.hAlign = "LEFT"
+            story.append(sig)
+        except Exception:
+            story.append(Spacer(1, 0.8 * cm))
+    else:
+        story.append(Spacer(1, 0.8 * cm))
+
+    hr_name = getattr(hr_user, 'name', 'HR Department') if hr_user else 'HR Department'
+    hr_desig = getattr(hr_user, 'designation', 'Human Resources Manager') if hr_user else 'Human Resources Manager'
+    story.append(Paragraph(f"<b>{hr_name}</b>", sty_signb))
+    story.append(Paragraph(hr_desig, sty_sign))
+    story.append(Paragraph(f"<b>{company_name}</b>", sty_sign))
+
+    def add_letterhead(canvas, doc):
+        _draw_letterhead(canvas, letterhead_path)
+
+    doc.build(
+        story,
+        onFirstPage=add_letterhead,
+        onLaterPages=add_letterhead
+    )
+
+    buf.seek(0)
+    return buf

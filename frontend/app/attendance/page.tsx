@@ -27,7 +27,16 @@ export default function AttendancePage() {
     fetchAttendance();
   }, []);
 
-  const employee = data?.employee || {};
+  const [cachedUser, setCachedUser] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('fret_user');
+      if (saved) setCachedUser(JSON.parse(saved));
+    } catch (e) {}
+  }, []);
+
+  const employee = data?.employee || cachedUser || {};
   const records = data?.records || [];
 
   return (

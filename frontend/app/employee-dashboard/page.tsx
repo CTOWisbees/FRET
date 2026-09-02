@@ -20,6 +20,7 @@ import { api } from '@/lib/api';
 
 export default function EmployeeDashboardPage() {
   const [data, setData] = useState<any>(null);
+  const [cachedUser, setCachedUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
@@ -28,6 +29,16 @@ export default function EmployeeDashboardPage() {
   const [liveDuration, setLiveDuration] = useState<string>('');
   const router = useRouter();
 
+  // Load saved user from local storage immediately
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('fret_user');
+      if (saved) {
+        setCachedUser(JSON.parse(saved));
+      }
+    } catch (e) {}
+  }, []);
+
   // Fetch dashboard data
   const fetchDashboardData = async () => {
     try {
@@ -35,13 +46,27 @@ export default function EmployeeDashboardPage() {
       const res = await api.get('/api/employee-dashboard');
       if (res.data && res.data.authenticated) {
         setData(res.data);
+        if (res.data.employee) {
+          localStorage.setItem('fret_user', JSON.stringify(res.data.employee));
+          setCachedUser(res.data.employee);
+        }
       } else {
         router.push('/login');
       }
     } catch (err: any) {
       console.error('Failed to load employee dashboard:', err);
       if (err.response?.status === 401) {
-        router.push('/login');
+        // Retry with me endpoint
+        try {
+          const meRes = await api.get('/api/employee/me');
+          if (meRes.data?.authenticated) {
+            setCachedUser(meRes.data);
+          } else {
+            router.push('/login');
+          }
+        } catch (e) {
+          router.push('/login');
+        }
       }
     } finally {
       setLoading(false);
@@ -56,24 +81,34 @@ export default function EmployeeDashboardPage() {
 
   // Live Timer for active shift
   useEffect(() => {
-    if (todayAttendance?.is_checked_in && !todayAttendance?.is_checked_out && todayAttendance?.check_in_iso) {
+    if (todayAttendance?.is_checked_in && !todayAttendance?.is_checked_out) {
+      const checkInMs = todayAttendance?.check_in_timestamp ||
+        (todayAttendance?.check_in_iso ? new Date(todayAttendance.check_in_iso).getTime() : null);
+
+      if (!checkInMs || isNaN(checkInMs)) return;
+
       const updateTimer = () => {
-        const checkInTime = new Date(todayAttendance.check_in_iso).getTime();
         const now = Date.now();
-        const diffMs = Math.max(0, now - checkInTime);
+        const diffMs = Math.max(0, now - checkInMs);
         const diffSecs = Math.floor(diffMs / 1000);
         const hours = Math.floor(diffSecs / 3600);
         const minutes = Math.floor((diffSecs % 3600) / 60);
         const seconds = diffSecs % 60;
         setLiveDuration(`${hours}h ${minutes}m ${seconds}s`);
       };
+
       updateTimer();
       const interval = setInterval(updateTimer, 1000);
       return () => clearInterval(interval);
     } else {
       setLiveDuration('');
     }
-  }, [todayAttendance?.is_checked_in, todayAttendance?.is_checked_out, todayAttendance?.check_in_iso]);
+  }, [
+    todayAttendance?.is_checked_in, 
+    todayAttendance?.is_checked_out, 
+    todayAttendance?.check_in_timestamp, 
+    todayAttendance?.check_in_iso
+  ]);
 
   // Check In handler
   const handleCheckin = async () => {
@@ -119,7 +154,7 @@ export default function EmployeeDashboardPage() {
     greeting = 'Good Evening';
   }
 
-  const employee = data?.employee || {};
+  const employee = data?.employee || cachedUser || {};
   const stats = data?.stats || {};
   const weeklyOverview = data?.weekly_overview || [];
   const monthlyTrend = data?.monthly_trend || [];

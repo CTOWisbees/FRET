@@ -19,6 +19,7 @@ class AuthMiddleware:
 
         hr_id = request.session.get('hr_id')
         account_id = request.session.get('account_id')
+        employee_id = request.session.get('employee_id')
 
         # Check Authorization header or X-User-Auth header (for cross-domain API calls)
         auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
@@ -38,23 +39,44 @@ class AuthMiddleware:
             except Exception:
                 pass
 
+        # Also check X-Employee-Id header
+        if not account_id and not hr_id:
+            raw_emp_header = request.headers.get('X-Employee-Id')
+            if raw_emp_header:
+                try:
+                    account_id = int(raw_emp_header)
+                except Exception:
+                    pass
+
         if hr_id:
             try:
                 user = HR.objects.get(id=hr_id)
             except HR.DoesNotExist:
                 request.session.pop('hr_id', None)
-        elif account_id:
-            try:
-                account = EmployeeAccount.objects.get(id=account_id)
+        elif account_id or employee_id:
+            target_id = account_id or employee_id
+            account = EmployeeAccount.objects.filter(id=target_id).first()
+            if not account:
+                account = EmployeeAccount.objects.filter(employee_id=target_id).first()
+            if not account:
+                emp = Employee.objects.filter(id=target_id).first()
+                if emp:
+                    account = getattr(emp, 'account', None)
+                    if not account:
+                        account = EmployeeAccount.objects.create(
+                            employee=emp,
+                            email=emp.email,
+                            must_change_password=False
+                        )
+            if account:
                 emp = Employee.objects.filter(id=account.employee_id).first()
                 if emp:
                     account.designation = emp.designation
                     account.department = emp.department
                     account.name = emp.name
                     account.emp_type = emp.emp_type
+                    account.first_name = emp.name.split(' ')[0] if emp.name else ''
                 user = account
-            except EmployeeAccount.DoesNotExist:
-                request.session.pop('account_id', None)
 
         request.current_user = user
         if not hasattr(request, 'user') or not request.user.is_authenticated:

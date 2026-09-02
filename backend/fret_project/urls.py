@@ -56,7 +56,9 @@ urlpatterns = [
     path('settings/email', views.save_email_config, name='save_email_config'),
     path('settings/company', views.save_company_settings, name='save_company_settings'),
     path('profile', views.profile_view, name='profile'),
+    path('api/profile', views.profile_view, name='api_profile'),
     path('profile/update', views.update_profile_view, name='update_profile'),
+    path('api/profile/update', views.update_profile_view, name='api_update_profile'),
 
     # Stats & Files
     path('api/stats', views.api_stats, name='api_stats'),
@@ -65,19 +67,28 @@ urlpatterns = [
     path('api/employees-list', views.api_employees_list, name='api_employees_list'),
     path('letterhead', views.serve_letterhead, name='serve_letterhead'),
     path('signature/<int:hr_id>', views.serve_signature, name='serve_signature'),
+    path('api/signature/<int:hr_id>', views.serve_signature, name='api_serve_signature'),
     path('employee/<int:emp_id>/avatar', views.get_employee_avatar, name='get_employee_avatar'),
+    path('api/employee/<int:emp_id>/avatar', views.get_employee_avatar, name='api_get_employee_avatar'),
     path('employee/<int:emp_id>/id-card', views.view_id_card, name='view_id_card'),
 
     # Attendance & Leave
     path('leave-management', views.leave_management, name='leave_management'),
+    path('api/leave-management', views.leave_management, name='api_leave_management'),
     path('leave/<int:leave_id>/approve', views.approve_leave, name='approve_leave'),
+    path('api/leave/<int:leave_id>/approve', views.approve_leave, name='api_approve_leave'),
     path('leave/<int:leave_id>/reject', views.reject_leave, name='reject_leave'),
+    path('api/leave/<int:leave_id>/reject', views.reject_leave, name='api_reject_leave'),
+    path('leave/<int:leave_id>/pdf', views.download_leave_approval_pdf, name='download_leave_approval_pdf'),
+    path('api/leave/<int:leave_id>/pdf', views.download_leave_approval_pdf, name='api_download_leave_approval_pdf'),
     path('api/offer-preview', views.api_offer_preview, name='api_offer_preview'),
     path('attendance/checkin', views.checkin, name='checkin'),
     path('attendance/checkout', views.checkout, name='checkout'),
     path('attendance', views.attendance_view, name='attendance'),
     path('attendance-management', views.attendance_management, name='attendance_management'),
+    path('api/attendance-management', views.attendance_management, name='api_attendance_management'),
     path('attendance/export', views.export_attendance, name='export_attendance'),
+    path('api/attendance/export', views.export_attendance, name='api_export_attendance'),
     path('apply-leave', views.apply_leave, name='apply_leave'),
 
     # Announcements

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, use } from 'react';
 import Link from 'next/link';
 import { Printer, Download, FileText, ArrowLeft, RefreshCw } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiUrl } from '@/lib/api';
 import JsBarcode from 'jsbarcode';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
@@ -270,13 +270,13 @@ export default function EmployeeIdCardRoute({ params }: { params: Promise<{ id: 
           <div className="-mt-8 z-10 flex justify-center">
             {employee?.avatar_url || employee?.has_photo ? (
               <img 
-                src={employee.avatar_url || `/employee/${employee.id}/avatar`}
+                src={getApiUrl(employee.avatar_url || `/employee/${employee.id}/avatar`)}
                 alt={employee?.name}
                 crossOrigin="anonymous"
                 className="w-28 h-28 rounded-full object-cover border-[4px] border-[#F28500] shadow-md bg-white mx-auto"
               />
             ) : (
-              <div className="w-28 h-28 rounded-full bg-[#F28500] text-white flex items-center justify-center font-bold text-4xl border-[4px] border-[#F28500] shadow-md bg-white mx-auto select-none">
+              <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#6366F1] text-white flex items-center justify-center font-extrabold text-4xl border-[4px] border-[#F28500] shadow-md mx-auto select-none">
                 {employee?.name ? employee.name[0].toUpperCase() : 'C'}
               </div>
             )}

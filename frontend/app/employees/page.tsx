@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import Link from 'next/link';
-import { api } from '@/lib/api';
+import { api, getApiUrl } from '@/lib/api';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -157,7 +157,7 @@ export default function EmployeesPage() {
 
   const downloadOffer = () => {
     if (!selectedEmp) return;
-    window.open(`http://localhost:8000/generate-offer-letter?emp_id=${selectedEmp.id}`, '_blank');
+    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}`), '_blank');
   };
 
   const openExpModal = (emp: any) => {
@@ -171,7 +171,7 @@ export default function EmployeesPage() {
 
   const downloadExperience = () => {
     if (!selectedEmp) return;
-    window.open(`http://localhost:8000/generate-experience-letter?emp_id=${selectedEmp.id}`, '_blank');
+    window.open(getApiUrl(`/generate-experience-letter?emp_id=${selectedEmp.id}`), '_blank');
   };
 
   // CC Email List builder

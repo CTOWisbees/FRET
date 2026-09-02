@@ -14,11 +14,12 @@ export default function EditEmployeePage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(true);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [empId, setEmpId] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [gender, setGender] = useState('');
+  const [gender, setGender] = useState('female');
   const [status, setStatus] = useState('Active');
   const [department, setDepartment] = useState('');
   const [designation, setDesignation] = useState('');
@@ -31,24 +32,37 @@ export default function EditEmployeePage() {
     if (!id) return;
     const loadEmployee = async () => {
       try {
-        const res = await api.get(`/api/employees-list`);
-        const emp = res.data.find((e: any) => e.id.toString() === id.toString());
+        let emp = null;
+        try {
+          const singleRes = await api.get(`/api/employee/${id}`);
+          if (singleRes.data && singleRes.data.id) {
+            emp = singleRes.data;
+          }
+        } catch (_) {
+          // fallback to employees list
+        }
+
+        if (!emp) {
+          const res = await api.get(`/api/employees-list`);
+          emp = res.data?.find((e: any) => e.id.toString() === id.toString());
+        }
+
         if (emp) {
           setEmpId(emp.emp_id || '');
           setName(emp.name || '');
           setEmail(emp.email || '');
           setPhone(emp.phone || '');
-          setGender(emp.gender || 'Female');
+          setGender(emp.gender ? String(emp.gender).toLowerCase() : 'female');
           setStatus(emp.status || 'Active');
           setDepartment(emp.department || 'Engineering');
           setDesignation(emp.designation || '');
-          setSalary(emp.salary || '');
+          setSalary(emp.salary !== undefined && emp.salary !== null ? String(emp.salary) : '');
           setJoiningDate(emp.joining_date || '');
           setEndDate(emp.end_date || '');
           setEmpType(emp.emp_type || 'Normal');
         }
       } catch (err) {
-        console.error(err);
+        console.error('Error loading employee:', err);
       } finally {
         setLoading(false);
       }
@@ -63,13 +77,14 @@ export default function EditEmployeePage() {
         name,
         email,
         phone,
-        gender,
+        gender: gender.toLowerCase(),
         status,
         department,
         designation,
         salary,
         joining_date: joiningDate,
         end_date: endDate,
+        emp_type: empType,
       });
       alert('Employee details updated successfully!');
       router.push('/employees');
@@ -80,10 +95,10 @@ export default function EditEmployeePage() {
 
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans">
-      <Sidebar />
+      <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
 
       <div className="flex-1 flex flex-col min-w-0">
-        <Header title="Edit Employee" />
+        <Header title="Edit Employee" onMenuClick={() => setMobileOpen(true)} />
 
         <main className="p-8 flex-1 overflow-y-auto space-y-6 max-w-5xl">
           {/* Top Title Bar */}
@@ -152,8 +167,20 @@ export default function EditEmployeePage() {
                     onChange={(e) => setGender(e.target.value)}
                     className="form-control text-sm"
                   >
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Employee Type</label>
+                  <select
+                    value={empType}
+                    onChange={(e) => setEmpType(e.target.value)}
+                    className="form-control text-sm"
+                  >
+                    <option value="Normal">Normal</option>
+                    <option value="Intern">Intern</option>
                   </select>
                 </div>
 
@@ -226,6 +253,16 @@ export default function EditEmployeePage() {
                     className="form-control text-sm"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">End Date (Optional)</label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="form-control text-sm"
+                  />
+                </div>
               </div>
             </div>
 
@@ -251,3 +288,4 @@ export default function EditEmployeePage() {
     </div>
   );
 }
+

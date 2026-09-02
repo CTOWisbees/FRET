@@ -23,7 +23,7 @@ import {
   Edit3,
   ImageIcon
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiUrl } from '@/lib/api';
 
 const DEFAULT_ROLES = [
   "IT Intern – Web & Automation Developer",
@@ -114,7 +114,7 @@ export default function OfferLetterPage() {
       return;
     }
 
-    const url = `http://localhost:8000/generate-offer-letter?emp_id=${selectedEmpId}&role_key=${encodeURIComponent(selectedRole)}`;
+    const url = getApiUrl(`/generate-offer-letter?emp_id=${selectedEmpId}&role_key=${encodeURIComponent(selectedRole)}`);
     window.open(url, '_blank');
   };
 

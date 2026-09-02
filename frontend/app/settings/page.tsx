@@ -5,7 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import Link from 'next/link';
 import { Building, Mail, Paperclip, Save, Upload, CheckCircle2, Info, Lock, ExternalLink, Image as ImageIcon, FileText, FileCheck } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, getApiUrl } from '@/lib/api';
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'company' | 'email' | 'documents'>('company');
@@ -305,7 +305,7 @@ export default function SettingsPage() {
                   <div className="w-44 h-60 sm:w-48 sm:h-64 border border-[var(--border)] rounded-xl p-2 bg-white shadow-md flex items-center justify-center overflow-hidden">
                     <img 
                       src="/letterhead.png" 
-                      onError={(e) => (e.currentTarget.src = 'http://localhost:8000/static/letterhead.png')} 
+                      onError={(e) => (e.currentTarget.src = getApiUrl('/static/letterhead.png'))} 
                       alt="Company Letterhead Preview" 
                       className="w-full h-full object-contain rounded-lg" 
                     />
