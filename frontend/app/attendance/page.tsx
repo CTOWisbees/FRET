@@ -9,15 +9,37 @@ import { api } from '@/lib/api';
 
 export default function AttendancePage() {
   const [data, setData] = useState<any>(null);
+  const [cachedUser, setCachedUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // 1. Instantly hydrate cached attendance & user for 0ms initial render
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('fret_user');
+      if (savedUser) setCachedUser(JSON.parse(savedUser));
+
+      const cachedAtt = localStorage.getItem('fret_attendance_cache');
+      if (cachedAtt) {
+        setData(JSON.parse(cachedAtt));
+        setLoading(false);
+      }
+    } catch (e) {}
+  }, []);
+
+  // 2. Fetch fresh attendance logs in background
   useEffect(() => {
     const fetchAttendance = async () => {
       try {
-        setLoading(true);
         const res = await api.get('/attendance');
-        setData(res.data);
+        if (res.data) {
+          setData(res.data);
+          localStorage.setItem('fret_attendance_cache', JSON.stringify(res.data));
+          if (res.data.employee) {
+            localStorage.setItem('fret_user', JSON.stringify(res.data.employee));
+            setCachedUser(res.data.employee);
+          }
+        }
       } catch (err) {
         console.error('Error fetching attendance logs:', err);
       } finally {
@@ -25,15 +47,6 @@ export default function AttendancePage() {
       }
     };
     fetchAttendance();
-  }, []);
-
-  const [cachedUser, setCachedUser] = useState<any>(null);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('fret_user');
-      if (saved) setCachedUser(JSON.parse(saved));
-    } catch (e) {}
   }, []);
 
   const employee = data?.employee || cachedUser || {};

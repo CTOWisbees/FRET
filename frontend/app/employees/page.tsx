@@ -43,12 +43,26 @@ export default function EmployeesPage() {
   const [showSendConfirmModal, setShowSendConfirmModal] = useState(false);
   const [sendType, setSendType] = useState<'offer' | 'experience'>('offer');
 
+  // 1. Instantly hydrate cached employees for 0ms initial render
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('fret_employees_cache');
+      if (cached) {
+        const list = JSON.parse(cached);
+        setEmployees(list);
+        const depts: string[] = Array.from(new Set(list.map((e: any) => e.department).filter(Boolean))) as string[];
+        setDepartments(depts);
+        setLoading(false);
+      }
+    } catch (e) {}
+  }, []);
+
   const fetchEmployees = async () => {
-    setLoading(true);
     try {
       const res = await api.get('/api/employees-list');
       const list = res.data || [];
       setEmployees(list);
+      localStorage.setItem('fret_employees_cache', JSON.stringify(list));
 
       // Extract unique departments
       const depts: string[] = Array.from(new Set(list.map((e: any) => e.department).filter(Boolean))) as string[];

@@ -59,10 +59,15 @@ export default function LoginPage() {
         ? res.data.redirect 
         : (loginType === 'hr' ? '/dashboard' : '/employee-dashboard');
         
-      window.location.replace(targetUrl);
+      router.push(targetUrl);
+      setTimeout(() => {
+        if (window.location.pathname !== targetUrl) {
+          window.location.href = targetUrl;
+        }
+      }, 500);
     } catch (err: any) {
-      console.error(err);
-      setError(err.response?.data?.message || 'Invalid login credentials. Please check your email & password.');
+      console.error('Login error:', err);
+      setError(err.response?.data?.message || err.message || 'Invalid login credentials. Please check your email & password.');
     } finally {
       setLoading(false);
     }

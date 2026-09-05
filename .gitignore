@@ -1,26 +1,33 @@
+# Next.js & Node
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+build/
+dist/
+.turbo/
+
+# Python & Django
 env/
 venv/
 .venv/
-
 __pycache__/
-*.pyc
-*.pyo
-
+*.py[cod]
+*$py.class
 instance/
 *.db
 *.sqlite3
-
 uploads/
 exports/
-
-.env
-
-.vscode/
-
+staticfiles/
 *.log
 
-staticfiles/
-frontend/.next/
-frontend/node_modules/
+# Environment & IDE
+.env
+.env.*
+!.env.example
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db 

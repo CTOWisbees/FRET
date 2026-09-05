@@ -65,6 +65,7 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
     'dnt',
     'cache-control',
     'pragma',
+    'x-employee-id',
 ]
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -132,9 +133,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'fret_project.wsgi.application'
 
-# Database configuration: DATABASE_URL (e.g. Neon Postgres) in production, local SQLite by default
+# Database configuration: DATABASE_URL (Neon Postgres) in production, ultra-fast local SQLite for localhost
 db_url = os.environ.get('DATABASE_URL')
-if db_url:
+use_remote = bool(os.environ.get('FORCE_REMOTE_DB') == '1' or os.environ.get('RENDER') or (not DEBUG and db_url))
+
+if db_url and use_remote:
     if db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
     try:
@@ -150,9 +153,14 @@ if db_url:
                 'PASSWORD': url.password,
                 'HOST': url.hostname,
                 'PORT': url.port or 5432,
-                'CONN_MAX_AGE': 280,
+                'CONN_MAX_AGE': 600,
                 'OPTIONS': {
                     'sslmode': sslmode,
+                    'connect_timeout': 10,
+                    'keepalives': 1,
+                    'keepalives_idle': 30,
+                    'keepalives_interval': 10,
+                    'keepalives_count': 5,
                 },
             }
         }
@@ -162,6 +170,10 @@ if db_url:
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
                 'NAME': PROJECT_ROOT / 'hrms.db',
+                'CONN_MAX_AGE': 600,
+                'OPTIONS': {
+                    'timeout': 20,
+                },
             }
         }
 else:
@@ -169,6 +181,10 @@ else:
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': PROJECT_ROOT / 'hrms.db',
+            'CONN_MAX_AGE': 600,
+            'OPTIONS': {
+                'timeout': 20,
+            },
         }
     }
 

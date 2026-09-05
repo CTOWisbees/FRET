@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 
 export default function HRDashboard() {
+  const [mounted, setMounted] = useState(false);
   const [statsData, setStatsData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [chartMode, setChartMode] = useState<'monthly' | 'weekly'>('monthly');
@@ -19,6 +20,7 @@ export default function HRDashboard() {
   const [greeting, setGreeting] = useState<string>('morning');
 
   useEffect(() => {
+    setMounted(true);
     const updateClock = () => {
       const now = new Date();
       setCurrentTime(now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -34,8 +36,18 @@ export default function HRDashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Hydrate cached HR stats immediately for 0ms initial render
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('fret_hr_stats_cache');
+      if (cached) {
+        setStatsData(JSON.parse(cached));
+        setLoading(false);
+      }
+    } catch (e) {}
+  }, []);
+
   const fetchDashboardData = async () => {
-    setLoading(true);
     try {
       const res = await api.get('/api/stats');
       if (res.data?.is_hr === false || res.data?.role === 'employee' || res.data?.redirect === '/employee-dashboard') {
@@ -43,6 +55,7 @@ export default function HRDashboard() {
         return;
       }
       setStatsData(res.data);
+      localStorage.setItem('fret_hr_stats_cache', JSON.stringify(res.data));
     } catch (e) {
       console.error('Failed to fetch dashboard stats:', e);
     } finally {
@@ -221,31 +234,35 @@ export default function HRDashboard() {
                 </div>
               </div>
               <div className="chart-container">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={hiringChartData}>
-                    <defs>
-                      <linearGradient id="hiringGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#0E9F6E" stopOpacity={0.35}/>
-                        <stop offset="95%" stopColor="#0E9F6E" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
-                    <XAxis dataKey="name" stroke="var(--text3)" fontSize={11} />
-                    <YAxis stroke="var(--text3)" fontSize={11} domain={[0, 'auto']} />
-                    <Tooltip 
-                      contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }}
-                      itemStyle={{ color: 'var(--text)' }}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="hires" 
-                      stroke="#0E9F6E" 
-                      strokeWidth={2.5} 
-                      fillOpacity={1} 
-                      fill="url(#hiringGradient)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <AreaChart data={hiringChartData}>
+                      <defs>
+                        <linearGradient id="hiringGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0E9F6E" stopOpacity={0.35}/>
+                          <stop offset="95%" stopColor="#0E9F6E" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
+                      <XAxis dataKey="name" stroke="var(--text3)" fontSize={11} />
+                      <YAxis stroke="var(--text3)" fontSize={11} domain={[0, 'auto']} />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }}
+                        itemStyle={{ color: 'var(--text)' }}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="hires" 
+                        stroke="#0E9F6E" 
+                        strokeWidth={2.5} 
+                        fillOpacity={1} 
+                        fill="url(#hiringGradient)" 
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+                )}
               </div>
             </div>
 
@@ -256,25 +273,29 @@ export default function HRDashboard() {
               </div>
               <div className="chart-container">
                 {deptData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie 
-                        data={deptData} 
-                        innerRadius={50} 
-                        outerRadius={75} 
-                        paddingAngle={3} 
-                        dataKey="value"
-                      >
-                        {deptData.map((entry: any, index: number) => (
-                          <Cell key={`dept-cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }}
-                      />
-                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  mounted ? (
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <PieChart>
+                        <Pie 
+                          data={deptData} 
+                          innerRadius={50} 
+                          outerRadius={75} 
+                          paddingAngle={3} 
+                          dataKey="value"
+                        >
+                          {deptData.map((entry: any, index: number) => (
+                            <Cell key={`dept-cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }}
+                        />
+                        <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full w-full bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+                  )
                 ) : (
                   <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--text3)', fontSize: '0.85rem' }}>
                     No department data yet
@@ -290,25 +311,29 @@ export default function HRDashboard() {
               </div>
               <div className="chart-container">
                 {typeData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie 
-                        data={typeData} 
-                        innerRadius={50} 
-                        outerRadius={75} 
-                        paddingAngle={3} 
-                        dataKey="value"
-                      >
-                        {typeData.map((entry, index) => (
-                          <Cell key={`type-cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }}
-                      />
-                      <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  mounted ? (
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                      <PieChart>
+                        <Pie 
+                          data={typeData} 
+                          innerRadius={50} 
+                          outerRadius={75} 
+                          paddingAngle={3} 
+                          dataKey="value"
+                        >
+                          {typeData.map((entry, index) => (
+                            <Cell key={`type-cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)', borderRadius: '8px' }}
+                        />
+                        <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="h-full w-full bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+                  )
                 ) : (
                   <div style={{ display: 'grid', placeItems: 'center', height: '100%', color: 'var(--text3)', fontSize: '0.85rem' }}>
                     No employee type data yet

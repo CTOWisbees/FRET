@@ -19,6 +19,7 @@ import {
 import { api } from '@/lib/api';
 
 export default function EmployeeDashboardPage() {
+  const [mounted, setMounted] = useState(false);
   const [data, setData] = useState<any>(null);
   const [cachedUser, setCachedUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -29,23 +30,30 @@ export default function EmployeeDashboardPage() {
   const [liveDuration, setLiveDuration] = useState<string>('');
   const router = useRouter();
 
-  // Load saved user from local storage immediately
+  // 1. Immediately hydrate cached user and dashboard data for 0ms instant render
   useEffect(() => {
+    setMounted(true);
     try {
-      const saved = localStorage.getItem('fret_user');
-      if (saved) {
-        setCachedUser(JSON.parse(saved));
+      const savedUser = localStorage.getItem('fret_user');
+      if (savedUser) {
+        setCachedUser(JSON.parse(savedUser));
+      }
+      const savedDash = localStorage.getItem('fret_dashboard_cache');
+      if (savedDash) {
+        const parsed = JSON.parse(savedDash);
+        setData(parsed);
+        setLoading(false);
       }
     } catch (e) {}
   }, []);
 
-  // Fetch dashboard data
+  // 2. Fetch fresh dashboard data in the background (SWR pattern)
   const fetchDashboardData = async () => {
     try {
-      setLoading(true);
       const res = await api.get('/api/employee-dashboard');
       if (res.data && res.data.authenticated) {
         setData(res.data);
+        localStorage.setItem('fret_dashboard_cache', JSON.stringify(res.data));
         if (res.data.employee) {
           localStorage.setItem('fret_user', JSON.stringify(res.data.employee));
           setCachedUser(res.data.employee);
@@ -56,7 +64,6 @@ export default function EmployeeDashboardPage() {
     } catch (err: any) {
       console.error('Failed to load employee dashboard:', err);
       if (err.response?.status === 401) {
-        // Retry with me endpoint
         try {
           const meRes = await api.get('/api/employee/me');
           if (meRes.data?.authenticated) {
@@ -169,6 +176,17 @@ export default function EmployeeDashboardPage() {
     { name: 'Taken', value: takenLeaves, color: '#1e293b' }
   ];
 
+  if (!mounted) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg)] text-[var(--text)]">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          <span className="font-semibold text-lg">Loading Dashboard...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans antialiased">
       {/* Sidebar with exact company styling and dynamic employee name */}
@@ -235,53 +253,57 @@ export default function EmployeeDashboardPage() {
               </div>
 
               <div className="h-[230px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={weeklyOverview} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#6366F1" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} vertical={false} />
-                    <XAxis 
-                      dataKey="week" 
-                      stroke="var(--text3)" 
-                      fontSize={11} 
-                      tickLine={false} 
-                      axisLine={false} 
-                    />
-                    <YAxis 
-                      domain={[90, 100]} 
-                      ticks={[92, 93, 94, 95, 96, 97, 98]} 
-                      stroke="var(--text3)" 
-                      fontSize={11} 
-                      tickLine={false} 
-                      axisLine={false} 
-                    />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'var(--surface)', 
-                        borderColor: 'var(--border)', 
-                        borderRadius: '8px', 
-                        color: 'var(--text)', 
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                      }} 
-                      formatter={(val: any) => [`${val}%`, 'Attendance']}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="attendance" 
-                      stroke="#6366F1" 
-                      strokeWidth={3} 
-                      fillOpacity={1} 
-                      fill="url(#attendanceGradient)" 
-                      dot={{ r: 4, fill: '#6366F1', strokeWidth: 2, stroke: '#FFFFFF' }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <AreaChart data={weeklyOverview} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="attendanceGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366F1" stopOpacity={0.25} />
+                          <stop offset="95%" stopColor="#6366F1" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} vertical={false} />
+                      <XAxis 
+                        dataKey="week" 
+                        stroke="var(--text3)" 
+                        fontSize={11} 
+                        tickLine={false} 
+                        axisLine={false} 
+                      />
+                      <YAxis 
+                        domain={[90, 100]} 
+                        ticks={[92, 93, 94, 95, 96, 97, 98]} 
+                        stroke="var(--text3)" 
+                        fontSize={11} 
+                        tickLine={false} 
+                        axisLine={false} 
+                      />
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'var(--surface)', 
+                          borderColor: 'var(--border)', 
+                          borderRadius: '8px', 
+                          color: 'var(--text)', 
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }} 
+                        formatter={(val: any) => [`${val}%`, 'Attendance']}
+                      />
+                      <Area 
+                        type="monotone" 
+                        dataKey="attendance" 
+                        stroke="#6366F1" 
+                        strokeWidth={3} 
+                        fillOpacity={1} 
+                        fill="url(#attendanceGradient)" 
+                        dot={{ r: 4, fill: '#6366F1', strokeWidth: 2, stroke: '#FFFFFF' }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full rounded-xl bg-slate-100/50 dark:bg-slate-800/50 animate-pulse" />
+                )}
               </div>
             </div>
 
@@ -475,45 +497,49 @@ export default function EmployeeDashboardPage() {
               </div>
 
               <div className="h-[240px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyTrend} margin={{ top: 15, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} vertical={false} />
-                    <XAxis 
-                      dataKey="month" 
-                      stroke="var(--text3)" 
-                      fontSize={11} 
-                      tickLine={false} 
-                      axisLine={false} 
-                    />
-                    <YAxis 
-                      domain={[0, 100]} 
-                      ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]} 
-                      stroke="var(--text3)" 
-                      fontSize={10} 
-                      tickLine={false} 
-                      axisLine={false} 
-                    />
-                    <Tooltip 
-                      cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
-                      contentStyle={{ 
-                        backgroundColor: 'var(--surface)', 
-                        borderColor: 'var(--border)', 
-                        borderRadius: '8px', 
-                        color: 'var(--text)', 
-                        fontSize: '12px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                      }} 
-                      formatter={(val: any) => [`${val}%`, 'Attendance %']}
-                    />
-                    <Bar 
-                      dataKey="attendance" 
-                      fill="#A5B4FC" 
-                      activeBar={{ fill: '#6366F1' }}
-                      radius={[4, 4, 0, 0]} 
-                      maxBarSize={32} 
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <BarChart data={monthlyTrend} margin={{ top: 15, right: 10, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" opacity={0.6} vertical={false} />
+                      <XAxis 
+                        dataKey="month" 
+                        stroke="var(--text3)" 
+                        fontSize={11} 
+                        tickLine={false} 
+                        axisLine={false} 
+                      />
+                      <YAxis 
+                        domain={[0, 100]} 
+                        ticks={[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]} 
+                        stroke="var(--text3)" 
+                        fontSize={10} 
+                        tickLine={false} 
+                        axisLine={false} 
+                      />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
+                        contentStyle={{ 
+                          backgroundColor: 'var(--surface)', 
+                          borderColor: 'var(--border)', 
+                          borderRadius: '8px', 
+                          color: 'var(--text)', 
+                          fontSize: '12px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }} 
+                        formatter={(val: any) => [`${val}%`, 'Attendance %']}
+                      />
+                      <Bar 
+                        dataKey="attendance" 
+                        fill="#A5B4FC" 
+                        activeBar={{ fill: '#6366F1' }}
+                        radius={[4, 4, 0, 0]} 
+                        maxBarSize={32} 
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full rounded-xl bg-slate-100/50 dark:bg-slate-800/50 animate-pulse" />
+                )}
               </div>
             </div>
 
@@ -525,38 +551,42 @@ export default function EmployeeDashboardPage() {
               </div>
 
               <div className="h-[210px] w-full flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={leaveDonutData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={80}
-                      paddingAngle={0}
-                      dataKey="value"
-                    >
-                      {leaveDonutData.map((entry: any, index: number) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'var(--surface)', 
-                        borderColor: 'var(--border)', 
-                        borderRadius: '8px', 
-                        color: 'var(--text)', 
-                        fontSize: '12px',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-                      }} 
-                    />
-                    <Legend 
-                      verticalAlign="bottom" 
-                      iconType="square" 
-                      wrapperStyle={{ fontSize: '11px', paddingTop: '15px' }} 
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                    <PieChart>
+                      <Pie
+                        data={leaveDonutData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={80}
+                        paddingAngle={0}
+                        dataKey="value"
+                      >
+                        {leaveDonutData.map((entry: any, index: number) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip 
+                        contentStyle={{ 
+                          backgroundColor: 'var(--surface)', 
+                          borderColor: 'var(--border)', 
+                          borderRadius: '8px', 
+                          color: 'var(--text)', 
+                          fontSize: '12px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        }} 
+                      />
+                      <Legend 
+                        verticalAlign="bottom" 
+                        iconType="square" 
+                        wrapperStyle={{ fontSize: '11px', paddingTop: '15px' }} 
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full rounded-xl bg-slate-100/50 dark:bg-slate-800/50 animate-pulse" />
+                )}
               </div>
             </div>
           </div>

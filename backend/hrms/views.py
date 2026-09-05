@@ -55,13 +55,57 @@ def login_required_custom(view_func):
     return wrapper
 
 
+from zoneinfo import ZoneInfo
+
+IST = ZoneInfo('Asia/Kolkata')
+UTC = ZoneInfo('UTC')
+
+def to_safe_datetime(dt):
+    if not dt:
+        return None
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            # Datetimes stored in database from UTC are naive
+            dt = dt.replace(tzinfo=UTC)
+        return dt.astimezone(IST)
+    return dt
+
+def safe_time_diff_seconds(t1, t2):
+    if not t1 or not t2:
+        return 0
+    t1_safe = to_safe_datetime(t1)
+    t2_safe = to_safe_datetime(t2)
+    try:
+        return max(0, int((t1_safe - t2_safe).total_seconds()))
+    except Exception:
+        return 0
+
+def safe_isoformat(dt):
+    if not dt:
+        return None
+    try:
+        dt_safe = to_safe_datetime(dt)
+        return dt_safe.isoformat()
+    except Exception:
+        return str(dt)
+
+def safe_timestamp_ms(dt):
+    if not dt:
+        return None
+    try:
+        dt_safe = to_safe_datetime(dt)
+        return int(dt_safe.timestamp() * 1000)
+    except Exception:
+        return None
+
 def format_local_time(dt):
     if not dt:
         return None
     try:
-        return timezone.localtime(dt).strftime('%I:%M %p')
+        dt_safe = to_safe_datetime(dt)
+        return dt_safe.strftime('%I:%M %p')
     except Exception:
-        return dt.strftime('%I:%M %p')
+        return dt.strftime('%I:%M %p') if hasattr(dt, 'strftime') else str(dt)
 
 
 # ─────────────── AUTH VIEWS ───────────────
@@ -343,77 +387,93 @@ def employee_dashboard_view(request):
     today = timezone.localtime(timezone.now()).date()
     now_hour = timezone.localtime(timezone.now()).hour
 
-    today_attendance = Attendance.objects.filter(employee_id=employee.id, date=today).first()
-    leave_requests = LeaveRequest.objects.filter(employee_id=employee.id).order_by('-applied_on')[:5]
-    announcements = Announcement.objects.order_by('-created_at')[:5]
-    leave_request_list = LeaveRequest.objects.filter(employee_id=employee.id).order_by('-applied_on')[:8]
-
-    monthly_attendance = Attendance.objects.filter(
+    # 1. Single batch query for last 200 days attendance (covers today, month, 4 weeks, 6 month trends)
+    start_date = today - timedelta(days=200)
+    att_records = list(Attendance.objects.filter(
         employee_id=employee.id,
-        date__month=today.month,
-        date__year=today.year
-    )
-    present_days = monthly_attendance.filter(status='Present').count()
-    total_days = monthly_attendance.count()
-    attendance_percent = round((present_days / total_days * 100), 1) if total_days else 100.0
+        date__gte=start_date
+    ).order_by('-date'))
 
-    approved_leaves = LeaveRequest.objects.filter(employee_id=employee.id, status='Approved')
-    leaves_taken = sum((leave.to_date - leave.from_date).days + 1 for leave in approved_leaves if leave.to_date and leave.from_date)
+    today_attendance = None
+    this_month_present = 0
+    this_month_total = 0
+    month_records_map = {}
+
+    for r in att_records:
+        r_date = r.date
+        if not r_date:
+            continue
+        if r_date == today and today_attendance is None:
+            today_attendance = r
+
+        key = (r_date.year, r_date.month)
+        if key not in month_records_map:
+            month_records_map[key] = {'present': 0, 'total': 0}
+        month_records_map[key]['total'] += 1
+        if r.status == 'Present':
+            month_records_map[key]['present'] += 1
+
+        if r_date.year == today.year and r_date.month == today.month:
+            this_month_total += 1
+            if r.status == 'Present':
+                this_month_present += 1
+
+    attendance_percent = round((this_month_present / this_month_total * 100), 1) if this_month_total else 100.0
+
+    worked_duration_str = None
+    today_status_label = 'Not Checked In'
+    if today_attendance and today_attendance.check_in:
+        end_t = today_attendance.check_out or timezone.now()
+        diff_secs = safe_time_diff_seconds(end_t, today_attendance.check_in)
+        hours = diff_secs // 3600
+        mins = (diff_secs % 3600) // 60
+        worked_duration_str = f"{hours}h {mins}m" if hours > 0 else f"{mins}m"
+        if not today_attendance.check_out:
+            today_status_label = 'Present (Active)'
+        else:
+            today_status_label = 'Shift Completed'
+
+    # 2. Monthly trend calculation in memory
+    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    current_m_idx = today.month - 1
+    trend_data = []
+    for i in range(5, -1, -1):
+        m_idx = (current_m_idx - i) % 12
+        m_num = m_idx + 1
+        y_num = today.year if (current_m_idx - i) >= 0 else today.year - 1
+        m_data = month_records_map.get((y_num, m_num), {'present': 0, 'total': 0})
+        m_present = m_data['present']
+        m_total = m_data['total']
+        val = round((m_present / m_total * 100), 1) if m_total else (attendance_percent if i == 0 else 100.0)
+        trend_data.append({
+            'month': month_names[m_idx],
+            'attendance': val
+        })
+
+    # 3. Weekly overview calculation in memory
+    weekly_overview = []
+    for w_num, (start_d, end_d) in enumerate([(1, 7), (8, 14), (15, 21), (22, 31)], 1):
+        w_present = sum(1 for r in att_records if r.date and r.date.year == today.year and r.date.month == today.month and start_d <= r.date.day <= end_d and r.status == 'Present')
+        w_total = sum(1 for r in att_records if r.date and r.date.year == today.year and r.date.month == today.month and start_d <= r.date.day <= end_d)
+        w_pct = round((w_present / w_total * 100), 1) if w_total > 0 else 100.0
+        weekly_overview.append({'week': f'Week {w_num}', 'attendance': w_pct})
+
+    # 4. Single query for leaves
+    all_leaves = list(LeaveRequest.objects.filter(employee_id=employee.id).order_by('-applied_on')[:12])
+    approved_leaves = [l for l in all_leaves if l.status == 'Approved']
+    leaves_taken = sum((l.to_date - l.from_date).days + 1 for l in approved_leaves if l.to_date and l.from_date)
     leave_balance = max(12 - leaves_taken, 0)
-    pending_leaves = LeaveRequest.objects.filter(employee_id=employee.id, status='Pending').count()
+    pending_leaves = sum(1 for l in all_leaves if l.status == 'Pending')
+    leave_request_list = all_leaves[:8]
 
-    latest_announcements = Announcement.objects.filter(
+    # 5. Announcements in 1 query
+    latest_announcements = list(Announcement.objects.filter(
         is_active=True
     ).filter(
         Q(audience="Everyone") | Q(audience=employee.emp_type)
-    ).order_by('-created_at')[:4]
+    ).order_by('-created_at')[:4])
 
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
-        month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        current_m_idx = today.month - 1
-        trend_data = []
-        for i in range(5, -1, -1):
-            m_idx = (current_m_idx - i) % 12
-            m_num = m_idx + 1
-            y_num = today.year if (current_m_idx - i) >= 0 else today.year - 1
-            m_records = Attendance.objects.filter(employee_id=employee.id, date__month=m_num, date__year=y_num)
-            m_present = m_records.filter(status='Present').count()
-            m_total = m_records.count()
-            val = round((m_present / m_total * 100), 1) if m_total else (attendance_percent if i == 0 else 100.0)
-            trend_data.append({
-                'month': month_names[m_idx],
-                'attendance': val
-            })
-
-        worked_duration_str = None
-        if today_attendance and today_attendance.check_in:
-            end_t = today_attendance.check_out or timezone.now()
-            diff_secs = max(0, int((end_t - today_attendance.check_in).total_seconds()))
-            hours = diff_secs // 3600
-            mins = (diff_secs % 3600) // 60
-            worked_duration_str = f"{hours}h {mins}m" if hours > 0 else f"{mins}m"
-
-        today_status_label = 'Not Checked In'
-        if today_attendance and today_attendance.check_in:
-            if not today_attendance.check_out:
-                today_status_label = 'Present (Active)'
-            else:
-                today_status_label = 'Shift Completed'
-
-        weekly_overview = []
-        for w_num, (start_d, end_d) in enumerate([(1, 7), (8, 14), (15, 21), (22, 31)], 1):
-            w_recs = Attendance.objects.filter(
-                employee_id=employee.id,
-                date__year=today.year,
-                date__month=today.month,
-                date__day__gte=start_d,
-                date__day__lte=end_d
-            )
-            w_present = w_recs.filter(status='Present').count()
-            w_total = w_recs.count()
-            w_pct = round((w_present / w_total * 100), 1) if w_total > 0 else 100.0
-            weekly_overview.append({'week': f'Week {w_num}', 'attendance': w_pct})
-
         return JsonResponse({
             'authenticated': True,
             'employee': {
@@ -429,16 +489,17 @@ def employee_dashboard_view(request):
                 'status': employee.status or 'Active',
                 'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
                 'gender': employee.gender or 'female',
+                'blood_group': employee.blood_group or '',
             },
             'now_hour': now_hour,
             'today_attendance': {
                 'has_record': bool(today_attendance),
                 'check_in': format_local_time(today_attendance.check_in) if (today_attendance and today_attendance.check_in) else None,
                 'check_out': format_local_time(today_attendance.check_out) if (today_attendance and today_attendance.check_out) else None,
-                'check_in_iso': timezone.localtime(today_attendance.check_in).isoformat() if (today_attendance and today_attendance.check_in) else None,
-                'check_out_iso': timezone.localtime(today_attendance.check_out).isoformat() if (today_attendance and today_attendance.check_out) else None,
-                'check_in_timestamp': int(today_attendance.check_in.timestamp() * 1000) if (today_attendance and today_attendance.check_in) else None,
-                'check_out_timestamp': int(today_attendance.check_out.timestamp() * 1000) if (today_attendance and today_attendance.check_out) else None,
+                'check_in_iso': safe_isoformat(today_attendance.check_in) if (today_attendance and today_attendance.check_in) else None,
+                'check_out_iso': safe_isoformat(today_attendance.check_out) if (today_attendance and today_attendance.check_out) else None,
+                'check_in_timestamp': safe_timestamp_ms(today_attendance.check_in) if (today_attendance and today_attendance.check_in) else None,
+                'check_out_timestamp': safe_timestamp_ms(today_attendance.check_out) if (today_attendance and today_attendance.check_out) else None,
                 'worked_duration': worked_duration_str,
                 'status_label': today_status_label,
                 'is_checked_in': bool(today_attendance and today_attendance.check_in),
@@ -478,8 +539,8 @@ def employee_dashboard_view(request):
         'employee': employee,
         'now_hour': now_hour,
         'today_attendance': today_attendance,
-        'leave_requests': leave_requests,
-        'announcements': announcements,
+        'leave_requests': all_leaves,
+        'announcements': latest_announcements,
         'leave_request_list': leave_request_list,
         'attendance_percent': attendance_percent,
         'leave_balance': leave_balance,
@@ -830,6 +891,7 @@ def add_employee_view(request):
             gender=data.get('gender', 'female')
         )
         emp.save()
+        invalidate_employees_cache()
 
         account = EmployeeAccount(
             employee_id=emp.id,
@@ -908,6 +970,7 @@ def edit_employee_view(request, emp_id):
                     pass
 
         emp.save()
+        invalidate_employees_cache()
 
         if emp.email:
             EmployeeAccount.objects.filter(employee_id=emp.id).update(email=emp.email)
@@ -935,6 +998,7 @@ def delete_employee_view(request, emp_id):
     LeaveRequest.objects.filter(employee_id=emp.id).delete()
     EmployeeAccount.objects.filter(employee_id=emp.id).delete()
     emp.delete()
+    invalidate_employees_cache()
 
     return JsonResponse({'success': True, 'message': 'Employee deleted successfully!'})
 
@@ -1455,19 +1519,22 @@ def save_company_settings(request):
 
 
 @csrf_exempt
-@login_required_custom
 def profile_view(request):
+    emp_id = resolve_employee_id(request)
+    if emp_id and (request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.path.startswith('/api/')):
+        return api_employee_me(request)
+
     user = getattr(request, 'current_user', None)
     if not user or not getattr(user, 'is_authenticated', False):
         if 'hr_id' in request.session:
             user = HR.objects.filter(id=request.session['hr_id']).first()
         elif 'employee_id' in request.session:
-            return employee_profile_view(request)
+            return api_employee_me(request) if (request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.path.startswith('/api/')) else employee_profile_view(request)
         else:
             user = HR.objects.first()
 
     if isinstance(user, EmployeeAccount):
-        return employee_profile_view(request)
+        return api_employee_me(request) if (request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.path.startswith('/api/')) else employee_profile_view(request)
 
     if not user:
         user = HR.objects.first()
@@ -1534,35 +1601,42 @@ def api_stats(request):
 
     today = date.today()
     first_of_month = date(today.year, today.month, 1)
-    now = datetime.now()
+    now_year = today.year
     
-    total = Employee.objects.count()
-    active = Employee.objects.filter(status='Active').count()
-    inactive = Employee.objects.filter(status='Inactive').count()
-    offers_sent = Employee.objects.filter(offer_sent=True).count()
-    new_this_month = Employee.objects.filter(joining_date__gte=first_of_month).count()
+    # 1 single query to fetch minimal employee metadata for aggregation
+    emp_meta = list(Employee.objects.values('id', 'status', 'offer_sent', 'joining_date', 'emp_type', 'created_at'))
     
-    total_interns = Employee.objects.filter(emp_type='Intern').count()
-    active_interns = Employee.objects.filter(emp_type='Intern', status='Active').count()
-    total_normal = Employee.objects.filter(Q(emp_type='Normal') | Q(emp_type__isnull=True) | Q(emp_type='')).count()
+    total = len(emp_meta)
+    active = sum(1 for e in emp_meta if e.get('status') == 'Active')
+    inactive = sum(1 for e in emp_meta if e.get('status') == 'Inactive')
+    offers_sent = sum(1 for e in emp_meta if e.get('offer_sent'))
+    new_this_month = sum(1 for e in emp_meta if e.get('joining_date') and e['joining_date'] >= first_of_month)
+    
+    total_interns = sum(1 for e in emp_meta if e.get('emp_type') == 'Intern')
+    active_interns = sum(1 for e in emp_meta if e.get('emp_type') == 'Intern' and e.get('status') == 'Active')
+    total_normal = sum(1 for e in emp_meta if e.get('emp_type') in ('Normal', None, ''))
 
-    # Monthly hiring trend for current year
-    monthly_data = []
-    for m in range(1, 13):
-        cnt = Employee.objects.filter(created_at__month=m, created_at__year=now.year).count()
-        monthly_data.append(cnt)
+    # Monthly hiring trend for current year computed in-memory
+    monthly_data = [0] * 12
+    # Weekly hiring trend for last 7 days computed in-memory
+    weekly_labels = [(today - timedelta(days=i)).strftime('%a') for i in range(6, -1, -1)]
+    weekly_dates = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+    weekly_data = [0] * 7
 
-    # Weekly hiring trend for last 7 days
-    weekly_data = []
-    weekly_labels = []
-    for i in range(6, -1, -1):
-        day = today - timedelta(days=i)
-        cnt = Employee.objects.filter(created_at__date=day).count()
-        weekly_data.append(cnt)
-        weekly_labels.append(day.strftime('%a'))
+    for e in emp_meta:
+        c_at = e.get('created_at')
+        if c_at:
+            c_date = c_at.date() if hasattr(c_at, 'date') else c_at
+            if hasattr(c_at, 'year') and c_at.year == now_year:
+                m_idx = c_at.month - 1
+                if 0 <= m_idx < 12:
+                    monthly_data[m_idx] += 1
+            for idx, w_date in enumerate(weekly_dates):
+                if c_date == w_date:
+                    weekly_data[idx] += 1
 
     # Department breakdown
-    dept_qs = Employee.objects.values('department').annotate(cnt=Count('id'))
+    dept_qs = list(Employee.objects.values('department').annotate(cnt=Count('id')))
     dept_labels = [d['department'] or 'Unknown' for d in dept_qs]
     dept_data = [d['cnt'] for d in dept_qs]
     depts = [{'name': d['department'] or 'Unknown', 'value': d['cnt']} for d in dept_qs]
@@ -1573,7 +1647,7 @@ def api_stats(request):
     ))
 
     # Active announcements
-    announcements_qs = Announcement.objects.filter(is_active=True).order_by('-created_at')[:5]
+    announcements_qs = list(Announcement.objects.filter(is_active=True).order_by('-created_at')[:5])
     active_announcements = [{
         'id': a.id,
         'title': a.title,
@@ -1609,9 +1683,25 @@ def api_stats(request):
     })
 
 
+_CACHE_EMPLOYEES_DATA = {'data': None, 'time': 0}
+
+def invalidate_employees_cache():
+    _CACHE_EMPLOYEES_DATA['data'] = None
+    _CACHE_EMPLOYEES_DATA['time'] = 0
+
+def get_cached_employees():
+    import time
+    now = time.time()
+    if _CACHE_EMPLOYEES_DATA['data'] is not None and (now - _CACHE_EMPLOYEES_DATA['time']) < 180:
+        return _CACHE_EMPLOYEES_DATA['data']
+    emps = list(Employee.objects.order_by('-id'))
+    _CACHE_EMPLOYEES_DATA['data'] = emps
+    _CACHE_EMPLOYEES_DATA['time'] = now
+    return emps
+
 @csrf_exempt
 def api_employees_list(request):
-    emps = Employee.objects.order_by('-id')
+    emps = get_cached_employees()
     return JsonResponse([{
         'id': e.id,
         'name': e.name,
@@ -1979,7 +2069,7 @@ def checkout(request):
         record.check_out = timezone.now()
         record.save()
 
-    diff_secs = max(0, int((record.check_out - (record.check_in or record.check_out)).total_seconds()))
+    diff_secs = safe_time_diff_seconds(record.check_out, record.check_in or record.check_out)
     hours = diff_secs // 3600
     mins = (diff_secs % 3600) // 60
     worked_str = f"{hours} hrs {mins} mins" if hours > 0 else f"{mins} mins"
@@ -1989,8 +2079,8 @@ def checkout(request):
             'success': True,
             'message': 'Check-out successful!',
             'check_out': format_local_time(record.check_out),
-            'check_out_iso': timezone.localtime(record.check_out).isoformat() if record.check_out else None,
-            'check_out_timestamp': int(record.check_out.timestamp() * 1000) if record.check_out else None,
+            'check_out_iso': safe_isoformat(record.check_out),
+            'check_out_timestamp': safe_timestamp_ms(record.check_out),
             'worked_duration': worked_str,
             'status': 'Shift Completed'
         })
@@ -2008,11 +2098,11 @@ def attendance_view(request):
         return redirect('login')
 
     employee = get_object_or_404(Employee, id=employee_id)
-    records = Attendance.objects.filter(employee_id=employee.id).order_by('-date')
+    records = list(Attendance.objects.filter(employee_id=employee.id).order_by('-date'))
 
-    present_days = records.filter(status="Present").count()
-    absent_days = records.filter(status="Absent").count()
-    total_days = records.count()
+    present_days = sum(1 for r in records if r.status == 'Present')
+    absent_days = sum(1 for r in records if r.status == 'Absent')
+    total_days = len(records)
     attendance_percentage = round((present_days / total_days * 100), 1) if total_days else 100.0
 
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
@@ -2020,7 +2110,7 @@ def attendance_view(request):
         for r in records:
             dur_str = '--'
             if r.check_in and r.check_out:
-                diff_s = max(0, int((r.check_out - r.check_in).total_seconds()))
+                diff_s = safe_time_diff_seconds(r.check_out, r.check_in)
                 h = diff_s // 3600
                 m = (diff_s % 3600) // 60
                 dur_str = f"{h}h {m}m" if h > 0 else f"{m}m"
@@ -2079,12 +2169,14 @@ def attendance_management(request):
     if search:
         query = query.filter(Q(employee__name__icontains=search) | Q(employee__emp_id__icontains=search))
 
-    records = query.order_by('-date', '-check_in')
-    employees = Employee.objects.order_by('name')
+    records = list(query.order_by('-date', '-check_in')[:200])
+    all_emps = get_cached_employees()
+    employees_dropdown = [{'id': e.id, 'name': e.name, 'emp_id': e.emp_id, 'department': e.department or 'General', 'designation': e.designation or 'Staff'} for e in all_emps]
 
-    total_records = query.count()
-    today_present = Attendance.objects.filter(date=date.today(), status__iexact='Present').count()
-    late_entries = Attendance.objects.filter(date=date.today(), status__iexact='Late').count()
+    today = date.today()
+    total_records = len(records)
+    today_present = sum(1 for r in records if r.date == today and (r.status or '').lower() == 'present')
+    late_entries = sum(1 for r in records if r.date == today and (r.status or '').lower() == 'late')
 
     is_json = (
         request.headers.get('Accept') == 'application/json' or
@@ -2106,8 +2198,8 @@ def attendance_management(request):
                 'emp_type': emp.emp_type if emp else 'Normal',
                 'department': emp.department if emp else '',
                 'designation': emp.designation if emp else '',
-                'check_in': r.check_in.strftime('%I:%M %p') if r.check_in else '--',
-                'check_out': r.check_out.strftime('%I:%M %p') if r.check_out else '--',
+                'check_in': format_local_time(r.check_in) or '--',
+                'check_out': format_local_time(r.check_out) or '--',
                 'status': r.status or 'Present',
             })
         return JsonResponse({
@@ -2118,16 +2210,10 @@ def attendance_management(request):
                 'present_today': today_present,
                 'late_entries': late_entries,
             },
-            'employees': [{
-                'id': e.id,
-                'name': e.name,
-                'emp_id': e.emp_id,
-                'emp_type': e.emp_type or 'Normal',
-                'department': e.department or 'General',
-            } for e in employees]
+            'employees': employees_dropdown
         })
 
-    return render(request, 'attendance_management.html', {'records': records, 'employees': employees})
+    return render(request, 'attendance_management.html', {'records': records, 'employees': employees_dropdown})
 
 
 @csrf_exempt
@@ -2186,12 +2272,13 @@ def export_attendance(request):
 
 @csrf_exempt
 def apply_leave(request):
-    if 'employee_id' not in request.session:
+    emp_id = resolve_employee_id(request)
+    if not emp_id:
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
             return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
 
-    employee = get_object_or_404(Employee, id=request.session['employee_id'])
+    employee = get_object_or_404(Employee, id=emp_id)
 
     if request.method == 'POST':
         if request.content_type == 'application/json':
@@ -2253,9 +2340,9 @@ def apply_leave(request):
 # ─────────────── ANNOUNCEMENTS ───────────────
 
 @csrf_exempt
-@login_required_custom
 def announcements_view(request):
-    if not isinstance(request.current_user, HR):
+    is_hr = isinstance(getattr(request, 'current_user', None), HR) or bool(getattr(request, 'session', {}).get('hr_id'))
+    if not is_hr:
         return employee_announcements_view(request)
 
     if request.method == 'POST':
@@ -2289,8 +2376,8 @@ def announcements_view(request):
         return redirect('announcements')
 
     now = timezone.now()
-    active_announcements = Announcement.objects.filter(is_active=True, expires_at__gt=now).order_by('-created_at')
-    history_announcements = Announcement.objects.filter(expires_at__lte=now).order_by('-created_at')
+    active_announcements = Announcement.objects.filter(is_active=True).order_by('-created_at')
+    history_announcements = Announcement.objects.filter(is_active=False).order_by('-created_at')
 
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
         return JsonResponse({
@@ -2323,7 +2410,6 @@ def announcements_view(request):
 
 
 @csrf_exempt
-@login_required_custom
 def delete_announcement_view(request, announcement_id):
     if not isinstance(request.current_user, HR):
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
@@ -2341,12 +2427,13 @@ def delete_announcement_view(request, announcement_id):
 
 @csrf_exempt
 def employee_announcements_view(request):
-    if 'employee_id' not in request.session:
+    emp_id = resolve_employee_id(request)
+    if not emp_id:
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
             return JsonResponse({'authenticated': False, 'error': 'Unauthorized'}, status=401)
         return redirect('login')
 
-    employee = get_object_or_404(Employee, id=request.session['employee_id'])
+    employee = get_object_or_404(Employee, id=emp_id)
     now = timezone.now()
 
     if employee.emp_type == "Intern":

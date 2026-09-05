@@ -28,10 +28,30 @@ export default function AnnouncementsPage() {
   const [message, setMessage] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // 1. Instantly hydrate cached announcements for 0ms initial render
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('fret_user');
+      if (savedUser) setUser(JSON.parse(savedUser));
+
+      const cached = localStorage.getItem('fret_announcements_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setIsHr(parsed.is_hr ?? false);
+        if (parsed.is_hr) {
+          setActiveAnnouncements(parsed.active_announcements || []);
+          setHistoryAnnouncements(parsed.history_announcements || []);
+        } else {
+          setAnnouncements(parsed.announcements || []);
+        }
+        setLoading(false);
+      }
+    } catch (e) {}
+  }, []);
+
   // Fetch announcements data based on role
   const fetchAnnouncements = async () => {
     try {
-      setLoading(true);
       const res = await api.get('/announcements');
       if (res.data) {
         setIsHr(res.data.is_hr ?? false);
@@ -42,8 +62,10 @@ export default function AnnouncementsPage() {
           setAnnouncements(res.data.announcements || []);
           if (res.data.employee) {
             setUser(res.data.employee);
+            localStorage.setItem('fret_user', JSON.stringify(res.data.employee));
           }
         }
+        localStorage.setItem('fret_announcements_cache', JSON.stringify(res.data));
       }
     } catch (e) {
       console.error('Failed to load announcements:', e);

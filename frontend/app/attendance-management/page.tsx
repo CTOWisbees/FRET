@@ -21,8 +21,21 @@ export default function AttendanceManagementPage() {
     late_entries: 0,
   });
 
+  // 1. Instantly hydrate cached attendance management data for 0ms initial render
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('fret_att_mgmt_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.records) setRecords(parsed.records);
+        if (parsed.employees) setEmployees(parsed.employees);
+        if (parsed.stats) setStats(parsed.stats);
+        setLoading(false);
+      }
+    } catch (e) {}
+  }, []);
+
   const fetchAttendance = async () => {
-    setLoading(true);
     try {
       const res = await api.get('/api/attendance-management', {
         params: {
@@ -39,6 +52,7 @@ export default function AttendanceManagementPage() {
         if (res.data.stats) {
           setStats(res.data.stats);
         }
+        localStorage.setItem('fret_att_mgmt_cache', JSON.stringify(res.data));
       }
     } catch (e) {
       console.error('Failed to fetch attendance:', e);

@@ -11,15 +11,22 @@ export default function WorkPage() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem('fret_user');
+      if (savedUser) setEmployee(JSON.parse(savedUser));
+    } catch (e) {}
+
     const fetchEmployee = async () => {
       try {
         const res = await api.get('/api/employee/me');
         if (res.data?.authenticated) {
           setEmployee(res.data);
+          localStorage.setItem('fret_user', JSON.stringify(res.data));
         } else {
           const dashRes = await api.get('/api/employee-dashboard');
           if (dashRes.data?.employee) {
             setEmployee(dashRes.data.employee);
+            localStorage.setItem('fret_user', JSON.stringify(dashRes.data.employee));
           }
         }
       } catch (err) {

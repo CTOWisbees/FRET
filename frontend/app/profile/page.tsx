@@ -158,7 +158,9 @@ export default function ProfilePage() {
       if (res.data?.success) {
         showAlert('Blood group updated successfully!');
         if (employee) {
-          setEmployee({ ...employee, blood_group: selectedBloodGroup });
+          const updated = { ...employee, blood_group: selectedBloodGroup };
+          setEmployee(updated);
+          localStorage.setItem('fret_user', JSON.stringify(updated));
         }
       }
     } catch (err: any) {
@@ -924,9 +926,20 @@ export default function ProfilePage() {
                       <div className="-mt-8 z-10 flex justify-center">
                         {employee?.avatar_url || employee?.has_photo ? (
                           <img 
-                            src={getApiUrl(employee.avatar_url || `/employee/${employee.id}/avatar`)}
-                            alt={employee?.name}
+                            src={employee?.avatar_url?.startsWith('data:') ? employee.avatar_url : getApiUrl(employee.avatar_url || `/employee/${employee.id}/avatar`)}
+                            alt=""
                             crossOrigin="anonymous"
+                            onError={(e) => {
+                              // If image fails, replace with initial avatar badge
+                              const parent = e.currentTarget.parentElement;
+                              if (parent) {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = document.createElement('div');
+                                fallback.className = "w-28 h-28 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#6366F1] text-white flex items-center justify-center font-extrabold text-4xl border-[4px] border-[#F28500] shadow-md mx-auto select-none";
+                                fallback.innerText = employee?.name ? employee.name[0].toUpperCase() : 'C';
+                                parent.appendChild(fallback);
+                              }
+                            }}
                             className="w-28 h-28 rounded-full object-cover border-[4px] border-[#F28500] shadow-md bg-white mx-auto"
                           />
                         ) : (
@@ -951,7 +964,7 @@ export default function ProfilePage() {
 
                         {/* Blood Group */}
                         <div className="text-sm font-bold text-[#000000]">
-                          {employee?.blood_group || selectedBloodGroup || 'B+'}
+                          {selectedBloodGroup || employee?.blood_group || 'A+'}
                         </div>
 
                         {/* Contact Details */}

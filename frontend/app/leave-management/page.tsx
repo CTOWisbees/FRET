@@ -27,12 +27,23 @@ export default function LeaveManagementPage() {
   const [actionLoading, setActionLoading] = useState<Record<number, boolean>>({});
   const [alertMsg, setAlertMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // 1. Instantly hydrate cached leaves for 0ms initial render
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem('fret_leaves_cache');
+      if (cached) {
+        setLeaveRequests(JSON.parse(cached));
+        setLoading(false);
+      }
+    } catch (e) {}
+  }, []);
+
   const fetchLeaves = async () => {
-    setLoading(true);
     try {
       const res = await api.get('/api/leave-management');
       if (res.data?.leaves) {
         setLeaveRequests(res.data.leaves);
+        localStorage.setItem('fret_leaves_cache', JSON.stringify(res.data.leaves));
       }
     } catch (e) {
       console.error('Failed to fetch leave requests:', e);

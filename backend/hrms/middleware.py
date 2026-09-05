@@ -55,9 +55,9 @@ class AuthMiddleware:
                 request.session.pop('hr_id', None)
         elif account_id or employee_id:
             target_id = account_id or employee_id
-            account = EmployeeAccount.objects.filter(id=target_id).first()
+            account = EmployeeAccount.objects.select_related('employee').filter(id=target_id).first()
             if not account:
-                account = EmployeeAccount.objects.filter(employee_id=target_id).first()
+                account = EmployeeAccount.objects.select_related('employee').filter(employee_id=target_id).first()
             if not account:
                 emp = Employee.objects.filter(id=target_id).first()
                 if emp:
@@ -68,14 +68,15 @@ class AuthMiddleware:
                             email=emp.email,
                             must_change_password=False
                         )
-            if account:
-                emp = Employee.objects.filter(id=account.employee_id).first()
-                if emp:
-                    account.designation = emp.designation
-                    account.department = emp.department
-                    account.name = emp.name
-                    account.emp_type = emp.emp_type
-                    account.first_name = emp.name.split(' ')[0] if emp.name else ''
+            if account and account.employee:
+                emp = account.employee
+                account.designation = emp.designation
+                account.department = emp.department
+                account.name = emp.name
+                account.emp_type = emp.emp_type
+                account.first_name = emp.name.split(' ')[0] if emp.name else ''
+                user = account
+            elif account:
                 user = account
 
         request.current_user = user
