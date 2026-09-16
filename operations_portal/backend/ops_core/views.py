@@ -278,6 +278,110 @@ def api_me(request):
     })
 
 
+@csrf_exempt
+@require_http_methods(["GET", "PUT", "POST"])
+def api_profile(request):
+    user = get_current_user(request)
+    if not user:
+        return JsonResponse({'success': False, 'error': 'Unauthorized. Please log in.'}, status=401)
+
+    if request.method == 'GET':
+        return JsonResponse({
+            'success': True,
+            'user': serialize_user(user)
+        })
+
+    # Profile Update (PUT or POST)
+    data = parse_request_json(request)
+
+    # 1. Email Handling
+    new_email = data.get('email', '').strip().lower() if 'email' in data else ''
+    if new_email and new_email != user.email.lower():
+        if user.role != 'admin':
+            return JsonResponse({
+                'success': False,
+                'error': 'Employees are not permitted to change their registered company email. Please contact an Operations Administrator.'
+            }, status=403)
+        
+        # Check uniqueness for Admin
+        if OperationUser.objects.filter(email__iexact=new_email).exclude(id=user.id).exists():
+            return JsonResponse({
+                'success': False,
+                'error': 'This email address is already registered to another account.'
+            }, status=400)
+        
+        user.email = new_email
+
+    # 2. General Profile Fields
+    if 'full_name' in data and data['full_name'].strip():
+        user.full_name = data['full_name'].strip()
+        user.name = data['full_name'].strip()
+    elif 'name' in data and data['name'].strip():
+        user.name = data['name'].strip()
+        user.full_name = data['name'].strip()
+
+    if 'phone' in data:
+        user.phone = data['phone'].strip()
+
+    if 'avatar_url' in data:
+        user.avatar_url = data['avatar_url'].strip()
+
+    if 'skills' in data:
+        user.skills = data['skills'].strip()
+
+    if user.role == 'admin':
+        if 'designation' in data and data['designation'].strip():
+            user.designation = data['designation'].strip()
+
+    # 3. Password Update
+    new_password = data.get('new_password', '').strip()
+    current_password = data.get('current_password', '').strip()
+
+    if new_password:
+        if not current_password:
+            return JsonResponse({
+                'success': False,
+                'error': 'Current password is required to change your password.'
+            }, status=400)
+
+        if not user.check_password(current_password):
+            return JsonResponse({
+                'success': False,
+                'error': 'Current password is incorrect.'
+            }, status=400)
+
+        if len(new_password) < 6:
+            return JsonResponse({
+                'success': False,
+                'error': 'New password must be at least 6 characters long.'
+            }, status=400)
+
+        confirm_password = data.get('confirm_password', '').strip()
+        if confirm_password and confirm_password != new_password:
+            return JsonResponse({
+                'success': False,
+                'error': 'New password and confirmation password do not match.'
+            }, status=400)
+
+        user.set_password(new_password)
+
+    user.save()
+
+    try:
+        ActivityLog.objects.create(
+            user=user,
+            action=f"Updated profile details ({'Password changed' if new_password else 'Info updated'})"
+        )
+    except Exception:
+        pass
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Profile updated successfully!',
+        'user': serialize_user(user)
+    })
+
+
 def send_otp_email(email, otp_code, user_name="Team Member"):
     """
     Sends OTP email via Gmail SMTP with both HTML & Plain Text templates.

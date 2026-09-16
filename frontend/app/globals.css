@@ -538,7 +538,7 @@ tr:hover td { background: var(--hover); }
 }
 .modal-backdrop.open .modal { transform: scale(1) translateY(0); }
 .modal-title { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
-.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; flex-wrap: wrap; }
 
 /* ── EXPERIENCE MODAL ── */
 .exp-modal {
@@ -567,7 +567,73 @@ tr:hover td { background: var(--hover); }
   border-radius: 4px;
 }
 .exp-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.exp-modal-header h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 1.2rem; }
+.exp-modal-header h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 700; font-size: 1.2rem; margin: 0; }
+.exp-close {
+  cursor: pointer;
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text3);
+  background: transparent;
+  border: none;
+  padding: 4px;
+  transition: color 0.2s;
+}
+.exp-close:hover {
+  color: var(--text);
+}
+.exp-modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+/* ── RESPONSIVE MODALS & DIALOGS ── */
+@media (max-width: 640px) {
+  .modal-backdrop,
+  .exp-modal {
+    padding: 12px 8px;
+    align-items: center;
+  }
+  .modal,
+  .exp-modal-box {
+    padding: 18px 14px !important;
+    width: 95% !important;
+    max-width: 100% !important;
+    max-height: 90vh;
+    border-radius: 14px;
+    margin: auto;
+  }
+  .modal-title,
+  .exp-modal-header h3 {
+    font-size: 1.05rem;
+    margin-bottom: 14px;
+  }
+  .modal-actions,
+  .exp-modal-footer {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    width: 100%;
+    margin-top: 16px;
+  }
+  .modal-actions .btn,
+  .modal-actions button,
+  .exp-modal-footer .btn,
+  .exp-modal-footer button {
+    width: 100% !important;
+    justify-content: center !important;
+    padding: 10px 14px !important;
+    font-size: 0.88rem !important;
+  }
+  #offer_cc_group label,
+  #exp_cc_group label {
+    font-size: 0.82rem;
+    word-break: break-all;
+  }
+}
 /* ── FORMS ── */
 .form-group { margin-bottom: 18px; }
 .form-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--text2); margin-bottom: 6px; }

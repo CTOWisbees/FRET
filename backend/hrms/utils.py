@@ -61,27 +61,66 @@ def hydrate_company_files(settings):
             os.path.join(UPLOAD_DIR, 'attachments', f'nda_{settings.id}.pdf')
         )
 
-def get_graph_token(current_user=None):
-    if current_user:
-        config = EmailConfig.objects.filter(hr_id=current_user.id).first()
-    else:
+DEFAULT_AZURE_TENANT_ID = os.environ.get('AZURE_TENANT_ID', '')
+DEFAULT_AZURE_CLIENT_ID = os.environ.get('AZURE_CLIENT_ID', '')
+DEFAULT_AZURE_CLIENT_SECRET = os.environ.get('AZURE_CLIENT_SECRET', '')
+DEFAULT_AZURE_SENDER_EMAIL = os.environ.get('AZURE_SENDER_EMAIL', 'info@wisbees.com')
+
+def get_active_email_config(current_user=None):
+    config = None
+    if current_user and getattr(current_user, 'id', None):
+        config = EmailConfig.objects.filter(hr_id=current_user.id).exclude(sender_email__isnull=True).exclude(sender_email='').first()
+    if not config or not config.sender_email:
+        config = EmailConfig.objects.filter(sender_email__isnull=False).exclude(sender_email='').first()
+    if not config:
         config = EmailConfig.objects.first()
 
-    if not config or not config.tenant_id or not config.client_id or not config.client_secret:
+    # If still no config or incomplete in DB, create an in-memory fallback config from environment variables
+    if not config or not config.sender_email:
+        fallback = EmailConfig(
+            sender_email=DEFAULT_AZURE_SENDER_EMAIL,
+            tenant_id=DEFAULT_AZURE_TENANT_ID,
+            client_id=DEFAULT_AZURE_CLIENT_ID,
+            client_secret=DEFAULT_AZURE_CLIENT_SECRET,
+        )
+        return fallback
+
+    # Ensure missing individual fields on an existing config fall back to environment defaults
+    if not config.tenant_id:
+        config.tenant_id = DEFAULT_AZURE_TENANT_ID
+    if not config.client_id:
+        config.client_id = DEFAULT_AZURE_CLIENT_ID
+    if not config.client_secret:
+        config.client_secret = DEFAULT_AZURE_CLIENT_SECRET
+    if not config.sender_email:
+        config.sender_email = DEFAULT_AZURE_SENDER_EMAIL
+
+    return config
+
+def get_graph_token(current_user=None):
+    config = get_active_email_config(current_user)
+
+    tenant_id = (config.tenant_id if config else None) or DEFAULT_AZURE_TENANT_ID
+    client_id = (config.client_id if config else None) or DEFAULT_AZURE_CLIENT_ID
+    client_secret = (config.client_secret if config else None) or DEFAULT_AZURE_CLIENT_SECRET
+
+    if not tenant_id or not client_id or not client_secret:
         raise Exception("Microsoft Graph API authentication parameters are missing from EmailConfig database.")
 
-    url = f"https://login.microsoftonline.com/{config.tenant_id}/oauth2/v2.0/token"
+    url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     payload = {
-        "client_id": config.client_id,
+        "client_id": client_id,
         "scope": "https://graph.microsoft.com/.default",
-        "client_secret": config.client_secret,
+        "client_secret": client_secret,
         "grant_type": "client_credentials"
     }
-    response = requests.post(url, headers=headers, data=payload)
+    response = requests.post(url, headers=headers, data=payload, timeout=10)
     if response.status_code != 200:
         raise Exception(f"Failed to retrieve Azure token: {response.text}")
     return response.json().get("access_token")
+
+
 
 def _default_email_body_text(emp, role_key, role_title):
     role_display = (role_title or role_key or 'Intern').replace(' Intern', '').replace('Intern – ', '').strip()

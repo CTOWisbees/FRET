@@ -5,6 +5,8 @@ urlpatterns = [
     # Auth
     path('auth/login', views.api_login, name='api_login'),
     path('auth/me', views.api_me, name='api_me'),
+    path('auth/profile', views.api_profile, name='api_profile'),
+    path('user/profile', views.api_profile, name='api_user_profile'),
     path('auth/forgot-password/send-otp', views.api_forgot_password_send_otp, name='api_forgot_password_send_otp'),
     path('auth/forgot-password/verify-otp', views.api_forgot_password_verify_otp, name='api_forgot_password_verify_otp'),
     path('auth/forgot-password/reset', views.api_forgot_password_reset, name='api_forgot_password_reset'),

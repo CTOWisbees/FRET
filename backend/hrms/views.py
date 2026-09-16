@@ -28,7 +28,7 @@ from hrms.models import (
 from hrms.utils import (
     UPLOAD_DIR, RESEARCH_UPLOAD_DIR, ALLOWED_EXTENSIONS, allowed_file,
     RESEARCH_REPORT_RETENTION_DAYS,
-    _materialize, hydrate_hr_signature, hydrate_company_files, get_graph_token,
+    _materialize, hydrate_hr_signature, hydrate_company_files, get_graph_token, get_active_email_config,
     _default_email_body_text, _default_full_letter_text, _seed_offer_draft_fields,
     _get_offer_draft_data, _upsert_offer_draft, _compile_research_context,
     _purge_expired_research_reports, _research_report_or_403,
@@ -562,14 +562,61 @@ def get_employee_avatar_base64(employee):
 
 @csrf_exempt
 def api_employee_me(request):
+    user = getattr(request, 'current_user', None)
+    if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
+        created_at_str = user.created_at.strftime('%B %Y') if getattr(user, 'created_at', None) else 'August 2024'
+        return JsonResponse({
+            'authenticated': True,
+            'is_hr': True,
+            'role': 'hr',
+            'user': {
+                'id': user.id,
+                'name': user.name,
+                'email': user.email,
+                'phone': user.phone or '',
+                'designation': user.designation or 'HR Manager',
+                'department': user.department or 'Human Resources',
+                'created_at': created_at_str,
+                'has_signature': bool(user.signature_data or user.signature_path),
+                'signature_url': f"/signature/{user.id}",
+            }
+        })
+
     emp_id = resolve_employee_id(request)
-    if not emp_id:
-        return JsonResponse({'authenticated': False, 'error': 'Unauthorized'}, status=401)
-    employee = get_object_or_404(Employee, id=emp_id)
-    return JsonResponse({
-        'authenticated': True,
-        'role': 'employee',
-        'is_hr': False,
+    employee = None
+    if emp_id:
+        employee = Employee.objects.filter(id=emp_id).first()
+
+    if not employee:
+        if isinstance(user, Employee):
+            employee = user
+        elif isinstance(user, EmployeeAccount):
+            employee = user.employee
+        elif 'employee_id' in request.session:
+            employee = Employee.objects.filter(id=request.session['employee_id']).first()
+
+    if not employee:
+        if user and getattr(user, 'is_authenticated', False) and isinstance(user, HR):
+            created_at_str = user.created_at.strftime('%B %Y') if getattr(user, 'created_at', None) else 'August 2024'
+            return JsonResponse({
+                'authenticated': True,
+                'is_hr': True,
+                'role': 'hr',
+                'user': {
+                    'id': user.id,
+                    'name': user.name,
+                    'email': user.email,
+                    'phone': user.phone or '',
+                    'designation': user.designation or 'HR Manager',
+                    'department': user.department or 'Human Resources',
+                    'created_at': created_at_str,
+                    'has_signature': bool(user.signature_data or user.signature_path),
+                    'signature_url': f"/signature/{user.id}",
+                }
+            })
+        return JsonResponse({'authenticated': False, 'error': 'Profile not found'}, status=401)
+
+    emp_data = {
         'id': employee.id,
         'emp_id': employee.emp_id or f"INT{employee.id:04d}",
         'name': employee.name,
@@ -584,7 +631,16 @@ def api_employee_me(request):
         'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
         'has_photo': bool(employee.profile_pic_data),
         'avatar_url': get_employee_avatar_base64(employee) or f"/employee/{employee.id}/avatar",
+    }
+
+    return JsonResponse({
+        'authenticated': True,
+        'role': 'employee',
+        'is_hr': False,
+        **emp_data,
+        'employee': emp_data
     })
+
 
 
 def intern_dashboard_view(request):
@@ -1220,10 +1276,10 @@ def send_email_route(request):
     if not emp:
         return JsonResponse({'success': False, 'message': 'Employee not found'}, status=404)
 
-    hr_id = getattr(request.current_user, 'id', None)
-    config = EmailConfig.objects.filter(hr_id=hr_id).first() if hr_id else EmailConfig.objects.first()
+    config = get_active_email_config(getattr(request, 'current_user', None))
     if not config or not config.sender_email:
         return JsonResponse({'success': False, 'message': 'Email not configured. Go to Settings > Email Config.'})
+
 
     settings = CompanySettings.objects.first()
 
@@ -1363,10 +1419,10 @@ def send_experience_letter_email(request):
     if not emp.email:
         return JsonResponse({'success': False, 'message': 'This employee has no email address on file'})
 
-    hr_id = getattr(request.current_user, 'id', None)
-    config = EmailConfig.objects.filter(hr_id=hr_id).first() if hr_id else EmailConfig.objects.first()
+    config = get_active_email_config(getattr(request, 'current_user', None))
     if not config or not config.sender_email:
         return JsonResponse({'success': False, 'message': 'Email not configured. Go to Settings > Email Config.'})
+
 
     settings = CompanySettings.objects.first() or CompanySettings()
 
@@ -1446,8 +1502,7 @@ def send_experience_letter_email(request):
 @csrf_exempt
 @login_required_custom
 def settings_view(request):
-    user_id = getattr(request.current_user, 'id', None)
-    config = EmailConfig.objects.filter(hr_id=user_id).first() if user_id else EmailConfig.objects.first()
+    config = get_active_email_config(getattr(request, 'current_user', None))
     company = CompanySettings.objects.first()
     if not company:
         company = CompanySettings.objects.create()
@@ -1483,7 +1538,8 @@ def save_email_config(request):
     user_id = getattr(request.current_user, 'id', None)
     config = EmailConfig.objects.filter(hr_id=user_id).first() if user_id else None
     if not config:
-        config = EmailConfig(hr_id=user_id or 1)
+        config = get_active_email_config(getattr(request, 'current_user', None)) or EmailConfig(hr_id=user_id or 1)
+
 
     import json
     data = {}
@@ -1546,11 +1602,20 @@ def save_company_settings(request):
 
 @csrf_exempt
 def profile_view(request):
-    emp_id = resolve_employee_id(request)
-    if emp_id and (request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.path.startswith('/api/')):
-        return api_employee_me(request)
-
     user = getattr(request, 'current_user', None)
+
+    # If explicitly authenticated as HR
+    if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
+        pass
+    else:
+        emp_id = resolve_employee_id(request)
+        if emp_id:
+            emp = Employee.objects.filter(id=emp_id).first()
+            if emp:
+                if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.path.startswith('/api/') or request.GET.get('format') == 'json':
+                    return api_employee_me(request)
+                return employee_profile_view(request)
+
     if not user or not getattr(user, 'is_authenticated', False):
         if 'hr_id' in request.session:
             user = HR.objects.filter(id=request.session['hr_id']).first()
@@ -1559,11 +1624,12 @@ def profile_view(request):
         else:
             user = HR.objects.first()
 
-    if isinstance(user, EmployeeAccount):
+    if isinstance(user, EmployeeAccount) or isinstance(user, Employee):
         return api_employee_me(request) if (request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.path.startswith('/api/')) else employee_profile_view(request)
 
     if not user:
         user = HR.objects.first()
+
 
     if request.method == 'POST':
         name = request.POST.get('name')
@@ -1881,9 +1947,10 @@ def _send_leave_notification_email(leave_request, action='approved', pdf_bytes=N
             "contentBytes": base64.b64encode(pdf_bytes).decode('utf-8')
         })
 
-    config = EmailConfig.objects.first()
+    config = get_active_email_config(hr_user)
     if not config or not config.sender_email or not config.tenant_id:
         return True, "Email config not configured in database; status updated in local database."
+
 
     try:
         token = get_graph_token(hr_user)
@@ -2693,10 +2760,11 @@ def update_research_report(request, report_id):
 @require_POST
 def mail_report(request):
     company = request.POST.get('company_name', 'Equity Assets')
-    config = EmailConfig.objects.filter(hr_id=request.current_user.id).first()
+    config = get_active_email_config(getattr(request, 'current_user', None))
     if not config or not config.sender_email:
         messages.error(request, 'System configuration absent. Setup Email Config credentials before dispatching reports.')
         return redirect('work')
+
 
     try:
         token = get_graph_token(request.current_user)

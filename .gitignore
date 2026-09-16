@@ -17,6 +17,8 @@ __pycache__/
 *$py.class
 instance/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 uploads/
 exports/

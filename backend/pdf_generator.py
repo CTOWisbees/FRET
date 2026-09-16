@@ -306,11 +306,9 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     def PS(name, **kw):
         return ParagraphStyle(name, **kw)
 
-    BASE = dict(fontName='Helvetica', textColor=DARK, leading=15)
-
     sty_title   = PS('Title',   fontName='Helvetica-Bold', fontSize=14,
                      textColor=BLACK, alignment=TA_CENTER, spaceAfter=10, leading=18)
-    sty_date    = PS('Date',    fontSize=10, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2,  **{k:v for k,v in BASE.items() if k != 'textColor'})
+    sty_date    = PS('Date',    fontName='Helvetica', fontSize=10, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2, leading=15)
     sty_salute  = PS('Salute',  fontSize=10, textColor=DARK, spaceAfter=6,  fontName='Helvetica', leading=15)
     sty_body    = PS('Body',    fontSize=10, textColor=DARK, spaceAfter=7,
                      alignment=TA_JUSTIFY, fontName='Helvetica', leading=15)
@@ -320,6 +318,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
                      fontName='Helvetica', leading=14)
     sty_signb   = PS('SignB',   fontSize=10, textColor=BLACK, spaceAfter=1,
                      fontName='Helvetica-Bold', leading=14)
+
 
     story = []
 
@@ -646,16 +645,16 @@ def generate_leave_approval_pdf(leave_request, settings=None, hr_user=None):
     def PS(name, **kw):
         return ParagraphStyle(name, **kw)
 
-    BASE = dict(fontName='Helvetica', textColor=DARK, leading=15)
     sty_title = PS('Title', fontName='Helvetica-Bold', fontSize=13, textColor=HexColor("#004D40"), alignment=TA_CENTER, spaceAfter=14, leading=17)
-    sty_date = PS('Date', fontSize=9, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2, **{k: v for k, v in BASE.items() if k != 'textColor'})
-    sty_ref = PS('Ref', fontSize=9, alignment=TA_LEFT, fontName='Helvetica-Bold', textColor=DARK, spaceAfter=8, **{k: v for k, v in BASE.items() if k != 'textColor'})
+    sty_date = PS('Date', fontName='Helvetica', fontSize=9, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2, leading=15)
+    sty_ref = PS('Ref', fontName='Helvetica-Bold', fontSize=9, alignment=TA_LEFT, textColor=DARK, spaceAfter=8, leading=15)
     sty_to = PS('To', fontSize=9.5, textColor=DARK, spaceAfter=3, fontName='Helvetica', leading=14)
     sty_tob = PS('ToB', fontSize=9.5, textColor=DARK, spaceAfter=3, fontName='Helvetica-Bold', leading=14)
     sty_subj = PS('Subj', fontSize=10, textColor=DARK, fontName='Helvetica-Bold', spaceAfter=10, leading=15)
     sty_body = PS('Body', fontSize=9.5, textColor=DARK, spaceAfter=8, alignment=TA_JUSTIFY, fontName='Helvetica', leading=15)
     sty_sign = PS('Sign', fontSize=9, textColor=DARK, spaceAfter=2, fontName='Helvetica', leading=13)
     sty_signb = PS('SignB', fontSize=9.5, textColor=DARK, spaceAfter=2, fontName='Helvetica-Bold', leading=14)
+
 
     story = []
 

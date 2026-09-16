@@ -21,7 +21,8 @@ import {
   Code2,
   TrendingUp,
   FileText,
-  FolderKanban
+  FolderKanban,
+  UserCog
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -113,6 +114,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
     { name: 'Department Directory', href: '/admin/departments', icon: Building2 },
     { name: 'OP User Directory', href: '/admin/employees', icon: Users },
     { name: 'Work & Task Manager', href: '/admin/tasks', icon: CheckSquare },
+    { name: 'Admin Profile', href: '/admin/profile', icon: UserCog },
   ];
 
   const employeeNav = [
@@ -120,6 +122,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
     { name: 'My Assigned Work', href: '/employee/my-work', icon: Briefcase },
     { name: 'My Role & Scope', href: '/employee/my-role', icon: UserCheck },
     { name: 'Daily Work Logs', href: '/employee/work-logs', icon: Clock },
+    { name: 'My Profile', href: '/employee/profile', icon: UserCog },
   ];
 
   const navItems = isAdmin ? adminNav : employeeNav;
@@ -394,24 +397,33 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
         {/* User Card & Logout */}
         <div className="p-4 border-t border-[var(--card-border)] bg-[var(--bg-main)] shrink-0">
           <div className="flex items-center justify-between gap-3 p-2.5 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] shadow-xs">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs">
-                {user?.name ? user.name[0].toUpperCase() : 'U'}
+            <Link
+              href={isAdmin ? '/admin/profile' : '/employee/profile'}
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-85 transition cursor-pointer"
+            >
+              <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-sky-500/20">
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user?.name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{user?.name ? user.name[0].toUpperCase() : 'U'}</span>
+                )}
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-[var(--text-primary)] truncate">
                   {user?.full_name || user?.name || 'User'}
                 </div>
-                <div className="text-[10px] font-medium text-[var(--text-muted)] truncate">
-                  {user?.designation || (isAdmin ? 'Operations Admin' : 'Team Member')}
+                <div className="text-[10px] font-medium text-[var(--text-muted)] truncate flex items-center gap-1">
+                  <span>{user?.designation || (isAdmin ? 'Operations Admin' : 'Team Member')}</span>
+                  <span className="text-[9px] text-sky-500 font-bold">• Profile</span>
                 </div>
               </div>
-            </div>
+            </Link>
 
             <button
               onClick={handleLogout}
               title="Sign Out"
-              className="p-2 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition cursor-pointer"
+              className="p-2 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition cursor-pointer shrink-0"
             >
               <LogOut className="w-4 h-4" />
             </button>

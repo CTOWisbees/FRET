@@ -60,7 +60,7 @@ class OperationUser(models.Model):
     assigned_modules = models.JSONField(default=list, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     joining_date = models.DateField(default=timezone.now)
-    avatar_url = models.CharField(max_length=255, blank=True, default='')
+    avatar_url = models.TextField(blank=True, default='')
     skills = models.CharField(max_length=255, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -87,7 +87,27 @@ class OperationUser(models.Model):
         self.password = make_password(raw_password)
 
     def check_password(self, raw_password):
-        return check_password(raw_password, self.password)
+        if not self.password or not raw_password:
+            return False
+        # 1. Django standard check_password
+        try:
+            if check_password(raw_password, self.password):
+                return True
+        except Exception:
+            pass
+        # 2. Werkzeug / Flask scrypt/pbkdf2 hash compatibility from FRET
+        try:
+            from werkzeug.security import check_password_hash as wz_check
+            if wz_check(self.password, raw_password):
+                # Auto-upgrade to Django password hash on successful login
+                self.set_password(raw_password)
+                self.save(update_fields=['password'])
+                return True
+        except Exception:
+            pass
+        # 3. Plaintext fallback if needed
+        return self.password == raw_password
+
 
     def __str__(self):
         display_name = self.full_name or self.name or self.email

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { Menu, Shield, User, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/lib/theme';
 import { AttendanceTimerWidget } from './AttendanceTimerWidget';
@@ -15,6 +16,7 @@ interface NavbarProps {
 export function Navbar({ title, subtitle, user, onMenuClick }: NavbarProps) {
   const isAdmin = user?.role === 'admin';
   const { theme, toggleTheme } = useTheme();
+  const profileHref = isAdmin ? '/admin/profile' : '/employee/profile';
 
   return (
     <header className="sticky top-0 bg-[var(--header-bg)] backdrop-blur-md border-b border-[var(--card-border)] px-3 sm:px-6 py-2.5 sm:py-3.5 z-30 flex items-center justify-between transition-colors">
@@ -76,20 +78,31 @@ export function Navbar({ title, subtitle, user, onMenuClick }: NavbarProps) {
           )}
         </button>
 
-        {/* Role Pill (Visible on Desktop / Tablet) */}
-        <div className={`hidden md:flex px-2.5 py-1 rounded-full text-xs font-bold items-center gap-1.5 border shadow-2xs ${
-          isAdmin
-            ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
-            : 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
-        }`}>
-          {isAdmin ? <Shield className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
-          <span className="capitalize">{isAdmin ? 'Operations Admin' : 'Assigned Employee'}</span>
-        </div>
+        {/* Profile Link with Role Pill & Avatar */}
+        <Link
+          href={profileHref}
+          title="Manage Profile & Security"
+          className="flex items-center gap-2 hover:opacity-85 transition cursor-pointer p-1 rounded-2xl hover:bg-[var(--hover-bg)]"
+        >
+          {/* Role Pill (Visible on Desktop / Tablet) */}
+          <div className={`hidden md:flex px-2.5 py-1 rounded-full text-xs font-bold items-center gap-1.5 border shadow-2xs ${
+            isAdmin
+              ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+              : 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
+          }`}>
+            {isAdmin ? <Shield className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+            <span className="capitalize">{isAdmin ? 'Operations Admin' : 'Assigned Employee'}</span>
+          </div>
 
-        {/* User Initials Avatar Bubble */}
-        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-xs shrink-0">
-          {user?.name ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : 'OP'}
-        </div>
+          {/* User Profile Avatar Bubble */}
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-xs shrink-0 border border-sky-500/20">
+            {user?.avatar_url ? (
+              <img src={user.avatar_url} alt={user?.name || 'User'} className="w-full h-full object-cover" />
+            ) : (
+              <span>{user?.name ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : 'OP'}</span>
+            )}
+          </div>
+        </Link>
       </div>
 
     </header>
