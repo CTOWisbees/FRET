@@ -60,6 +60,7 @@ class Employee(models.Model):
     profile_pic_data = models.BinaryField(null=True, blank=True)
     profile_pic_mime = models.CharField(max_length=20, null=True, blank=True)
     blood_group = models.CharField(max_length=5, null=True, blank=True)
+    remarks = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = 'employee'

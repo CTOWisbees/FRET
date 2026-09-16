@@ -2,6 +2,23 @@ from django.db import models
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
 
+
+class Department(models.Model):
+    name = models.CharField(max_length=150, unique=True, verbose_name="Name")
+    page_key = models.CharField(max_length=150, unique=True, verbose_name="Page Key")
+    is_active = models.BooleanField(default=True, verbose_name="Is Active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department"
+        verbose_name_plural = "Departments"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class OperationalRole(models.Model):
     title = models.CharField(max_length=150)
     department = models.CharField(max_length=100, default='Operations')
@@ -27,20 +44,44 @@ class OperationUser(models.Model):
         ('On Leave', 'On Leave'),
     ]
 
-    name = models.CharField(max_length=150)
-    email = models.EmailField(unique=True)
-    password = models.CharField(max_length=255)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee')
-    phone = models.CharField(max_length=30, blank=True, default='')
-    emp_code = models.CharField(max_length=50, blank=True, default='')
-    designation = models.CharField(max_length=150, blank=True, default='')
-    department = models.CharField(max_length=100, blank=True, default='Operations')
+    name = models.CharField(max_length=150, verbose_name="Name")
+    full_name = models.CharField(max_length=150, blank=True, default='', verbose_name="Full name")
+    email = models.EmailField(unique=True, verbose_name="Email")
+    password = models.CharField(max_length=255, verbose_name="Password")
+    is_active = models.BooleanField(default=True, verbose_name="Is active")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee', verbose_name="Role")
+    phone = models.CharField(max_length=30, blank=True, default='', verbose_name="Phone")
+    emp_code = models.CharField(max_length=50, blank=True, default='', verbose_name="Employee Code")
+    designation = models.CharField(max_length=150, blank=True, default='', verbose_name="Designation")
+    department = models.CharField(max_length=100, blank=True, default='Operations', verbose_name="Department")
     assigned_role = models.ForeignKey(OperationalRole, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
+    assigned_roles = models.ManyToManyField(OperationalRole, blank=True, related_name='members_multi')
+    assigned_departments = models.JSONField(default=list, blank=True)
+    assigned_modules = models.JSONField(default=list, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
     joining_date = models.DateField(default=timezone.now)
     avatar_url = models.CharField(max_length=255, blank=True, default='')
     skills = models.CharField(max_length=255, blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "OP user"
+        verbose_name_plural = "OP users"
+        ordering = ['name', 'email']
+
+    def save(self, *args, **kwargs):
+        if not self.full_name and self.name:
+            self.full_name = self.name
+        elif self.full_name and not self.name:
+            self.name = self.full_name
+        elif self.full_name and self.name and self.full_name != self.name:
+            self.name = self.full_name
+
+        if self.is_active and self.status == 'Inactive':
+            self.status = 'Active'
+        elif not self.is_active and self.status == 'Active':
+            self.status = 'Inactive'
+        super().save(*args, **kwargs)
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
@@ -49,7 +90,85 @@ class OperationUser(models.Model):
         return check_password(raw_password, self.password)
 
     def __str__(self):
-        return f"{self.name} ({self.role}) - {self.email}"
+        display_name = self.full_name or self.name or self.email
+        return f"{display_name} ({self.email})"
+
+
+# Alias for backward and OP naming compatibility
+OPUser = OperationUser
+
+
+class OPUserDepartmentAccess(models.Model):
+    user = models.ForeignKey(
+        OperationUser,
+        on_delete=models.CASCADE,
+        related_name='department_accesses',
+        verbose_name="OP User"
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name='user_accesses',
+        verbose_name="Department"
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "OP User Department Access"
+        verbose_name_plural = "OP User Department Accesses"
+        unique_together = ('user', 'department')
+        ordering = ['user', 'department']
+
+    def __str__(self):
+        return f"{self.user.email} -> {self.department.name}"
+
+
+class OPSession(models.Model):
+    user = models.ForeignKey(
+        OperationUser,
+        on_delete=models.CASCADE,
+        related_name='op_sessions',
+        verbose_name="OP User"
+    )
+    session_token = models.CharField(max_length=255, unique=True, verbose_name="Session Token")
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP Address")
+    user_agent = models.TextField(blank=True, default='', verbose_name="User Agent")
+    is_active = models.BooleanField(default=True, verbose_name="Is active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "OP session"
+        verbose_name_plural = "OP sessions"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Session: {self.user.email} ({self.session_token[:12]}...)"
+
+
+class LoginOTP(models.Model):
+    user = models.ForeignKey(
+        OperationUser,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='login_otps',
+        verbose_name="OP User"
+    )
+    email = models.EmailField(verbose_name="Email")
+    otp_code = models.CharField(max_length=10, verbose_name="OTP Code")
+    is_verified = models.BooleanField(default=False, verbose_name="Is verified")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Login otp"
+        verbose_name_plural = "Login otps"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OTP for {self.email}: {self.otp_code}"
 
 
 class WorkTask(models.Model):
@@ -134,4 +253,3 @@ class AttendanceRecord(models.Model):
 
     def __str__(self):
         return f"Attendance: {self.user.name} on {self.date} ({self.status}) - {self.total_hours:.1f}h"
-

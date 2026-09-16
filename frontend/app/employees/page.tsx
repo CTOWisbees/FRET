@@ -43,6 +43,11 @@ export default function EmployeesPage() {
   const [showSendConfirmModal, setShowSendConfirmModal] = useState(false);
   const [sendType, setSendType] = useState<'offer' | 'experience'>('offer');
 
+  // Remark Modal State
+  const [showRemarkModal, setShowRemarkModal] = useState(false);
+  const [remarkText, setRemarkText] = useState('');
+  const [savingRemark, setSavingRemark] = useState(false);
+
   // 1. Instantly hydrate cached employees for 0ms initial render
   useEffect(() => {
     try {
@@ -258,6 +263,38 @@ export default function EmployeesPage() {
     }
   };
 
+  const openRemarkModal = (emp: any) => {
+    setSelectedEmp(emp);
+    setRemarkText(emp.remarks || '');
+    setShowRemarkModal(true);
+  };
+
+  const setRemarkPreset = (preset: string) => {
+    setRemarkText((prev) => (prev.trim() ? `${prev.trim()}; ${preset}` : preset));
+  };
+
+  const saveRemark = async () => {
+    if (!selectedEmp) return;
+    setSavingRemark(true);
+    try {
+      const res = await api.post(`/api/employee/${selectedEmp.id}/remark`, {
+        remarks: remarkText.trim(),
+      });
+      if (res.data?.success) {
+        setEmployees((prev) =>
+          prev.map((e) => (e.id === selectedEmp.id ? { ...e, remarks: remarkText.trim() } : e))
+        );
+        setShowRemarkModal(false);
+      } else {
+        alert(res.data?.message || 'Failed to save remark');
+      }
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to save remark');
+    } finally {
+      setSavingRemark(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
@@ -367,6 +404,7 @@ export default function EmployeesPage() {
                       <th style={{ padding: '10px 10px' }}>Joining Date</th>
                       <th style={{ padding: '10px 10px' }}>Salary</th>
                       <th style={{ padding: '10px 10px' }}>Status</th>
+                      <th style={{ padding: '10px 10px' }}>Remarks</th>
                       <th style={{ padding: '10px 10px' }}>Documents</th>
                       <th style={{ padding: '10px 12px', textAlign: 'right' }}>Actions</th>
                     </tr>
@@ -413,6 +451,48 @@ export default function EmployeesPage() {
                             <span className={`badge-pill ${emp.status === 'Active' ? 'badge-active' : 'badge-inactive'}`} style={{ fontSize: '0.68rem', padding: '3px 8px' }}>
                               <i className="fas fa-circle" style={{ fontSize: '0.4rem' }}></i> {emp.status || 'Active'}
                             </span>
+                          </td>
+                          <td style={{ padding: '8px 10px' }}>
+                            {emp.remarks ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <span
+                                  className="badge-pill"
+                                  style={{
+                                    maxWidth: '130px',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    fontSize: '0.7rem',
+                                    background: 'rgba(99, 102, 241, 0.12)',
+                                    color: 'var(--accent)',
+                                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                                    cursor: 'pointer',
+                                    padding: '2px 6px',
+                                  }}
+                                  onClick={() => openRemarkModal(emp)}
+                                  title={emp.remarks}
+                                >
+                                  <i className="fas fa-comment-dots"></i> {emp.remarks}
+                                </span>
+                                <button
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '2px 5px', height: '22px', fontSize: '0.65rem' }}
+                                  onClick={() => openRemarkModal(emp)}
+                                  title="Edit remark"
+                                >
+                                  <i className="fas fa-pencil-alt"></i>
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '2px 6px', height: '22px', fontSize: '0.68rem', opacity: 0.7 }}
+                                onClick={() => openRemarkModal(emp)}
+                                title="Add remark"
+                              >
+                                <i className="fas fa-plus"></i> Add
+                              </button>
+                            )}
                           </td>
                           <td style={{ padding: '8px 10px' }}>
                             <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
@@ -784,6 +864,94 @@ export default function EmployeesPage() {
                 </button>
                 <button className="btn btn-success" id="confirmSendBtn" onClick={confirmSendProceed}>
                   <i className="fas fa-check"></i> Yes, Send
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* HR Remarks Modal */}
+          <div className={`modal-backdrop ${showRemarkModal ? 'open' : ''}`} style={{ zIndex: 10000 }}>
+            <div className="modal" style={{ maxWidth: '520px', width: '95%' }}>
+              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fas fa-comment-dots text-accent"></i>
+                <span>HR Remark: <strong style={{ color: 'var(--text)' }}>{selectedEmp?.name}</strong></span>
+              </div>
+              <p style={{ color: 'var(--text3)', fontSize: '0.82rem', marginBottom: '12px' }}>
+                Record status notes (e.g. <em>left company, not working, probation note, sabbatical</em>). Saved directly in the database.
+              </p>
+
+              {/* Quick preset tags */}
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                <button
+                  type="button"
+                  className="badge-pill"
+                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                  onClick={() => setRemarkPreset('Left the company')}
+                >
+                  <i className="fas fa-sign-out-alt"></i> Left Company
+                </button>
+                <button
+                  type="button"
+                  className="badge-pill"
+                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                  onClick={() => setRemarkPreset('Not working / Absconding')}
+                >
+                  <i className="fas fa-user-slash"></i> Not Working / Absconding
+                </button>
+                <button
+                  type="button"
+                  className="badge-pill"
+                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                  onClick={() => setRemarkPreset('On Notice Period')}
+                >
+                  <i className="fas fa-hourglass-half"></i> Notice Period
+                </button>
+                <button
+                  type="button"
+                  className="badge-pill"
+                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                  onClick={() => setRemarkPreset('Internship Completed')}
+                >
+                  <i className="fas fa-graduation-cap"></i> Internship Completed
+                </button>
+                <button
+                  type="button"
+                  className="badge-pill"
+                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                  onClick={() => setRemarkPreset('On Sabbatical / Leave')}
+                >
+                  <i className="fas fa-plane-departure"></i> On Sabbatical
+                </button>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '6px', display: 'block' }}>
+                  Remark / Status Note
+                </label>
+                <textarea
+                  className="form-control"
+                  rows={4}
+                  style={{ width: '100%', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }}
+                  placeholder="Enter detailed remarks here..."
+                  value={remarkText}
+                  onChange={(e) => setRemarkText(e.target.value)}
+                />
+              </div>
+
+              <div className="modal-actions" style={{ marginTop: '16px' }}>
+                <button className="btn btn-secondary" onClick={() => setShowRemarkModal(false)}>
+                  Cancel
+                </button>
+                <button className="btn btn-primary" disabled={savingRemark} onClick={saveRemark}>
+                  {savingRemark ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin"></i> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-save"></i> Save Remark
+                    </>
+                  )}
                 </button>
               </div>
             </div>

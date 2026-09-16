@@ -30,6 +30,7 @@ urlpatterns = [
     path('employees/add', views.add_employee_view, name='add_employee'),
     path('employees/<int:emp_id>/edit', views.edit_employee_view, name='edit_employee'),
     path('employees/<int:emp_id>/delete', views.delete_employee_view, name='delete_employee'),
+    path('api/employee/<int:emp_id>/remark', views.api_update_employee_remark, name='api_update_employee_remark'),
     path('employee-profile', views.employee_profile_view, name='employee_profile'),
 
     # Offer & Experience Letters

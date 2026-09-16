@@ -97,7 +97,7 @@ export default function EmployeeWorkLogsPage() {
   const totalHours = logs.reduce((acc, curr) => acc + (curr.hours_spent || 0), 0);
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6">
       {/* Live Shift Timer Widget */}
       <AttendanceTimerWidget />
 
@@ -335,8 +335,8 @@ export default function EmployeeWorkLogsPage() {
 
       {/* ─── LOG MODAL ─── */}
       {showLogModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--text-primary)] rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-hidden">
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--text-primary)] rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-fadeIn my-auto max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-[var(--card-border)]">
               <h3 className="text-lg font-black text-[var(--text-primary)]">Submit Daily Progress Log</h3>
               <button onClick={() => setShowLogModal(false)} className="p-1 text-[var(--text-muted)] hover:text-[var(--text-primary)]">

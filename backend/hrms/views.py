@@ -888,7 +888,8 @@ def add_employee_view(request):
             status=data.get('status', 'Active'),
             emp_type=emp_type,
             created_by_id=current_hr_id,
-            gender=data.get('gender', 'female')
+            gender=data.get('gender', 'female'),
+            remarks=str(data.get('remarks', '')).strip() or None
         )
         emp.save()
         invalidate_employees_cache()
@@ -937,6 +938,8 @@ def edit_employee_view(request, emp_id):
             emp.blood_group = str(data.get('blood_group')).strip()
         if data.get('status') is not None:
             emp.status = data.get('status')
+        if 'remarks' in data:
+            emp.remarks = str(data.get('remarks', '')).strip() or None
 
         salary_val = data.get('salary')
         if salary_val is not None and salary_val != '':
@@ -982,6 +985,29 @@ def edit_employee_view(request, emp_id):
         return redirect('employees')
 
     return render(request, 'edit_employee.html', {'emp': emp})
+
+
+@csrf_exempt
+def api_update_employee_remark(request, emp_id):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    emp = get_object_or_404(Employee, id=emp_id)
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    remark = data.get('remarks', data.get('remark', ''))
+    emp.remarks = str(remark).strip() if (remark is not None and str(remark).strip()) else None
+    emp.save()
+    invalidate_employees_cache()
+
+    return JsonResponse({
+        'success': True,
+        'id': emp.id,
+        'remarks': emp.remarks or '',
+        'message': f'Remark for {emp.name} saved successfully!'
+    })
 
 
 @csrf_exempt
@@ -1717,6 +1743,7 @@ def api_employees_list(request):
         'blood_group': e.blood_group or '',
         'offer_sent': bool(e.offer_sent),
         'nda_sent': bool(e.nda_sent),
+        'remarks': e.remarks or '',
         'joining_date': e.joining_date.isoformat() if e.joining_date else None,
         'end_date': e.end_date.isoformat() if e.end_date else None
     } for e in emps], safe=False)
@@ -1737,6 +1764,7 @@ def api_employee(request, emp_id):
         'emp_type': emp.emp_type or 'Normal',
         'salary': float(emp.salary or 0),
         'blood_group': emp.blood_group or '',
+        'remarks': emp.remarks or '',
         'joining_date': emp.joining_date.isoformat() if emp.joining_date else None,
         'end_date': emp.end_date.isoformat() if emp.end_date else None,
         'status': emp.status or 'Active',

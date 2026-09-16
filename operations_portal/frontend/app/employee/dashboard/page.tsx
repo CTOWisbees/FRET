@@ -13,7 +13,8 @@ import {
   Layers,
   Sparkles,
   TrendingUp,
-  FileText
+  FileText,
+  Building2
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { StatusBadge, PriorityBadge } from '@/components/Badges';
@@ -46,13 +47,20 @@ export default function EmployeeDashboardPage() {
   const activeTasks = data?.active_tasks || [];
   const recentCompleted = data?.recent_completed || [];
 
+  const assignedRoles = employee.assigned_roles && employee.assigned_roles.length > 0
+    ? employee.assigned_roles
+    : (employee.assigned_role ? [employee.assigned_role] : []);
+
+  const assignedDepts = employee.assigned_departments || (employee.department ? [employee.department] : []);
+  const assignedModules = employee.assigned_modules || [];
+
   const hour = new Date().getHours();
   let greeting = 'Good Morning';
   if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
   else if (hour >= 17) greeting = 'Good Evening';
 
   return (
-    <div className="space-y-5 sm:space-y-7 animate-fadeIn">
+    <div className="space-y-5 sm:space-y-7 animate-fadeIn pb-12">
       {/* Welcome Banner */}
       <div className="p-5 sm:p-8 bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 text-white rounded-2xl sm:rounded-3xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden border border-white/10">
         <div className="relative z-10 space-y-1.5 sm:space-y-2 w-full md:w-auto">
@@ -60,11 +68,14 @@ export default function EmployeeDashboardPage() {
             <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-white/10 border border-white/15 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-sky-300">
               Operational Workspace
             </span>
-            {employee.assigned_role?.title && (
-              <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-[10px] sm:text-[11px] font-bold text-indigo-200 truncate max-w-[200px] sm:max-w-none">
-                🛡️ {employee.assigned_role.title}
+            {assignedRoles.map((r: any) => (
+              <span
+                key={r.id || r.title}
+                className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-[10px] sm:text-[11px] font-bold text-indigo-200"
+              >
+                🛡️ {r.title}
               </span>
-            )}
+            ))}
           </div>
 
           <h2 className="text-lg sm:text-2xl font-black tracking-tight break-words">
@@ -72,14 +83,14 @@ export default function EmployeeDashboardPage() {
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
-            {employee.designation || 'IT Intern – Web & Automation Developer'} • <span className="text-sky-300 font-semibold">{employee.department || 'Data & Analytics'}</span>
+            {employee.designation || 'Operations Staff'} • <span className="text-sky-300 font-semibold">{assignedDepts.join(' & ')}</span>
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 relative z-10 w-full md:w-auto">
           <Link
             href="/employee/my-work"
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center"
+            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer"
           >
             <Briefcase className="w-4 h-4 shrink-0" />
             <span>View Assigned Work ({stats.in_progress_count ?? 0})</span>
@@ -87,7 +98,7 @@ export default function EmployeeDashboardPage() {
 
           <Link
             href="/employee/work-logs"
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl sm:rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 text-center"
+            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl sm:rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer"
           >
             <Clock className="w-4 h-4 shrink-0" />
             <span>Attendance & Logs</span>
@@ -242,34 +253,51 @@ export default function EmployeeDashboardPage() {
           </div>
         </div>
 
-        {/* Assigned Role Overview (4 cols) */}
+        {/* Multi-Role & Modules Overview (4 cols) */}
         <div className="lg:col-span-4 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xs space-y-4 flex flex-col justify-between transition-colors">
           <div className="space-y-3.5">
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
               <div>
-                <h3 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)]">My Operational Role</h3>
-                <p className="text-[11px] sm:text-xs text-[var(--text-secondary)]">Role Scope & Permissions</p>
+                <h3 className="text-sm sm:text-base font-extrabold text-[var(--text-primary)]">Operational Matrix Scope</h3>
+                <p className="text-[11px] sm:text-xs text-[var(--text-secondary)]">Assigned Multi-Roles & Modules</p>
               </div>
             </div>
 
-            <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-purple-50/50 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-800 space-y-1.5">
-              <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">
-                Official Designation
+            {/* Assigned Roles */}
+            <div className="space-y-1.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                Assigned Functional Roles:
               </div>
-              <div className="text-xs sm:text-sm font-black text-purple-950 dark:text-purple-200">
-                {employee.assigned_role?.title || employee.designation || 'Operations Staff'}
-              </div>
-              <div className="text-[11px] sm:text-xs text-purple-800 dark:text-purple-300 font-medium">
-                Level: <span className="font-bold">{employee.assigned_role?.level || 'Intern'}</span> • Dept: <span className="font-bold">{employee.department}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {assignedRoles.map((r: any) => (
+                  <span
+                    key={r.id || r.title}
+                    className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center gap-1"
+                  >
+                    <Shield className="w-3 h-3 text-purple-500" />
+                    <span>{r.title}</span>
+                  </span>
+                ))}
               </div>
             </div>
 
-            {employee.assigned_role?.responsibilities && (
-              <div className="p-3 bg-[var(--hover-bg)] rounded-xl sm:rounded-2xl border border-[var(--card-border)] text-xs text-[var(--text-secondary)] space-y-1">
-                <div className="font-bold text-[var(--text-primary)] text-[10px] uppercase">My Core Focus</div>
-                <div className="whitespace-pre-wrap line-clamp-3 text-[11px] leading-relaxed">
-                  {employee.assigned_role.responsibilities}
+            {/* Modules Unlocked */}
+            {assignedModules.length > 0 && (
+              <div className="space-y-1.5 pt-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
+                  Active Modules (Google Sheets Matrix):
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {assignedModules.map((m: string) => (
+                    <span
+                      key={m}
+                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1"
+                    >
+                      <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                      <span>{m}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
             )}
@@ -277,7 +305,7 @@ export default function EmployeeDashboardPage() {
 
           <Link
             href="/employee/my-role"
-            className="w-full py-2.5 text-center bg-[var(--hover-bg)] hover:bg-purple-50 dark:hover:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold text-xs rounded-xl border border-[var(--card-border)] hover:border-purple-300 transition mt-2"
+            className="w-full py-2.5 text-center bg-[var(--hover-bg)] hover:bg-purple-50 dark:hover:bg-purple-950 text-purple-700 dark:text-purple-300 font-bold text-xs rounded-xl border border-[var(--card-border)] hover:border-purple-300 transition mt-2 cursor-pointer"
           >
             View Full Role Scope & Permissions →
           </Link>

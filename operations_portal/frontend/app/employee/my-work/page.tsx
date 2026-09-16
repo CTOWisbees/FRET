@@ -95,7 +95,7 @@ export default function EmployeeMyWorkPage() {
   });
 
   return (
-    <div className="space-y-6 animate-fadeIn">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -233,8 +233,8 @@ export default function EmployeeMyWorkPage() {
 
       {/* ─── TASK UPDATE & SUBMISSION MODAL ─── */}
       {showModal && selectedTask && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--text-primary)] rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-fadeIn">
+        <div className="fixed inset-0 bg-slate-900/60 dark:bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-hidden">
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] text-[var(--text-primary)] rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl space-y-5 animate-fadeIn my-auto max-h-[85vh] overflow-y-auto">
             <div className="flex items-start justify-between pb-3 border-b border-[var(--card-border)]">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">

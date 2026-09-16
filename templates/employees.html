@@ -66,13 +66,14 @@
           <th>Joining Date</th>
           <th>Salary</th>
           <th>Status</th>
+          <th>Remarks</th>
           <th>Documents</th>
           <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         {% for emp in employees %}
-        <tr style="animation:slideUp 0.3s ease both;animation-delay:{{ loop.index * 0.03 }}s">
+        <tr style="animation:slideUp 0.3s ease both;animation-delay:{{ loop.index * 0.03 }}s" id="emp-row-{{ emp.id }}">
           <td>
             <div style="display:flex;align-items:center;gap:10px;">
               <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,hsl({{ (loop.index * 47 + 200) % 360 }},60%,60%),hsl({{ (loop.index * 47 + 240) % 360 }},70%,50%));display:grid;place-items:center;font-weight:700;font-size:0.85rem;flex-shrink:0;color:#fff">
@@ -84,6 +85,7 @@
                 <span class="badge-pill {% if emp.emp_type == 'Intern' %}badge-sent{% else %}badge-active{% endif %}" 
                       style="font-size:0.65rem;margin-top:3px;">
                   {{ emp.emp_type or 'Normal' }}
+                </span>
               </div>
             </div>
           </td>
@@ -95,6 +97,28 @@
           <td><span class="badge-pill {% if emp.status == 'Active' %}badge-active{% else %}badge-inactive{% endif %}">
             <i class="fas fa-circle" style="font-size:0.45rem"></i> {{ emp.status }}
           </span></td>
+          <td>
+            <div id="remark-container-{{ emp.id }}" style="display:flex;align-items:center;gap:6px;">
+              {% if emp.remarks %}
+                <span class="badge-pill" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.75rem;background:rgba(99,102,241,0.12);color:var(--accent);border:1px solid rgba(99,102,241,0.3);cursor:pointer;padding:3px 8px;"
+                      onclick="openRemarkModal({{ emp.id }}, '{{ emp.name|escape }}', '{{ emp.remarks|escape }}')"
+                      title="{{ emp.remarks }}">
+                  <i class="fas fa-comment-dots"></i> {{ emp.remarks }}
+                </span>
+                <button class="btn btn-secondary btn-sm" style="padding:2px 6px;height:24px;font-size:0.7rem;"
+                        onclick="openRemarkModal({{ emp.id }}, '{{ emp.name|escape }}', '{{ emp.remarks|escape }}')"
+                        title="Edit remark">
+                  <i class="fas fa-pencil-alt"></i>
+                </button>
+              {% else %}
+                <button class="btn btn-secondary btn-sm" style="padding:2px 8px;height:24px;font-size:0.72rem;opacity:0.7;"
+                        onclick="openRemarkModal({{ emp.id }}, '{{ emp.name|escape }}', '')"
+                        title="Add remark">
+                  <i class="fas fa-plus"></i> Add Note
+                </button>
+              {% endif %}
+            </div>
+          </td>
           <td>
             <div style="display:flex;gap:4px;flex-wrap:wrap;">
               {% if emp.offer_sent %}<span class="badge-pill badge-sent" style="font-size:0.68rem;"><i class="fas fa-check"></i> Offer</span>{% endif %}
@@ -704,5 +728,144 @@ async function doDelete() {
   const data = await res.json();
   if (data.success) location.reload();
 }
+
+// ─────────────── HR REMARKS MODAL ───────────────
+let currentRemarkEmpId = null;
+
+function openRemarkModal(empId, empName, currentRemark) {
+  currentRemarkEmpId = empId;
+  document.getElementById('remarkEmpName').textContent = empName;
+  document.getElementById('employeeRemarkText').value = currentRemark || '';
+  document.getElementById('remarkModal').classList.add('open');
+}
+
+function closeRemarkModal() {
+  document.getElementById('remarkModal').classList.remove('open');
+  currentRemarkEmpId = null;
+}
+
+function setRemarkPreset(text) {
+  const textarea = document.getElementById('employeeRemarkText');
+  if (textarea.value.trim()) {
+    textarea.value = textarea.value.trim() + '; ' + text;
+  } else {
+    textarea.value = text;
+  }
+}
+
+async function saveRemarkModal() {
+  if (!currentRemarkEmpId) return;
+  const btn = document.getElementById('saveRemarkBtn');
+  const originalHtml = btn.innerHTML;
+  const remarkVal = document.getElementById('employeeRemarkText').value.trim();
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+  try {
+    const res = await fetch(`/api/employee/${currentRemarkEmpId}/remark`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ remarks: remarkVal })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // Update UI in-place without page reload
+      const container = document.getElementById(`remark-container-${currentRemarkEmpId}`);
+      if (container) {
+        if (remarkVal) {
+          const escapedRemark = remarkVal.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+          const empName = document.getElementById('remarkEmpName').textContent.replace(/'/g, "\\'");
+          container.innerHTML = `
+            <span class="badge-pill" style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:0.75rem;background:rgba(99,102,241,0.12);color:var(--accent);border:1px solid rgba(99,102,241,0.3);cursor:pointer;padding:3px 8px;"
+                  onclick="openRemarkModal(${currentRemarkEmpId}, '${empName}', '${escapedRemark}')"
+                  title="${escapedRemark}">
+              <i class="fas fa-comment-dots"></i> ${escapedRemark}
+            </span>
+            <button class="btn btn-secondary btn-sm" style="padding:2px 6px;height:24px;font-size:0.7rem;"
+                    onclick="openRemarkModal(${currentRemarkEmpId}, '${empName}', '${escapedRemark}')"
+                    title="Edit remark">
+              <i class="fas fa-pencil-alt"></i>
+            </button>
+          `;
+        } else {
+          const empName = document.getElementById('remarkEmpName').textContent.replace(/'/g, "\\'");
+          container.innerHTML = `
+            <button class="btn btn-secondary btn-sm" style="padding:2px 8px;height:24px;font-size:0.72rem;opacity:0.7;"
+                    onclick="openRemarkModal(${currentRemarkEmpId}, '${empName}', '')"
+                    title="Add remark">
+              <i class="fas fa-plus"></i> Add Note
+            </button>
+          `;
+        }
+      }
+      closeRemarkModal();
+      if (typeof showToast === 'function') {
+        showToast(data.message || 'Remark saved successfully!', 'success');
+      } else {
+        alert(data.message || 'Remark saved successfully!');
+      }
+    } else {
+      alert(data.message || 'Failed to save remark');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('An error occurred while saving remark.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
 </script>
+
+<!-- HR Remarks Modal -->
+<div class="modal-backdrop" id="remarkModal" style="z-index:220;">
+  <div class="modal" style="max-width:550px;width:95%;">
+    <div class="modal-title" style="display:flex;align-items:center;gap:10px;">
+      <i class="fas fa-comment-dots text-accent"></i> 
+      <span>HR Remark: <strong id="remarkEmpName" style="color:var(--text1)"></strong></span>
+    </div>
+    
+    <p style="color:var(--text3);font-size:0.82rem;margin-bottom:12px;">
+      Record status notes (e.g. <em>left the company, not working, probation review, sabbatical, etc.</em>). Saved directly in the database.
+    </p>
+
+    <!-- Quick preset chips -->
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      <button type="button" class="badge-pill" style="cursor:pointer;border:1px solid var(--border);background:var(--bg2);" onclick="setRemarkPreset('Left the company')">
+        <i class="fas fa-sign-out-alt"></i> Left Company
+      </button>
+      <button type="button" class="badge-pill" style="cursor:pointer;border:1px solid var(--border);background:var(--bg2);" onclick="setRemarkPreset('Not working / Absconding')">
+        <i class="fas fa-user-slash"></i> Not Working / Absconding
+      </button>
+      <button type="button" class="badge-pill" style="cursor:pointer;border:1px solid var(--border);background:var(--bg2);" onclick="setRemarkPreset('On Notice Period')">
+        <i class="fas fa-hourglass-half"></i> Notice Period
+      </button>
+      <button type="button" class="badge-pill" style="cursor:pointer;border:1px solid var(--border);background:var(--bg2);" onclick="setRemarkPreset('Internship Completed')">
+        <i class="fas fa-graduation-cap"></i> Internship Completed
+      </button>
+      <button type="button" class="badge-pill" style="cursor:pointer;border:1px solid var(--border);background:var(--bg2);" onclick="setRemarkPreset('On Sabbatical / Leave')">
+        <i class="fas fa-plane-departure"></i> On Sabbatical
+      </button>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Remark / Status Note</label>
+      <textarea id="employeeRemarkText" class="form-control" rows="4" placeholder="Enter detailed remarks here..."></textarea>
+    </div>
+
+    <div class="modal-actions" style="margin-top:16px;">
+      <button type="button" class="btn btn-secondary" onclick="closeRemarkModal()">
+        Cancel
+      </button>
+      <button type="button" class="btn btn-primary" id="saveRemarkBtn" onclick="saveRemarkModal()">
+        <i class="fas fa-save"></i> Save Remark
+      </button>
+    </div>
+  </div>
+</div>
 {% endblock %}

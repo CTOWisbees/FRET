@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Shield,
@@ -19,7 +20,6 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useTheme } from '@/lib/theme';
-import { OperationsAnimation } from '@/components/operations-animation/OperationsAnimation';
 
 export default function LoginPage() {
   const [role, setRole] = useState<'admin' | 'employee'>('employee');
@@ -68,7 +68,7 @@ export default function LoginPage() {
       setEmail('admin@operations.wisbees.com');
       setPassword('admin123');
     } else {
-      setEmail('chhayakanta@wisbees.com');
+      setEmail('chhayakantamaharan@gmail.com');
       setPassword('employee123');
     }
     setErrorMsg(null);
@@ -105,17 +105,9 @@ export default function LoginPage() {
         </button>
       </div>
 
-      {/* Main Container: 2-Column Split Layout */}
-      <div className="relative z-10 w-full max-w-7xl grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch my-auto">
-        
-        {/* Left Column: Continuous 2D Animated Operations Management Scene */}
-        <div className="lg:col-span-7 flex flex-col justify-between rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xl overflow-hidden relative min-h-[600px]">
-          <OperationsAnimation />
-        </div>
-
-        {/* Right Column: Company Login Console */}
-        <div className="lg:col-span-5 flex flex-col justify-center">
-          <div className="w-full bg-white dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 lg:p-9 shadow-2xl transition-colors relative">
+      {/* Main Container: Centered Login Console */}
+      <div className="relative z-10 w-full max-w-md my-auto">
+        <div className="w-full bg-white dark:bg-slate-900/95 backdrop-blur-2xl border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 lg:p-9 shadow-2xl transition-colors relative">
             
             {/* WisBees Brand Logo & Header */}
             <div className="text-center mb-6">
@@ -197,9 +189,17 @@ export default function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                    Password
+                  </label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs font-semibold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 transition"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <div className="relative">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
@@ -286,8 +286,6 @@ export default function LoginPage() {
 
           </div>
         </div>
-
       </div>
-    </div>
   );
 }
