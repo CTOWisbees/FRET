@@ -2475,9 +2475,17 @@ def announcements_view(request):
     history_announcements = Announcement.objects.filter(is_active=False).order_by('-created_at')
 
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
+        hr_user = getattr(request, 'current_user', None)
         return JsonResponse({
             'authenticated': True,
             'is_hr': True,
+            'user': {
+                'id': getattr(hr_user, 'id', None),
+                'name': getattr(hr_user, 'name', 'HR Admin'),
+                'email': getattr(hr_user, 'email', ''),
+                'designation': getattr(hr_user, 'designation', 'HR Administrator'),
+                'role': 'hr'
+            },
             'active_announcements': [{
                 'id': a.id,
                 'title': a.title,

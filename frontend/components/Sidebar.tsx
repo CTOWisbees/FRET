@@ -36,7 +36,11 @@ export default function Sidebar({
     }
   }, [user]);
 
-  const isHr = currentUser?.role === 'hr' || (!currentUser?.emp_type && currentUser?.role !== 'employee');
+  const token = typeof window !== 'undefined' ? localStorage.getItem('fret_token') : null;
+  const isHrToken = Boolean(token && token.startsWith('hr:'));
+  const isEmpToken = Boolean(token && token.startsWith('emp:'));
+
+  const isHr = isHrToken ? true : (isEmpToken ? false : (currentUser?.role === 'hr' || (!currentUser?.emp_type && currentUser?.role !== 'employee')));
   const isCurrentlyOpen = mobileOpen !== undefined ? mobileOpen : internalOpen;
 
   React.useEffect(() => {

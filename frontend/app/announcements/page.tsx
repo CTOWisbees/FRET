@@ -32,12 +32,27 @@ export default function AnnouncementsPage() {
   useEffect(() => {
     try {
       const savedUser = localStorage.getItem('fret_user');
-      if (savedUser) setUser(JSON.parse(savedUser));
+      if (savedUser) {
+        const u = JSON.parse(savedUser);
+        setUser(u);
+        if (u.role === 'hr' || (!u.emp_type && u.role !== 'employee')) {
+          setIsHr(true);
+        } else if (u.role === 'employee' || u.emp_type) {
+          setIsHr(false);
+        }
+      }
+
+      const token = localStorage.getItem('fret_token');
+      if (token && token.startsWith('hr:')) {
+        setIsHr(true);
+      } else if (token && token.startsWith('emp:')) {
+        setIsHr(false);
+      }
 
       const cached = localStorage.getItem('fret_announcements_cache');
       if (cached) {
         const parsed = JSON.parse(cached);
-        setIsHr(parsed.is_hr ?? false);
+        if (parsed.is_hr !== undefined) setIsHr(parsed.is_hr);
         if (parsed.is_hr) {
           setActiveAnnouncements(parsed.active_announcements || []);
           setHistoryAnnouncements(parsed.history_announcements || []);
@@ -54,10 +69,15 @@ export default function AnnouncementsPage() {
     try {
       const res = await api.get('/announcements');
       if (res.data) {
-        setIsHr(res.data.is_hr ?? false);
-        if (res.data.is_hr) {
+        const hrMode = Boolean(res.data.is_hr);
+        setIsHr(hrMode);
+        if (hrMode) {
           setActiveAnnouncements(res.data.active_announcements || []);
           setHistoryAnnouncements(res.data.history_announcements || []);
+          if (res.data.user) {
+            setUser(res.data.user);
+            localStorage.setItem('fret_user', JSON.stringify(res.data.user));
+          }
         } else {
           setAnnouncements(res.data.announcements || []);
           if (res.data.employee) {
@@ -116,11 +136,16 @@ export default function AnnouncementsPage() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans antialiased">
       <Sidebar 
-        user={user ? {
+        user={isHr ? (user ? {
+          name: user.name || 'HR Admin',
+          designation: user.designation || 'HR Administrator',
+          role: 'hr'
+        } : { name: 'HR Admin', designation: 'HR Administrator', role: 'hr' }) : (user ? {
           name: user.name || 'Employee',
           designation: user.designation || 'Staff',
-          emp_type: user.emp_type || 'Normal'
-        } : undefined}
+          emp_type: user.emp_type || 'Normal',
+          role: 'employee'
+        } : undefined)}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
       />

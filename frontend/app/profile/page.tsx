@@ -374,10 +374,12 @@ export default function ProfilePage() {
         user={employee ? {
           name: employee.name || 'Employee',
           designation: employee.designation || 'Staff',
-          emp_type: employee.emp_type || 'Normal'
+          emp_type: employee.emp_type || 'Normal',
+          role: 'employee'
         } : (hrUser ? {
           name: hrUser.name || 'HR Admin',
-          designation: hrUser.designation || 'HR Manager'
+          designation: hrUser.designation || 'HR Manager',
+          role: 'hr'
         } : undefined)}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
