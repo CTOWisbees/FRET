@@ -25,12 +25,52 @@ export default function AddEmployeePage() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  const calcInternEnd = (startDate: string, monthsStr: string) => {
-    if (!startDate || !monthsStr) return;
+  // Dynamic Master Data
+  const [masterRoles, setMasterRoles] = useState<string[]>([]);
+  const [masterDepts, setMasterDepts] = useState<string[]>([]);
+  const [masterDurations, setMasterDurations] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        const res = await api.get('/api/master-data');
+        if (res.data) {
+          if (res.data.roles && res.data.roles.length > 0) setMasterRoles(res.data.roles);
+          if (res.data.departments && res.data.departments.length > 0) {
+            setMasterDepts(res.data.departments);
+            setDepartment(res.data.departments[0]);
+          }
+          if (res.data.durations && res.data.durations.length > 0) setMasterDurations(res.data.durations);
+        }
+      } catch (e) {
+        console.error('Failed to load master data:', e);
+      }
+    };
+    fetchMasterData();
+  }, []);
+
+  const calcInternEnd = (startDate: string, durationVal: string) => {
+    if (!startDate || !durationVal) return;
     const d = new Date(startDate);
-    const months = parseInt(monthsStr);
-    d.setMonth(d.getMonth() + months);
-    d.setDate(d.getDate() - 1);
+    const matchedDur = masterDurations.find((m) => m.value === durationVal || m.label === durationVal);
+
+    if (matchedDur) {
+      if (matchedDur.unit === 'week' || (matchedDur.days && !matchedDur.months)) {
+        const days = matchedDur.days || (matchedDur.amount * 7);
+        d.setDate(d.getDate() + days - 1);
+      } else {
+        const months = matchedDur.months || matchedDur.amount || 1;
+        d.setMonth(d.getMonth() + months);
+        d.setDate(d.getDate() - 1);
+      }
+    } else if (durationVal.endsWith('w')) {
+      const weeks = parseInt(durationVal) || 1;
+      d.setDate(d.getDate() + (weeks * 7) - 1);
+    } else {
+      const months = parseInt(durationVal) || 1;
+      d.setMonth(d.getMonth() + months);
+      d.setDate(d.getDate() - 1);
+    }
     setEndDate(d.toISOString().split('T')[0]);
   };
 
@@ -226,18 +266,9 @@ export default function AddEmployeePage() {
                     className="form-control"
                   >
                     <option value="">Select Department</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Product">Product</option>
-                    <option value="Design">Design</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Sales">Sales</option>
-                    <option value="Human Resources">Human Resources</option>
-                    <option value="Finance">Finance</option>
-                    <option value="Operations">Operations</option>
-                    <option value="Customer Success">Customer Success</option>
-                    <option value="Legal">Legal</option>
-                    <option value="Research">Research</option>
-                    <option value="Data & Analytics">Data & Analytics</option>
+                    {masterDepts.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
                   </select>
                 </div>
               )}
@@ -251,13 +282,9 @@ export default function AddEmployeePage() {
                   className="form-control"
                 >
                   <option value="">— Select role —</option>
-                  <option value="IT Intern - Web & Automation Developer">IT Intern - Web & Automation Developer</option>
-                  <option value="Digital Marketing Intern">Digital Marketing Intern</option>
-                  <option value="Equity Research Analyst">Equity Research Analyst</option>
-                  <option value="Software Engineer">Software Engineer</option>
-                  <option value="Senior Lead Engineer">Senior Lead Engineer</option>
-                  <option value="Financial Controller">Financial Controller</option>
-                  <option value="Marketing Lead">Marketing Lead</option>
+                  {masterRoles.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
                   <option value="other">Other (please specify)</option>
                 </select>
               </div>
@@ -296,13 +323,12 @@ export default function AddEmployeePage() {
                         onChange={handleDurationChange}
                         className="form-control"
                       >
-                        <option value="">— Select —</option>
-                        <option value="1">1 month</option>
-                        <option value="2">2 months</option>
-                        <option value="3">3 months</option>
-                        <option value="4">4 months</option>
-                        <option value="6">6 months</option>
-                        <option value="12">12 months</option>
+                        <option value="">— Select duration —</option>
+                        {masterDurations.map((dur) => (
+                          <option key={dur.value} value={dur.value}>
+                            {dur.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

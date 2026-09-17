@@ -139,6 +139,84 @@ def _default_email_body_text(emp, role_key, role_title):
         "We look forward to your continued association and contribution to WisBees."
     )
 
+DEFAULT_MASTER_ROLES = [
+    "IT Intern – Web & Automation Developer",
+    "Equity Research Intern",
+    "HR Intern",
+    "Legal, Secretarial and Compliance Intern",
+    "Digital Marketing Intern",
+    "Finance Content Writer Intern",
+    "Wealth Management Intern",
+    "Research and Content Analyst Intern",
+    "Software Engineer",
+    "Senior Lead Engineer",
+    "Financial Controller",
+    "Marketing Lead"
+]
+
+DEFAULT_MASTER_DEPARTMENTS = [
+    "Engineering",
+    "Product",
+    "Design",
+    "Marketing",
+    "Sales",
+    "Human Resources",
+    "Finance",
+    "Operations",
+    "Research",
+    "Legal",
+    "Customer Success",
+    "Data & Analytics"
+]
+
+DEFAULT_MASTER_DURATIONS = [
+    {"label": "1 Week", "value": "1w", "unit": "week", "amount": 1, "days": 7},
+    {"label": "2 Weeks", "value": "2w", "unit": "week", "amount": 2, "days": 14},
+    {"label": "3 Weeks", "value": "3w", "unit": "week", "amount": 3, "days": 21},
+    {"label": "4 Weeks", "value": "4w", "unit": "week", "amount": 4, "days": 28},
+    {"label": "6 Weeks", "value": "6w", "unit": "week", "amount": 6, "days": 42},
+    {"label": "8 Weeks", "value": "8w", "unit": "week", "amount": 8, "days": 56},
+    {"label": "1 Month", "value": "1m", "unit": "month", "amount": 1, "months": 1},
+    {"label": "2 Months", "value": "2m", "unit": "month", "amount": 2, "months": 2},
+    {"label": "3 Months", "value": "3m", "unit": "month", "amount": 3, "months": 3},
+    {"label": "4 Months", "value": "4m", "unit": "month", "amount": 4, "months": 4},
+    {"label": "6 Months", "value": "6m", "unit": "month", "amount": 6, "months": 6},
+    {"label": "12 Months", "value": "12m", "unit": "month", "amount": 12, "months": 12}
+]
+
+def get_master_roles():
+    settings = CompanySettings.objects.first()
+    if settings and settings.roles_json:
+        try:
+            roles = json.loads(settings.roles_json)
+            if isinstance(roles, list) and len(roles) > 0:
+                return roles
+        except Exception:
+            pass
+    return DEFAULT_MASTER_ROLES
+
+def get_master_departments():
+    settings = CompanySettings.objects.first()
+    if settings and settings.departments_json:
+        try:
+            depts = json.loads(settings.departments_json)
+            if isinstance(depts, list) and len(depts) > 0:
+                return depts
+        except Exception:
+            pass
+    return DEFAULT_MASTER_DEPARTMENTS
+
+def get_master_durations():
+    settings = CompanySettings.objects.first()
+    if settings and settings.durations_json:
+        try:
+            durations = json.loads(settings.durations_json)
+            if isinstance(durations, list) and len(durations) > 0:
+                return durations
+        except Exception:
+            pass
+    return DEFAULT_MASTER_DURATIONS
+
 def _default_full_letter_text(emp, role_key, role_title):
     role_info = ROLE_DATA.get(role_key, GENERIC_ROLE_TEMPLATE)
     display_title = role_title or role_key
@@ -148,8 +226,13 @@ def _default_full_letter_text(emp, role_key, role_title):
     end_date_val = getattr(emp, 'end_date', None)
     end_str = end_date_val.strftime('%d-%b-%Y') if end_date_val else '___________'
     if emp.joining_date and end_date_val:
-        months = round((end_date_val - emp.joining_date).days / 30)
-        duration_str = f"{months} month{'s' if months != 1 else ''}"
+        diff_days = (end_date_val - emp.joining_date).days + 1
+        if diff_days % 7 == 0 and diff_days < 60:
+            weeks = diff_days // 7
+            duration_str = f"{weeks} week{'s' if weeks != 1 else ''}"
+        else:
+            months = max(1, round(diff_days / 30))
+            duration_str = f"{months} month{'s' if months != 1 else ''}"
     else:
         duration_str = "3 months"
 
@@ -184,15 +267,22 @@ def _seed_offer_draft_fields(emp, role_key):
         'email_body_text': _default_email_body_text(emp, role_key, role_title),
     }
 
-def _get_offer_draft_data(emp, role_key):
+def _get_offer_draft_data(emp, role_key=None):
     draft = OfferLetterDraft.objects.filter(employee_id=emp.id).first()
-    if draft and draft.role_key == role_key:
-        return {
-            'role_key': draft.role_key,
-            'role_title': draft.role_title or draft.role_key or '',
-            'full_letter_text': draft.full_letter_text or '',
-            'email_body_text': draft.email_body_text or '',
-        }
+    if draft:
+        if not role_key or draft.role_key == role_key or (not draft.role_key):
+            matched_key = draft.role_key or role_key or (emp.designation if emp.designation in ROLE_KEYS else ROLE_KEYS[0])
+            return {
+                'role_key': matched_key,
+                'role_title': draft.role_title or matched_key or '',
+                'full_letter_text': draft.full_letter_text or _default_full_letter_text(emp, matched_key, draft.role_title or matched_key),
+                'email_body_text': draft.email_body_text or _default_email_body_text(emp, matched_key, draft.role_title or matched_key),
+            }
+    if not role_key:
+        if getattr(emp, 'designation', None) and emp.designation in ROLE_KEYS:
+            role_key = emp.designation
+        else:
+            role_key = ROLE_KEYS[0] if ROLE_KEYS else ''
     return _seed_offer_draft_fields(emp, role_key)
 
 def _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text):
@@ -202,6 +292,9 @@ def _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_
     draft.full_letter_text = full_letter_text
     draft.email_body_text = email_body_text
     draft.save()
+    if role_title:
+        emp.designation = role_title
+        emp.save(update_fields=['designation'])
     return draft
 
 RESEARCH_REPORT_RETENTION_DAYS = 3

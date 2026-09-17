@@ -61,6 +61,7 @@ class Employee(models.Model):
     profile_pic_mime = models.CharField(max_length=20, null=True, blank=True)
     blood_group = models.CharField(max_length=5, null=True, blank=True)
     remarks = models.TextField(null=True, blank=True)
+    rating = models.IntegerField(default=0)
 
     class Meta:
         db_table = 'employee'
@@ -148,6 +149,9 @@ class CompanySettings(models.Model):
     nda_filename = models.CharField(max_length=200, null=True, blank=True)
     letterhead_data = models.BinaryField(null=True, blank=True)
     letterhead_mime = models.CharField(max_length=20, null=True, blank=True)
+    roles_json = models.TextField(null=True, blank=True)
+    departments_json = models.TextField(null=True, blank=True)
+    durations_json = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = 'company_settings'

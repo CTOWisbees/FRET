@@ -683,10 +683,16 @@ export default function ProfilePage() {
                       >
                         <option value="HR Manager">HR Manager</option>
                         <option value="Senior HR Manager">Senior HR Manager</option>
+                        <option value="HR Executive">HR Executive</option>
+                        <option value="HR Generalist">HR Generalist</option>
                         <option value="HR Director">HR Director</option>
+                        <option value="Head of HR">Head of HR</option>
                         <option value="Talent Acquisition Specialist">Talent Acquisition Specialist</option>
                         <option value="HR Business Partner">HR Business Partner</option>
+                        <option value="People Operations Lead">People Operations Lead</option>
+                        <option value="HR Coordinator">HR Coordinator</option>
                         <option value="Chief People Officer">Chief People Officer</option>
+                        <option value="HR Assistant">HR Assistant</option>
                       </select>
                     </div>
                   </div>

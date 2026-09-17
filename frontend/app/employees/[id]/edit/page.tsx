@@ -27,6 +27,53 @@ export default function EditEmployeePage() {
   const [joiningDate, setJoiningDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [empType, setEmpType] = useState('Normal');
+  const [duration, setDuration] = useState('');
+
+  // Master Data
+  const [masterRoles, setMasterRoles] = useState<string[]>([]);
+  const [masterDepts, setMasterDepts] = useState<string[]>([]);
+  const [masterDurations, setMasterDurations] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchMasterData = async () => {
+      try {
+        const res = await api.get('/api/master-data');
+        if (res.data) {
+          if (res.data.roles) setMasterRoles(res.data.roles);
+          if (res.data.departments) setMasterDepts(res.data.departments);
+          if (res.data.durations) setMasterDurations(res.data.durations);
+        }
+      } catch (e) {
+        console.error('Failed to load master data:', e);
+      }
+    };
+    fetchMasterData();
+  }, []);
+
+  const calcInternEnd = (startDate: string, durationVal: string) => {
+    if (!startDate || !durationVal) return;
+    const d = new Date(startDate);
+    const matchedDur = masterDurations.find((m) => m.value === durationVal || m.label === durationVal);
+
+    if (matchedDur) {
+      if (matchedDur.unit === 'week' || (matchedDur.days && !matchedDur.months)) {
+        const days = matchedDur.days || (matchedDur.amount * 7);
+        d.setDate(d.getDate() + days - 1);
+      } else {
+        const months = matchedDur.months || matchedDur.amount || 1;
+        d.setMonth(d.getMonth() + months);
+        d.setDate(d.getDate() - 1);
+      }
+    } else if (durationVal.endsWith('w')) {
+      const weeks = parseInt(durationVal) || 1;
+      d.setDate(d.getDate() + (weeks * 7) - 1);
+    } else {
+      const months = parseInt(durationVal) || 1;
+      d.setMonth(d.getMonth() + months);
+      d.setDate(d.getDate() - 1);
+    }
+    setEndDate(d.toISOString().split('T')[0]);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -214,48 +261,81 @@ export default function EditEmployeePage() {
                     onChange={(e) => setDepartment(e.target.value)}
                     className="form-control text-sm"
                   >
-                    <option value="Engineering">Engineering</option>
-                    <option value="Data & Analytics">Data & Analytics</option>
-                    <option value="Research">Research</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Finance">Finance</option>
-                    <option value="General">General</option>
+                    {department && !masterDepts.includes(department) && (
+                      <option value={department}>{department}</option>
+                    )}
+                    {masterDepts.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Designation</label>
+                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Role / Designation</label>
                   <input
                     type="text"
+                    list="role-suggestions"
                     value={designation}
                     onChange={(e) => setDesignation(e.target.value)}
                     className="form-control text-sm"
+                    placeholder="Enter or select role"
                   />
+                  <datalist id="role-suggestions">
+                    {masterRoles.map((r) => (
+                      <option key={r} value={r} />
+                    ))}
+                  </datalist>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Annual CTC (₹)</label>
-                  <input
-                    type="number"
-                    value={salary}
-                    onChange={(e) => setSalary(e.target.value)}
-                    placeholder="600000"
-                    className="form-control text-sm"
-                  />
-                </div>
+                {empType === 'Intern' ? (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Recalculate Duration</label>
+                    <select
+                      value={duration}
+                      onChange={(e) => {
+                        setDuration(e.target.value);
+                        if (joiningDate) calcInternEnd(joiningDate, e.target.value);
+                      }}
+                      className="form-control text-sm"
+                    >
+                      <option value="">— Select duration preset —</option>
+                      {masterDurations.map((dur) => (
+                        <option key={dur.value} value={dur.value}>
+                          {dur.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Annual CTC (₹)</label>
+                    <input
+                      type="number"
+                      value={salary}
+                      onChange={(e) => setSalary(e.target.value)}
+                      placeholder="600000"
+                      className="form-control text-sm"
+                    />
+                  </div>
+                )}
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Joining Date</label>
+                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Joining / Start Date</label>
                   <input
                     type="date"
                     value={joiningDate}
-                    onChange={(e) => setJoiningDate(e.target.value)}
+                    onChange={(e) => {
+                      setJoiningDate(e.target.value);
+                      if (empType === 'Intern' && duration) {
+                        calcInternEnd(e.target.value, duration);
+                      }
+                    }}
                     className="form-control text-sm"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">End Date (Optional)</label>
+                  <label className="block text-xs font-semibold text-[var(--text3)] mb-1">End Date</label>
                   <input
                     type="date"
                     value={endDate}

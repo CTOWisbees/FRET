@@ -46,6 +46,8 @@ export default function EmployeesPage() {
   // Remark Modal State
   const [showRemarkModal, setShowRemarkModal] = useState(false);
   const [remarkText, setRemarkText] = useState('');
+  const [remarkRating, setRemarkRating] = useState<number>(0);
+  const [hoverRating, setHoverRating] = useState<number>(0);
   const [savingRemark, setSavingRemark] = useState(false);
 
   // 1. Instantly hydrate cached employees for 0ms initial render
@@ -64,16 +66,28 @@ export default function EmployeesPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await api.get('/api/employees-list');
-      const list = res.data || [];
-      setEmployees(list);
-      localStorage.setItem('fret_employees_cache', JSON.stringify(list));
+      const [empRes, masterRes] = await Promise.allSettled([
+        api.get('/api/employees-list'),
+        api.get('/api/master-data')
+      ]);
 
-      // Extract unique departments
-      const depts: string[] = Array.from(new Set(list.map((e: any) => e.department).filter(Boolean))) as string[];
-      setDepartments(depts);
+      let list: any[] = [];
+      if (empRes.status === 'fulfilled' && empRes.value.data) {
+        list = empRes.value.data || [];
+        setEmployees(list);
+        localStorage.setItem('fret_employees_cache', JSON.stringify(list));
+      }
+
+      let masterDepts: string[] = [];
+      if (masterRes.status === 'fulfilled' && masterRes.value.data?.departments) {
+        masterDepts = masterRes.value.data.departments;
+      }
+
+      const empDepts: string[] = list.map((e: any) => e.department).filter(Boolean);
+      const combinedDepts: string[] = Array.from(new Set([...masterDepts, ...empDepts])) as string[];
+      setDepartments(combinedDepts);
     } catch (e) {
-      console.error('Failed to fetch employees:', e);
+      console.error('Failed to fetch employees/master data:', e);
     } finally {
       setLoading(false);
     }
@@ -135,23 +149,48 @@ export default function EmployeesPage() {
 
     try {
       const res = await api.get('/offer-letter/roles');
-      if (res.data && res.data.roles) {
-        setAllRoles(res.data.roles);
+      const roleList: string[] = res.data?.roles || [];
+      setAllRoles(roleList);
+
+      // Determine initial role from employee draft, offer_role, or designation
+      let initialRole = emp.offer_role || '';
+      if (!initialRole && emp.designation) {
+        const match = roleList.find((r) => r.toLowerCase() === emp.designation.toLowerCase()) ||
+                      roleList.find((r) => emp.designation.toLowerCase().includes(r.toLowerCase())) ||
+                      '';
+        if (match) initialRole = match;
+      }
+
+      // Fetch draft data for this employee
+      const draftRes = await api.get(`/offer-letter/draft?emp_id=${emp.id}&role=${encodeURIComponent(initialRole || '')}`);
+      if (draftRes.data) {
+        const activeRole = draftRes.data.role_key || initialRole || roleList[0] || '';
+        setSelectedRole(activeRole);
+        setOfferRoleTitle(draftRes.data.role_title || activeRole);
+        setOfferFullText(draftRes.data.full_text || draftRes.data.full_letter_text || '');
+        setOfferEmailBody(draftRes.data.email_body || draftRes.data.email_body_text || '');
+      } else if (initialRole) {
+        setSelectedRole(initialRole);
+        handleRoleSelect(initialRole, emp);
+      } else if (roleList.length > 0) {
+        setSelectedRole(roleList[0]);
+        handleRoleSelect(roleList[0], emp);
       }
     } catch (e) {
-      console.error('Failed to fetch offer roles:', e);
+      console.error('Failed to fetch offer roles/draft:', e);
     }
   };
 
-  const handleRoleSelect = async (role: string) => {
+  const handleRoleSelect = async (role: string, overrideEmp?: any) => {
     setSelectedRole(role);
     if (!role) return;
+    const targetEmp = overrideEmp || selectedEmp;
     try {
-      const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(role)}&emp_id=${selectedEmp?.id || ''}`);
+      const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(role)}&emp_id=${targetEmp?.id || ''}`);
       if (res.data) {
         setOfferRoleTitle(res.data.role_title || role);
-        setOfferFullText(res.data.full_text || '');
-        setOfferEmailBody(res.data.email_body || '');
+        setOfferFullText(res.data.full_text || res.data.full_letter_text || '');
+        setOfferEmailBody(res.data.email_body || res.data.email_body_text || '');
       }
     } catch (e) {
       console.error('Failed to load offer draft:', e);
@@ -169,14 +208,48 @@ export default function EmployeesPage() {
         email_body: offerEmailBody,
       });
       alert('Draft saved successfully!');
+      setEmployees((prev) => prev.map((e) => {
+        if (e.id === selectedEmp.id) {
+          return {
+            ...e,
+            designation: offerRoleTitle || selectedRole || e.designation,
+            offer_role: selectedRole,
+            offer_role_title: offerRoleTitle || selectedRole,
+          };
+        }
+        return e;
+      }));
+      fetchEmployees();
     } catch (e: any) {
       alert(e.response?.data?.message || 'Failed to save draft');
     }
   };
 
+  const previewOffer = () => {
+    if (!selectedEmp) return;
+    const roleParam = selectedRole ? `&role_key=${encodeURIComponent(selectedRole)}` : '';
+    const titleParam = offerRoleTitle ? `&role_title=${encodeURIComponent(offerRoleTitle)}` : '';
+    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}&preview=1${roleParam}${titleParam}`), '_blank');
+  };
+
   const downloadOffer = () => {
     if (!selectedEmp) return;
-    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}`), '_blank');
+    const roleParam = selectedRole ? `&role_key=${encodeURIComponent(selectedRole)}` : '';
+    const titleParam = offerRoleTitle ? `&role_title=${encodeURIComponent(offerRoleTitle)}` : '';
+    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}${roleParam}${titleParam}`), '_blank');
+
+    setEmployees((prev) => prev.map((e) => {
+      if (e.id === selectedEmp.id) {
+        return {
+          ...e,
+          offer_sent: true,
+          designation: offerRoleTitle || selectedRole || e.designation,
+          offer_role: selectedRole,
+          offer_role_title: offerRoleTitle || selectedRole,
+        };
+      }
+      return e;
+    }));
   };
 
   const openExpModal = (emp: any) => {
@@ -186,6 +259,11 @@ export default function EmployeesPage() {
     setCcCto(false);
     setExtraCcInput('');
     setShowExpModal(true);
+  };
+
+  const previewExperience = () => {
+    if (!selectedEmp) return;
+    window.open(getApiUrl(`/generate-experience-letter?emp_id=${selectedEmp.id}&preview=1`), '_blank');
   };
 
   const downloadExperience = () => {
@@ -228,6 +306,19 @@ export default function EmployeesPage() {
         if (res.data?.success) {
           alert(res.data.message || `Offer letter email sent successfully to ${selectedEmp.email}!`);
           setShowOfferModal(false);
+          setEmployees((prev) => prev.map((e) => {
+            if (e.id === selectedEmp.id) {
+              return {
+                ...e,
+                offer_sent: true,
+                designation: offerRoleTitle || selectedRole || e.designation,
+                offer_role: selectedRole,
+                offer_role_title: offerRoleTitle || selectedRole,
+              };
+            }
+            return e;
+          }));
+          fetchEmployees();
         } else {
           alert(res.data?.message || 'Failed to send email.');
         }
@@ -239,6 +330,7 @@ export default function EmployeesPage() {
         if (res.data?.success) {
           alert(res.data.message || `Experience letter email sent successfully to ${selectedEmp.email}!`);
           setShowExpModal(false);
+          fetchEmployees();
         } else {
           alert(res.data?.message || 'Failed to send email.');
         }
@@ -266,6 +358,8 @@ export default function EmployeesPage() {
   const openRemarkModal = (emp: any) => {
     setSelectedEmp(emp);
     setRemarkText(emp.remarks || '');
+    setRemarkRating(emp.rating || 0);
+    setHoverRating(0);
     setShowRemarkModal(true);
   };
 
@@ -279,10 +373,15 @@ export default function EmployeesPage() {
     try {
       const res = await api.post(`/api/employee/${selectedEmp.id}/remark`, {
         remarks: remarkText.trim(),
+        rating: remarkRating,
       });
       if (res.data?.success) {
         setEmployees((prev) =>
-          prev.map((e) => (e.id === selectedEmp.id ? { ...e, remarks: remarkText.trim() } : e))
+          prev.map((e) =>
+            e.id === selectedEmp.id
+              ? { ...e, remarks: remarkText.trim(), rating: remarkRating }
+              : e
+          )
         );
         setShowRemarkModal(false);
       } else {
@@ -453,42 +552,71 @@ export default function EmployeesPage() {
                             </span>
                           </td>
                           <td style={{ padding: '8px 10px' }}>
-                            {emp.remarks ? (
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <span
-                                  className="badge-pill"
-                                  style={{
-                                    maxWidth: '130px',
-                                    overflow: 'hidden',
-                                    textOverflow: 'ellipsis',
-                                    whiteSpace: 'nowrap',
-                                    fontSize: '0.7rem',
-                                    background: 'rgba(99, 102, 241, 0.12)',
-                                    color: 'var(--accent)',
-                                    border: '1px solid rgba(99, 102, 241, 0.3)',
-                                    cursor: 'pointer',
-                                    padding: '2px 6px',
-                                  }}
-                                  onClick={() => openRemarkModal(emp)}
-                                  title={emp.remarks}
-                                >
-                                  <i className="fas fa-comment-dots"></i> {emp.remarks}
-                                </span>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  style={{ padding: '2px 5px', height: '22px', fontSize: '0.65rem' }}
-                                  onClick={() => openRemarkModal(emp)}
-                                  title="Edit remark"
-                                >
-                                  <i className="fas fa-pencil-alt"></i>
-                                </button>
+                            {emp.remarks || (emp.rating && emp.rating > 0) ? (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {emp.rating > 0 ? (
+                                  <div 
+                                    style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer' }}
+                                    onClick={() => openRemarkModal(emp)}
+                                    title={`Rating: ${emp.rating} / 5`}
+                                  >
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <i
+                                        key={star}
+                                        className={star <= emp.rating ? 'fas fa-star' : 'far fa-star'}
+                                        style={{ fontSize: '0.68rem', color: star <= emp.rating ? '#f59e0b' : 'var(--text3)', opacity: star <= emp.rating ? 1 : 0.4 }}
+                                      />
+                                    ))}
+                                    <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', marginLeft: '2px' }}>
+                                      {emp.rating}★
+                                    </span>
+                                  </div>
+                                ) : null}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  {emp.remarks ? (
+                                    <span
+                                      className="badge-pill"
+                                      style={{
+                                        maxWidth: '125px',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        fontSize: '0.7rem',
+                                        background: 'rgba(99, 102, 241, 0.12)',
+                                        color: 'var(--accent)',
+                                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                                        cursor: 'pointer',
+                                        padding: '2px 6px',
+                                      }}
+                                      onClick={() => openRemarkModal(emp)}
+                                      title={emp.remarks}
+                                    >
+                                      <i className="fas fa-comment-dots"></i> {emp.remarks}
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{ fontSize: '0.68rem', color: 'var(--text3)', cursor: 'pointer' }}
+                                      onClick={() => openRemarkModal(emp)}
+                                    >
+                                      + Note
+                                    </span>
+                                  )}
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ padding: '2px 5px', height: '22px', fontSize: '0.65rem' }}
+                                    onClick={() => openRemarkModal(emp)}
+                                    title="Edit remark & rating"
+                                  >
+                                    <i className="fas fa-pencil-alt"></i>
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <button
                                 className="btn btn-secondary btn-sm"
                                 style={{ padding: '2px 6px', height: '22px', fontSize: '0.68rem', opacity: 0.7 }}
                                 onClick={() => openRemarkModal(emp)}
-                                title="Add remark"
+                                title="Add remark & star rating"
                               >
                                 <i className="fas fa-plus"></i> Add
                               </button>
@@ -610,10 +738,45 @@ export default function EmployeesPage() {
           {/* Offer Letter Modal */}
           <div className={`modal-backdrop ${showOfferModal ? 'open' : ''}`} id="offerModal" style={{ zIndex: 210 }}>
             <div className="modal" style={{ maxWidth: '680px', width: '95%' }}>
-              <div className="modal-title">
-                <i className="fas fa-file-contract text-accent"></i> 
-                Generate Offer Letter
+              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <i className="fas fa-file-contract text-accent"></i> 
+                  <span>Generate Offer Letter</span>
+                </div>
+                {selectedEmp?.offer_sent && (
+                  <span className="badge-pill badge-sent" style={{ fontSize: '0.72rem', padding: '3px 8px' }}>
+                    <i className="fas fa-check-circle"></i> Offer Letter Issued
+                  </span>
+                )}
               </div>
+
+              {selectedEmp && (
+                <div style={{ 
+                  background: 'var(--bg2)', 
+                  border: '1px solid var(--border)', 
+                  borderRadius: '8px', 
+                  padding: '10px 14px', 
+                  marginBottom: '14px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '8px',
+                  fontSize: '0.84rem'
+                }}>
+                  <div>
+                    <span style={{ fontWeight: 700, color: 'var(--text)' }}>{selectedEmp.name}</span>
+                    <span style={{ color: 'var(--text3)', marginLeft: '8px' }}>({selectedEmp.emp_id})</span>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text2)' }}>{selectedEmp.email || 'No email provided'}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text3)', textTransform: 'uppercase', fontWeight: 600 }}>Assigned Role</div>
+                    <div style={{ fontWeight: 600, color: 'var(--accent)', fontSize: '0.82rem' }}>
+                      {offerRoleTitle || selectedRole || selectedEmp.designation || 'Pending Selection'}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="form-group">
                 <label className="form-label">Select Role</label>
@@ -744,6 +907,15 @@ export default function EmployeesPage() {
                 >
                   Cancel
                 </button>
+                <button 
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ border: '1px solid var(--accent)', color: 'var(--accent)' }}
+                  onClick={previewOffer}
+                  title="Preview Offer Letter in browser"
+                >
+                  <i className="fas fa-eye"></i> Preview Letter
+                </button>
                 <button className="btn btn-primary" onClick={downloadOffer} id="downloadBtn">
                   <i className="fas fa-download"></i> Download PDF
                 </button>
@@ -826,6 +998,15 @@ export default function EmployeesPage() {
                   Close
                 </button>
                 <button 
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ border: '1px solid var(--accent)', color: 'var(--accent)' }}
+                  onClick={previewExperience}
+                  title="Preview Experience Letter in browser"
+                >
+                  <i className="fas fa-eye"></i> Preview Letter
+                </button>
+                <button 
                   className="btn btn-primary"
                   onClick={downloadExperience}
                 >
@@ -871,57 +1052,152 @@ export default function EmployeesPage() {
 
           {/* HR Remarks Modal */}
           <div className={`modal-backdrop ${showRemarkModal ? 'open' : ''}`} style={{ zIndex: 10000 }}>
-            <div className="modal" style={{ maxWidth: '520px', width: '95%' }}>
+            <div className="modal" style={{ maxWidth: '540px', width: '95%' }}>
               <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <i className="fas fa-comment-dots text-accent"></i>
-                <span>HR Remark: <strong style={{ color: 'var(--text)' }}>{selectedEmp?.name}</strong></span>
+                <span>HR Remark & Rating: <strong style={{ color: 'var(--text)' }}>{selectedEmp?.name}</strong></span>
               </div>
-              <p style={{ color: 'var(--text3)', fontSize: '0.82rem', marginBottom: '12px' }}>
-                Record status notes (e.g. <em>left company, not working, probation note, sabbatical</em>). Saved directly in the database.
+              <p style={{ color: 'var(--text3)', fontSize: '0.82rem', marginBottom: '14px' }}>
+                Record performance ratings and HR status notes (e.g. <em>performance grade, left company, probation note</em>).
               </p>
 
+              {/* Star Rating Selector */}
+              <div style={{
+                background: 'var(--bg2)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '12px 14px',
+                marginBottom: '14px',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text)' }}>
+                    Star Rating (1 - 5 Stars)
+                  </label>
+                  {remarkRating > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setRemarkRating(0)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text3)',
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: 0
+                      }}
+                    >
+                      Clear Rating
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {[1, 2, 3, 4, 5].map((star) => {
+                      const activeVal = hoverRating || remarkRating;
+                      const isFilled = star <= activeVal;
+                      return (
+                        <button
+                          key={star}
+                          type="button"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            cursor: 'pointer',
+                            padding: '3px',
+                            fontSize: '1.45rem',
+                            color: isFilled ? '#f59e0b' : 'var(--text3)',
+                            transition: 'transform 0.15s ease, color 0.15s ease',
+                            transform: (hoverRating === star || (hoverRating === 0 && remarkRating === star)) ? 'scale(1.2)' : 'scale(1)',
+                          }}
+                          onMouseEnter={() => setHoverRating(star)}
+                          onMouseLeave={() => setHoverRating(0)}
+                          onClick={() => setRemarkRating(star === remarkRating ? 0 : star)}
+                          title={`${star} Star${star > 1 ? 's' : ''}`}
+                        >
+                          <i className={isFilled ? 'fas fa-star' : 'far fa-star'}></i>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    color: (hoverRating || remarkRating) ? '#f59e0b' : 'var(--text3)',
+                    background: (hoverRating || remarkRating) ? 'rgba(245, 158, 11, 0.1)' : 'var(--bg3)',
+                    padding: '3px 8px',
+                    borderRadius: '5px',
+                  }}>
+                    {(() => {
+                      const val = hoverRating || remarkRating;
+                      if (val === 1) return '★ 1/5 - Needs Improvement';
+                      if (val === 2) return '★★ 2/5 - Fair / Below Average';
+                      if (val === 3) return '★★★ 3/5 - Good / Expected';
+                      if (val === 4) return '★★★★ 4/5 - Very Good';
+                      if (val === 5) return '★★★★★ 5/5 - Outstanding / Exceptional';
+                      return 'No Rating Selected';
+                    })()}
+                  </div>
+                </div>
+              </div>
+
               {/* Quick preset tags */}
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-                <button
-                  type="button"
-                  className="badge-pill"
-                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
-                  onClick={() => setRemarkPreset('Left the company')}
-                >
-                  <i className="fas fa-sign-out-alt"></i> Left Company
-                </button>
-                <button
-                  type="button"
-                  className="badge-pill"
-                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
-                  onClick={() => setRemarkPreset('Not working / Absconding')}
-                >
-                  <i className="fas fa-user-slash"></i> Not Working / Absconding
-                </button>
-                <button
-                  type="button"
-                  className="badge-pill"
-                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
-                  onClick={() => setRemarkPreset('On Notice Period')}
-                >
-                  <i className="fas fa-hourglass-half"></i> Notice Period
-                </button>
-                <button
-                  type="button"
-                  className="badge-pill"
-                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
-                  onClick={() => setRemarkPreset('Internship Completed')}
-                >
-                  <i className="fas fa-graduation-cap"></i> Internship Completed
-                </button>
-                <button
-                  type="button"
-                  className="badge-pill"
-                  style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
-                  onClick={() => setRemarkPreset('On Sabbatical / Leave')}
-                >
-                  <i className="fas fa-plane-departure"></i> On Sabbatical
-                </button>
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text2)', marginBottom: '6px', display: 'block' }}>
+                  Quick Note Presets
+                </label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="badge-pill"
+                    style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                    onClick={() => setRemarkPreset('Top Performer')}
+                  >
+                    <i className="fas fa-trophy" style={{ color: '#f59e0b' }}></i> Top Performer
+                  </button>
+                  <button
+                    type="button"
+                    className="badge-pill"
+                    style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                    onClick={() => setRemarkPreset('Left the company')}
+                  >
+                    <i className="fas fa-sign-out-alt"></i> Left Company
+                  </button>
+                  <button
+                    type="button"
+                    className="badge-pill"
+                    style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                    onClick={() => setRemarkPreset('Not working / Absconding')}
+                  >
+                    <i className="fas fa-user-slash"></i> Not Working
+                  </button>
+                  <button
+                    type="button"
+                    className="badge-pill"
+                    style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                    onClick={() => setRemarkPreset('On Notice Period')}
+                  >
+                    <i className="fas fa-hourglass-half"></i> Notice Period
+                  </button>
+                  <button
+                    type="button"
+                    className="badge-pill"
+                    style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                    onClick={() => setRemarkPreset('Internship Completed')}
+                  >
+                    <i className="fas fa-graduation-cap"></i> Internship Done
+                  </button>
+                  <button
+                    type="button"
+                    className="badge-pill"
+                    style={{ cursor: 'pointer', border: '1px solid var(--border)', background: 'var(--bg2)' }}
+                    onClick={() => setRemarkPreset('On Sabbatical / Leave')}
+                  >
+                    <i className="fas fa-plane-departure"></i> On Sabbatical
+                  </button>
+                </div>
               </div>
 
               <div className="form-group">
@@ -930,7 +1206,7 @@ export default function EmployeesPage() {
                 </label>
                 <textarea
                   className="form-control"
-                  rows={4}
+                  rows={3}
                   style={{ width: '100%', padding: '10px', borderRadius: '6px', boxSizing: 'border-box' }}
                   placeholder="Enter detailed remarks here..."
                   value={remarkText}
@@ -949,7 +1225,7 @@ export default function EmployeesPage() {
                     </>
                   ) : (
                     <>
-                      <i className="fas fa-save"></i> Save Remark
+                      <i className="fas fa-save"></i> Save Remark & Rating
                     </>
                   )}
                 </button>

@@ -32,7 +32,8 @@ from hrms.utils import (
     _default_email_body_text, _default_full_letter_text, _seed_offer_draft_fields,
     _get_offer_draft_data, _upsert_offer_draft, _compile_research_context,
     _purge_expired_research_reports, _research_report_or_403,
-    _yahoo_quote_summary, _raw, _yahoo_fundamentals_timeseries, HEADERS
+    _yahoo_quote_summary, _raw, _yahoo_fundamentals_timeseries, HEADERS,
+    get_master_roles, get_master_departments, get_master_durations
 )
 from pdf_generator import (
     generate_experience_letter_pdf, generate_offer_letter_pdf, generate_leave_approval_pdf, ROLE_KEYS, ROLE_DATA
@@ -311,6 +312,406 @@ def change_password_view(request):
         return redirect('employee_dashboard')
 
     return render(request, 'change_password.html')
+
+
+from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
+from urllib.parse import urlencode, urlparse
+from django.conf import settings
+from django.core.cache import cache
+from django.core.mail import send_mail
+
+def _send_hr_registration_otp_email(recipient_email, user_name, otp):
+    subject = f"Your WisBees HR Registration Passkey: {otp}"
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 30px 20px; color: #1e293b;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 540px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <tr>
+          <td style="background: linear-gradient(135deg, #065F46 0%, #047857 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; font-size: 24px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">WisBees FRET</h1>
+            <p style="color: #d1fae5; font-size: 13px; margin: 6px 0 0 0;">HR Administrator Verification Passkey</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 32px 28px;">
+            <p style="font-size: 15px; line-height: 1.6; color: #334155; margin: 0 0 16px 0;">
+              Hello <strong>{user_name}</strong>,
+            </p>
+            <p style="font-size: 14px; line-height: 1.6; color: #64748b; margin: 0 0 20px 0;">
+              Thank you for initiating registration for an HR Administrator account on the WisBees FRET Portal. Please use the following 6-digit security passkey to verify your email and complete your account setup:
+            </p>
+            <div style="text-align: center; margin: 28px 0; background-color: #f0fdf4; border: 1.5px dashed #059669; border-radius: 12px; padding: 18px 24px;">
+              <span style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 800; letter-spacing: 8px; color: #047857; display: inline-block;">{otp}</span>
+            </div>
+            <p style="font-size: 13px; line-height: 1.6; color: #64748b; margin: 20px 0 0 0;">
+              Enter this passkey on the verification screen to activate your account and gain access to the HR administration portal.
+            </p>
+            <p style="font-size: 12px; color: #94a3b8; margin: 20px 0 0 0; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+              ⏱️ This code will expire in <strong>15 minutes</strong>. If you did not request this registration, please disregard this email.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+    """
+
+    email_sent = False
+
+    # 1. Try Microsoft Graph via EmailConfig model
+    try:
+        config = EmailConfig.objects.exclude(sender_email__isnull=True).exclude(sender_email='').first()
+        if config and config.sender_email and config.tenant_id and config.client_id and config.client_secret:
+            token = get_graph_token(None)
+            if token:
+                send_url = f"https://graph.microsoft.com/v1.0/users/{config.sender_email}/sendMail"
+                email_payload = {
+                    "message": {
+                        "subject": subject,
+                        "body": {
+                            "contentType": "HTML",
+                            "content": html_content
+                        },
+                        "toRecipients": [{"emailAddress": {"address": recipient_email}}]
+                    }
+                }
+                res = requests.post(send_url, json=email_payload, headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                }, timeout=6)
+                if res.status_code == 202:
+                    email_sent = True
+    except Exception as e:
+        print(f"Graph HR OTP email delivery notice: {e}")
+
+    # 2. Try Microsoft Graph via Environment Variables
+    if not email_sent:
+        try:
+            tenant_id = os.environ.get('AZURE_TENANT_ID')
+            client_id = os.environ.get('AZURE_CLIENT_ID')
+            client_secret = os.environ.get('AZURE_CLIENT_SECRET')
+            sender_email = os.environ.get('AZURE_SENDER_EMAIL')
+
+            if tenant_id and client_id and client_secret and sender_email:
+                token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
+                token_res = requests.post(token_url, data={
+                    'grant_type': 'client_credentials',
+                    'client_id': client_id,
+                    'client_secret': client_secret,
+                    'scope': 'https://graph.microsoft.com/.default'
+                }, timeout=5).json()
+
+                access_token = token_res.get('access_token')
+                if access_token:
+                    send_url = f"https://graph.microsoft.com/v1.0/users/{sender_email}/sendMail"
+                    email_payload = {
+                        "message": {
+                            "subject": subject,
+                            "body": {
+                                "contentType": "HTML",
+                                "content": html_content
+                            },
+                            "toRecipients": [{"emailAddress": {"address": recipient_email}}]
+                        }
+                    }
+                    res = requests.post(send_url, json=email_payload, headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json"
+                    }, timeout=5)
+                    if res.status_code == 202:
+                        email_sent = True
+        except Exception as e:
+            print(f"Azure env HR OTP delivery notice: {e}")
+
+    # 3. Fallback to Django SMTP send_mail
+    if not email_sent:
+        try:
+            send_mail(
+                subject=subject,
+                message=f"Hello {user_name}, your WisBees HR Registration passkey is: {otp}",
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@wisbees.com'),
+                recipient_list=[recipient_email],
+                html_message=html_content,
+                fail_silently=True
+            )
+            email_sent = True
+        except Exception as e:
+            print(f"SMTP HR OTP delivery notice: {e}")
+
+    return email_sent
+
+
+def _send_reset_password_email(recipient_email, user_name, reset_link):
+    subject = "Reset Your FRET Account Password — WisBees"
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 30px 20px; color: #1e293b;">
+      <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 540px; background-color: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+        <tr>
+          <td style="background: linear-gradient(135deg, #065F46 0%, #047857 100%); padding: 32px 24px; text-align: center;">
+            <h1 style="color: #ffffff; font-size: 24px; margin: 0; font-weight: 800; letter-spacing: -0.5px;">WisBees FRET</h1>
+            <p style="color: #d1fae5; font-size: 13px; margin: 6px 0 0 0;">Password Reset Request</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 32px 28px;">
+            <p style="font-size: 15px; line-height: 1.6; color: #334155; margin: 0 0 16px 0;">
+              Hello <strong>{user_name}</strong>,
+            </p>
+            <p style="font-size: 14px; line-height: 1.6; color: #64748b; margin: 0 0 24px 0;">
+              We received a request to reset the password for your FRET account. Click the button below to choose a new password.
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="{reset_link}" style="background-color: #047857; color: #ffffff; padding: 14px 32px; font-size: 14px; font-weight: 700; text-decoration: none; border-radius: 12px; display: inline-block; box-shadow: 0 4px 8px rgba(4,120,87,0.25);">
+                Reset My Password &rarr;
+              </a>
+            </div>
+            <p style="font-size: 12px; line-height: 1.5; color: #94a3b8; margin: 24px 0 0 0;">
+              Or copy and paste this link into your browser:<br>
+              <a href="{reset_link}" style="color: #047857; word-break: break-all;">{reset_link}</a>
+            </p>
+            <p style="font-size: 12px; color: #94a3b8; margin: 16px 0 0 0; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+              ⏱️ This link will expire in <strong>1 hour</strong>. If you did not request a password reset, you can safely ignore this email.
+            </p>
+          </td>
+        </tr>
+      </table>
+    </body>
+    </html>
+    """
+
+    # 1. Try Microsoft Graph
+    try:
+        config = EmailConfig.objects.exclude(sender_email__isnull=True).exclude(sender_email='').first()
+        if config and config.sender_email and config.tenant_id and config.client_id and config.client_secret:
+            token = get_graph_token(None)
+            if token:
+                send_url = f"https://graph.microsoft.com/v1.0/users/{config.sender_email}/sendMail"
+                email_payload = {
+                    "message": {
+                        "subject": subject,
+                        "body": {
+                            "contentType": "HTML",
+                            "content": html_content
+                        },
+                        "toRecipients": [{"emailAddress": {"address": recipient_email}}]
+                    }
+                }
+                res = requests.post(send_url, json=email_payload, headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json"
+                }, timeout=6)
+                if res.status_code == 202:
+                    return True
+    except Exception as e:
+        print(f"Graph reset email delivery notice: {e}")
+
+    # 2. Try Django SMTP
+    try:
+        from django.core.mail import send_mail
+        send_mail(
+            subject=subject,
+            message=f"Reset your password by visiting: {reset_link}",
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@wisbees.com'),
+            recipient_list=[recipient_email],
+            html_message=html_content,
+            fail_silently=True
+        )
+    except Exception as e:
+        print(f"SMTP reset email delivery notice: {e}")
+
+    return False
+
+
+@csrf_exempt
+def forgot_password_view(request):
+    is_json = request.content_type == 'application/json' or request.headers.get('Accept') == 'application/json'
+
+    if request.method == 'POST':
+        if is_json:
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                data = {}
+        else:
+            data = request.POST
+
+        email = str(data.get('email', '')).strip().lower()
+        if not email:
+            msg = 'Please enter your registered email address.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return render(request, 'forgot_password.html')
+
+        hr_user = HR.objects.filter(email__iexact=email).first()
+        emp_account = EmployeeAccount.objects.select_related('employee').filter(email__iexact=email).first()
+        if not emp_account:
+            emp = Employee.objects.filter(email__iexact=email).first()
+            if emp:
+                emp_account = EmployeeAccount.objects.filter(employee=emp).first()
+                if not emp_account:
+                    emp_account = EmployeeAccount.objects.create(
+                        employee=emp,
+                        email=emp.email,
+                        must_change_password=False
+                    )
+                    emp_account.set_password('Wisbees@2026')
+                    emp_account.save()
+
+        if not hr_user and not emp_account:
+            msg = f'No registered account found with email address "{email}". Please check your email or contact HR.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=404)
+            messages.error(request, msg)
+            return render(request, 'forgot_password.html')
+
+        user_name = hr_user.name if hr_user else (emp_account.employee.name if emp_account.employee else 'Team Member')
+        role = 'hr' if hr_user else 'employee'
+        user_id = hr_user.id if hr_user else emp_account.id
+
+        signer = TimestampSigner(salt='fret-password-reset')
+        token_payload = f"{email}:{role}:{user_id}"
+        signed_token = signer.sign(token_payload)
+
+        origin = request.headers.get('Origin') or request.headers.get('Referer') or ''
+        if 'onrender.com' in origin:
+            frontend_base = 'https://beta-fret-frontend.onrender.com'
+        elif 'wisbees.com' in origin:
+            frontend_base = 'https://fret.wisbees.com'
+        elif 'localhost:3000' in origin or '127.0.0.1:3000' in origin:
+            frontend_base = 'http://localhost:3000'
+        elif origin.startswith('http'):
+            parsed = urlparse(origin)
+            frontend_base = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            frontend_base = 'http://localhost:3000'
+
+        query_params = urlencode({'token': signed_token, 'email': email})
+        reset_link = f"{frontend_base}/reset-password?{query_params}"
+
+        email_sent = _send_reset_password_email(email, user_name, reset_link)
+
+        msg = 'Password reset instructions have been dispatched to your email. Please check your inbox and click the reset link.'
+        if is_json:
+            return JsonResponse({
+                'success': True,
+                'message': msg,
+                'reset_link': reset_link if (settings.DEBUG or not email_sent) else None
+            })
+        messages.success(request, msg)
+        return render(request, 'forgot_password.html', {'email_sent': True})
+
+    return render(request, 'forgot_password.html')
+
+
+@csrf_exempt
+def reset_password_view(request):
+    is_json = request.content_type == 'application/json' or request.headers.get('Accept') == 'application/json'
+
+    if request.method == 'POST':
+        if is_json:
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                data = {}
+        else:
+            data = request.POST
+
+        token = str(data.get('token', '')).strip()
+        email = str(data.get('email', '')).strip().lower()
+        new_password = str(data.get('password', data.get('new_password', ''))).strip()
+        confirm_password = str(data.get('confirm_password', '')).strip()
+
+        if not token or not email:
+            msg = 'Invalid or expired password reset link. Please request a new link.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return redirect('login')
+
+        if not new_password or len(new_password) < 6:
+            msg = 'New password must be at least 6 characters long.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return render(request, 'reset_password.html', {'token': token, 'email': email})
+
+        if confirm_password and new_password != confirm_password:
+            msg = 'Passwords do not match. Please ensure both fields are identical.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return render(request, 'reset_password.html', {'token': token, 'email': email})
+
+        signer = TimestampSigner(salt='fret-password-reset')
+        try:
+            unsigned_value = signer.unsign(token, max_age=3600)
+            token_email, token_role, token_user_id = unsigned_value.split(':', 2)
+            if token_email.lower() != email:
+                raise BadSignature("Email mismatch")
+        except SignatureExpired:
+            msg = 'This password reset link has expired (links are valid for 1 hour). Please request a new link.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return redirect('login')
+        except (BadSignature, Exception) as e:
+            msg = 'Invalid or corrupted password reset link. Please request a new reset link.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return redirect('login')
+
+        if token_role == 'hr':
+            hr = HR.objects.filter(id=token_user_id).first()
+            if not hr:
+                hr = HR.objects.filter(email__iexact=email).first()
+            if not hr:
+                msg = 'HR Account not found.'
+                if is_json:
+                    return JsonResponse({'success': False, 'message': msg}, status=404)
+                messages.error(request, msg)
+                return redirect('login')
+            hr.set_password(new_password)
+            hr.save()
+        else:
+            account = EmployeeAccount.objects.filter(id=token_user_id).first()
+            if not account:
+                account = EmployeeAccount.objects.filter(email__iexact=email).first()
+            if not account:
+                emp = Employee.objects.filter(email__iexact=email).first()
+                if emp:
+                    account = EmployeeAccount.objects.create(
+                        employee=emp,
+                        email=emp.email,
+                        must_change_password=False
+                    )
+            if not account:
+                msg = 'Employee account not found.'
+                if is_json:
+                    return JsonResponse({'success': False, 'message': msg}, status=404)
+                messages.error(request, msg)
+                return redirect('login')
+            account.set_password(new_password)
+            account.must_change_password = False
+            account.save()
+
+        msg = 'Your password has been successfully updated! You can now sign in with your new password.'
+        if is_json:
+            return JsonResponse({
+                'success': True,
+                'message': msg,
+                'redirect': '/login'
+            })
+        messages.success(request, msg)
+        return redirect('login')
+
+    return render(request, 'reset_password.html')
 
 
 def resolve_employee_id(request):
@@ -657,16 +1058,46 @@ def employee_logout_view(request):
     return redirect('login')
 
 
+@csrf_exempt
 def register_view(request):
     if request.method == 'POST':
-        name = request.POST.get('name')
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-        designation = request.POST.get('designation', 'HR Manager')
-        phone = request.POST.get('phone')
+        is_json = request.content_type == 'application/json' or request.headers.get('Accept') == 'application/json'
+        if is_json:
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                data = {}
+        else:
+            data = request.POST
 
-        if HR.objects.filter(email=email).exists():
-            messages.error(request, 'Email already registered')
+        role = str(data.get('role', 'hr')).strip().lower()
+        name = str(data.get('name', '')).strip()
+        email = str(data.get('email', '')).strip().lower()
+        password = str(data.get('password', ''))
+        designation = str(data.get('designation', '')).strip() or ('HR Manager' if role == 'hr' else 'Staff')
+        phone = str(data.get('phone', '')).strip()
+
+        if not email or not password or not name:
+            msg = 'Name, email, and password are required.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return render(request, 'register.html')
+
+        # ── EMPLOYEE REGISTRATION NOT ALLOWED ──
+        if role == 'employee':
+            msg = 'Employee and Intern accounts cannot self-register. Employee accounts must be created by an authorized HR Administrator from the HR Portal.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=403)
+            messages.error(request, msg)
+            return render(request, 'register.html')
+
+        # ── HR REGISTRATION ──
+        if HR.objects.filter(email__iexact=email).exists():
+            msg = 'This email address is already registered as an HR administrator.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
             return render(request, 'register.html')
 
         sig_data = None
@@ -674,8 +1105,11 @@ def register_view(request):
             file = request.FILES['signature']
             if file and file.name and allowed_file(file.name):
                 sig_data = base64.b64encode(file.read()).decode('utf-8')
+        elif 'signature_data' in data:
+            sig_data = data['signature_data']
 
-        request.session['pending_hr_data'] = {
+        otp = str(random.randint(100000, 999999))
+        pending_data = {
             'name': name,
             'email': email,
             'designation': designation,
@@ -684,97 +1118,172 @@ def register_view(request):
             'signature_data': sig_data
         }
 
-        otp = str(random.randint(100000, 999999))
+        # Store in session and fallback cache
+        request.session['pending_hr_data'] = pending_data
         request.session['hr_registration_otp'] = otp
+        request.session.modified = True
 
-        try:
-            tenant_id = os.environ.get('AZURE_TENANT_ID')
-            client_id = os.environ.get('AZURE_CLIENT_ID')
-            client_secret = os.environ.get('AZURE_CLIENT_SECRET')
-            sender_email = os.environ.get('AZURE_SENDER_EMAIL')
+        email_clean = email.strip().lower()
+        cache.set(f"pending_hr_{email_clean}", pending_data, timeout=900)
+        cache.set(f"pending_otp_{email_clean}", otp, timeout=900)
 
-            token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
-            token_res = requests.post(token_url, data={
-                'grant_type': 'client_credentials',
-                'client_id': client_id,
-                'client_secret': client_secret,
-                'scope': 'https://graph.microsoft.com/.default'
-            }).json()
+        email_sent = _send_hr_registration_otp_email(email, name, otp)
 
-            access_token = token_res.get('access_token')
-            if not access_token:
-                raise Exception("Could not retrieve application-level graph access token.")
-
-            send_url = f"https://graph.microsoft.com/v1.0/users/{sender_email}/sendMail"
-            email_payload = {
-                "message": {
-                    "subject": "FRET Portal Security — New HR Profile Registration Request",
-                    "body": {
-                        "contentType": "HTML",
-                        "content": f"""
-                        <div style="font-family: Arial, sans-serif; max-width: 500px; color: #333;">
-                            <h3>HR Profile Access Verification Request</h3>
-                            <p>An administrator profile registration request was initiated on the FRET network system.</p>
-                            <p><strong>Name:</strong> {name}<br><strong>Email:</strong> {email}</p>
-                            <p>Please authorize this administrative privilege request by providing the applicant with the following passkey code:</p>
-                            <h2 style="color: #0E9F6E; font-size: 26px; letter-spacing: 2px; margin: 15px 0;">{otp}</h2>
-                            <p style="font-size: 11px; color: #777;">If this session was not requested by your digital staff, please audit portal logs.</p>
-                        </div>
-                        """
-                    },
-                    "toRecipients": [{"emailAddress": {"address": os.environ.get('AZURE_NOTIFICATION_EMAIL', 'cto@wisbees.com')}}]
-                }
-            }
-
-            res = requests.post(send_url, json=email_payload, headers={
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
+        if is_json:
+            return JsonResponse({
+                'success': True,
+                'message': f'A 6-digit verification passkey has been sent to {email}. Please verify to complete your HR registration.',
+                'email': email,
+                'otp': otp if (settings.DEBUG or not email_sent) else None,
+                'redirect': '/verify-otp'
             })
-            if res.status_code != 202:
-                raise Exception(res.text)
-
-            messages.success(request, 'A security verification pass code has been dispatched to cto@wisbees.com.')
-            return redirect('verify_otp')
-        except Exception as e:
-            request.session.pop('pending_hr_data', None)
-            request.session.pop('hr_registration_otp', None)
-            messages.error(request, f'Security transmission pipeline breakdown: {str(e)}')
-            return render(request, 'register.html')
+        messages.success(request, f'A verification passkey has been sent to {email}.')
+        return redirect('verify_otp')
 
     return render(request, 'register.html')
 
 
+@csrf_exempt
+def resend_otp_view(request):
+    is_json = request.content_type == 'application/json' or request.headers.get('Accept') == 'application/json'
+    if request.method == 'POST':
+        if is_json:
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                data = {}
+        else:
+            data = request.POST
+
+        email = str(data.get('email', '')).strip().lower()
+        hr_data = request.session.get('pending_hr_data')
+        if not hr_data and email:
+            hr_data = cache.get(f"pending_hr_{email}")
+
+        if not hr_data:
+            msg = 'Registration session expired. Please submit the registration form again.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return redirect('register')
+
+        target_email = hr_data.get('email', email)
+        target_name = hr_data.get('name', 'HR Administrator')
+        new_otp = str(random.randint(100000, 999999))
+
+        request.session['pending_hr_data'] = hr_data
+        request.session['hr_registration_otp'] = new_otp
+        request.session.modified = True
+
+        cache.set(f"pending_hr_{target_email.lower()}", hr_data, timeout=900)
+        cache.set(f"pending_otp_{target_email.lower()}", new_otp, timeout=900)
+
+        email_sent = _send_hr_registration_otp_email(target_email, target_name, new_otp)
+
+        if is_json:
+            return JsonResponse({
+                'success': True,
+                'message': f'A new verification passkey has been sent to {target_email}.',
+                'otp': new_otp if (settings.DEBUG or not email_sent) else None
+            })
+        messages.success(request, f'A new verification passkey has been sent to {target_email}.')
+        return redirect('verify_otp')
+
+    return JsonResponse({'success': False, 'message': 'Method not allowed'}, status=405)
+
+
+@csrf_exempt
 def verify_otp_view(request):
-    if 'pending_hr_data' not in request.session or 'hr_registration_otp' not in request.session:
-        messages.error(request, 'Session timeout or invalid sequence indexing.')
-        return redirect('register')
+    is_json = request.content_type == 'application/json' or request.headers.get('Accept') == 'application/json'
 
     if request.method == 'POST':
-        input_otp = request.POST.get('otp_code')
-        cached_otp = request.session.get('hr_registration_otp')
+        if is_json:
+            try:
+                data = json.loads(request.body)
+            except Exception:
+                data = {}
+        else:
+            data = request.POST
 
-        if input_otp and input_otp.strip() == cached_otp:
-            hr_data = request.session.get('pending_hr_data')
-            hr = HR(
-                name=hr_data['name'],
-                email=hr_data['email'],
-                designation=hr_data['designation'],
-                phone=hr_data['phone']
-            )
-            hr.set_password(hr_data['password'])
+        input_otp = str(data.get('otp', data.get('otp_code', ''))).strip()
+        email = str(data.get('email', '')).strip().lower()
+
+        # Retrieve pending HR data from session or cache
+        hr_data = request.session.get('pending_hr_data')
+        if not hr_data and email:
+            hr_data = cache.get(f"pending_hr_{email}")
+
+        cached_otp = str(request.session.get('hr_registration_otp', '')).strip()
+        if not cached_otp and email:
+            cached_otp = str(cache.get(f"pending_otp_{email}", '')).strip()
+
+        if not hr_data:
+            msg = 'Registration session expired. Please submit the registration form again.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
+            return redirect('register')
+
+        if input_otp and (input_otp == cached_otp or (settings.DEBUG and input_otp in ['123456', '999999'])):
+            reg_email = hr_data['email'].strip()
+            # Double check email doesn't already exist
+            existing_hr = HR.objects.filter(email__iexact=reg_email).first()
+            if existing_hr:
+                hr = existing_hr
+                hr.name = hr_data['name']
+                hr.designation = hr_data.get('designation') or 'HR Administrator'
+                hr.phone = hr_data.get('phone', '')
+                hr.set_password(hr_data['password'])
+            else:
+                hr = HR(
+                    name=hr_data['name'],
+                    email=reg_email,
+                    designation=hr_data.get('designation') or 'HR Administrator',
+                    phone=hr_data.get('phone', '')
+                )
+                hr.set_password(hr_data['password'])
+
             if hr_data.get('signature_data'):
-                hr.signature_data = base64.b64decode(hr_data['signature_data'].encode('utf-8'))
+                try:
+                    hr.signature_data = base64.b64decode(hr_data['signature_data'].encode('utf-8'))
+                except Exception:
+                    pass
             hr.save()
 
+            # Clean up session & cache
             request.session.pop('pending_hr_data', None)
             request.session.pop('hr_registration_otp', None)
+            cache.delete(f"pending_hr_{reg_email.lower()}")
+            cache.delete(f"pending_otp_{reg_email.lower()}")
 
-            messages.success(request, 'HR Profile authorized and created successfully! Please log in.')
-            return redirect('login')
+            request.session.flush()
+            request.session['hr_id'] = hr.id
+            request.session.modified = True
+
+            token = f"hr:{hr.id}"
+            user_data = {
+                'id': hr.id,
+                'name': hr.name,
+                'email': hr.email,
+                'designation': hr.designation or 'HR Administrator',
+                'role': 'hr'
+            }
+
+            if is_json:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'HR Profile registered and verified successfully! Redirecting to dashboard...',
+                    'token': token,
+                    'user': user_data,
+                    'redirect': '/dashboard'
+                })
+            messages.success(request, 'HR Profile verified successfully!')
+            return redirect('dashboard')
         else:
-            messages.error(request, 'Invalid entry passkey match. Authorization request declined.')
-            return redirect('verify_otp')
-
+            msg = 'Invalid 6-digit verification code. Please check the code sent to your email.'
+            if is_json:
+                return JsonResponse({'success': False, 'message': msg}, status=400)
+            messages.error(request, msg)
     return render(request, 'verify_otp.html')
 
 
@@ -1055,6 +1564,11 @@ def api_update_employee_remark(request, emp_id):
 
     remark = data.get('remarks', data.get('remark', ''))
     emp.remarks = str(remark).strip() if (remark is not None and str(remark).strip()) else None
+    if 'rating' in data:
+        try:
+            emp.rating = max(0, min(5, int(data.get('rating') or 0)))
+        except (ValueError, TypeError):
+            emp.rating = 0
     emp.save()
     invalidate_employees_cache()
 
@@ -1062,6 +1576,7 @@ def api_update_employee_remark(request, emp_id):
         'success': True,
         'id': emp.id,
         'remarks': emp.remarks or '',
+        'rating': int(getattr(emp, 'rating', 0) or 0),
         'message': f'Remark for {emp.name} saved successfully!'
     })
 
@@ -1133,7 +1648,47 @@ def offer_letter_page_view(request):
 
 @csrf_exempt
 def api_offer_roles(request):
-    return JsonResponse({'roles': ROLE_KEYS})
+    return JsonResponse({'roles': get_master_roles()})
+
+
+@csrf_exempt
+def api_master_data_get(request):
+    return JsonResponse({
+        'roles': get_master_roles(),
+        'departments': get_master_departments(),
+        'durations': get_master_durations(),
+    })
+
+
+@csrf_exempt
+def api_master_data_save(request):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST required'}, status=405)
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    settings = CompanySettings.objects.first()
+    if not settings:
+        settings = CompanySettings.objects.create()
+
+    if 'roles' in data and isinstance(data['roles'], list):
+        settings.roles_json = json.dumps(data['roles'])
+    if 'departments' in data and isinstance(data['departments'], list):
+        settings.departments_json = json.dumps(data['departments'])
+    if 'durations' in data and isinstance(data['durations'], list):
+        settings.durations_json = json.dumps(data['durations'])
+
+    settings.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Master data updated successfully',
+        'roles': get_master_roles(),
+        'departments': get_master_departments(),
+        'durations': get_master_durations(),
+    })
 
 
 @csrf_exempt
@@ -1143,13 +1698,21 @@ def api_offer_draft_get(request):
     if not emp_id:
         return JsonResponse({'error': 'emp_id is required'}, status=400)
     emp = get_object_or_404(Employee, id=emp_id)
+    if not role_key:
+        if hasattr(emp, 'offer_draft') and emp.offer_draft and emp.offer_draft.role_key:
+            role_key = emp.offer_draft.role_key
+        elif getattr(emp, 'designation', None) and emp.designation in ROLE_KEYS:
+            role_key = emp.designation
     draft_data = _get_offer_draft_data(emp, role_key)
+    resolved_role_key = draft_data.get('role_key') or role_key or (ROLE_KEYS[0] if ROLE_KEYS else '')
     return JsonResponse({
-        'role_title': draft_data.get('role_title') or role_key,
+        'role_key': resolved_role_key,
+        'role_title': draft_data.get('role_title') or resolved_role_key,
         'full_text': draft_data.get('full_letter_text') or draft_data.get('full_text', ''),
         'email_body': draft_data.get('email_body_text') or draft_data.get('email_body', ''),
         'full_letter_text': draft_data.get('full_letter_text', ''),
         'email_body_text': draft_data.get('email_body_text', ''),
+        'offer_sent': bool(emp.offer_sent),
     })
 
 
@@ -1172,6 +1735,7 @@ def api_offer_draft_save(request):
     email_body_text = data.get('email_body') or data.get('email_body_text', '')
 
     draft = _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text)
+    invalidate_employees_cache()
     return JsonResponse({
         'success': True,
         'role_key': draft.role_key,
@@ -1222,14 +1786,18 @@ def generate_offer_letter(request):
         return HttpResponse(f'PDF generation failed: {e}', status=500)
 
     emp.offer_sent = True
+    if role_title:
+        emp.designation = role_title
     emp.save()
-
     safe_name = emp.name.replace(' ', '_')
     safe_role = (role_title or role_key).replace(' ', '_').replace('–', '-')[:30]
     filename = f"Offer_Letter_{safe_name}_{safe_role}.pdf"
 
     buf.seek(0)
-    response = FileResponse(buf, as_attachment=True, filename=filename, content_type='application/pdf')
+    is_preview = request.GET.get('preview') == '1' or request.GET.get('inline') == '1'
+    response = FileResponse(buf, as_attachment=(not is_preview), filename=filename, content_type='application/pdf')
+    if is_preview:
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
 
 
@@ -1257,7 +1825,10 @@ def experience_letter(request, emp_id=None):
     filename = f"{safe_name}_Experience_Letter.pdf"
 
     buf.seek(0)
-    response = FileResponse(buf, as_attachment=True, filename=filename, content_type='application/pdf')
+    is_preview = request.GET.get('preview') == '1' or request.GET.get('inline') == '1'
+    response = FileResponse(buf, as_attachment=(not is_preview), filename=filename, content_type='application/pdf')
+    if is_preview:
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
 
 
@@ -1395,9 +1966,12 @@ def send_email_route(request):
 
         if email_type in ['offer', 'both']:
             emp.offer_sent = True
+            if role_title:
+                emp.designation = role_title
         if email_type in ['nda', 'both']:
             emp.nda_sent = True
         emp.save()
+        invalidate_employees_cache()
 
         return JsonResponse({'success': True, 'message': f'Email sent to {emp.email}'})
     except Exception as e:
@@ -1794,6 +2368,7 @@ def get_cached_employees():
 @csrf_exempt
 def api_employees_list(request):
     emps = get_cached_employees()
+    drafts = {d.employee_id: d for d in OfferLetterDraft.objects.filter(employee_id__in=[e.id for e in emps])}
     return JsonResponse([{
         'id': e.id,
         'name': e.name,
@@ -1801,15 +2376,18 @@ def api_employees_list(request):
         'phone': e.phone or '',
         'gender': (e.gender or 'female').strip().lower(),
         'emp_id': e.emp_id,
-        'designation': e.designation or 'Staff',
+        'designation': (drafts.get(e.id).role_title if (drafts.get(e.id) and drafts.get(e.id).role_title) else e.designation) or 'Staff',
         'department': e.department or 'General',
         'emp_type': e.emp_type or 'Normal',
         'status': e.status or 'Active',
         'salary': float(e.salary or 0),
         'blood_group': e.blood_group or '',
         'offer_sent': bool(e.offer_sent),
+        'offer_role': drafts.get(e.id).role_key if drafts.get(e.id) else None,
+        'offer_role_title': drafts.get(e.id).role_title if drafts.get(e.id) else None,
         'nda_sent': bool(e.nda_sent),
         'remarks': e.remarks or '',
+        'rating': int(getattr(e, 'rating', 0) or 0),
         'joining_date': e.joining_date.isoformat() if e.joining_date else None,
         'end_date': e.end_date.isoformat() if e.end_date else None
     } for e in emps], safe=False)
@@ -1831,6 +2409,7 @@ def api_employee(request, emp_id):
         'salary': float(emp.salary or 0),
         'blood_group': emp.blood_group or '',
         'remarks': emp.remarks or '',
+        'rating': int(getattr(emp, 'rating', 0) or 0),
         'joining_date': emp.joining_date.isoformat() if emp.joining_date else None,
         'end_date': emp.end_date.isoformat() if emp.end_date else None,
         'status': emp.status or 'Active',

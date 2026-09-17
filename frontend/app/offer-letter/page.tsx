@@ -103,6 +103,45 @@ export default function OfferLetterPage() {
     fetchData();
   }, []);
 
+  const handleEmployeeChange = async (empId: string) => {
+    setSelectedEmpId(empId);
+    if (!empId) return;
+    const emp = employees.find((e) => String(e.id) === String(empId));
+    if (emp) {
+      let targetRole = emp.offer_role || '';
+      if (!targetRole && emp.designation) {
+        targetRole = roles.find((r) => r.toLowerCase() === emp.designation.toLowerCase()) ||
+                     roles.find((r) => emp.designation.toLowerCase().includes(r.toLowerCase())) ||
+                     '';
+      }
+      try {
+        const draftRes = await api.get(`/offer-letter/draft?emp_id=${empId}&role=${encodeURIComponent(targetRole || '')}`);
+        if (draftRes.data?.role_key) {
+          setSelectedRole(draftRes.data.role_key);
+        } else if (targetRole) {
+          setSelectedRole(targetRole);
+        }
+      } catch (e) {
+        if (targetRole) setSelectedRole(targetRole);
+      }
+    }
+  };
+
+  const handlePreviewPdf = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedEmpId) {
+      alert('Please select an employee');
+      return;
+    }
+    if (!selectedRole) {
+      alert('Please select an internship role');
+      return;
+    }
+
+    const url = getApiUrl(`/generate-offer-letter?emp_id=${selectedEmpId}&role_key=${encodeURIComponent(selectedRole)}&preview=1`);
+    window.open(url, '_blank');
+  };
+
   const handleGeneratePdf = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEmpId) {
@@ -253,7 +292,7 @@ export default function OfferLetterPage() {
                   <select
                     required
                     value={selectedEmpId}
-                    onChange={(e) => setSelectedEmpId(e.target.value)}
+                    onChange={(e) => handleEmployeeChange(e.target.value)}
                     className="form-control text-sm w-full"
                   >
                     <option value="">— Choose an employee —</option>
@@ -308,15 +347,26 @@ export default function OfferLetterPage() {
                   </div>
                 </div>
 
-                {/* Big Green Generate Button */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-[#0e9f6e] hover:bg-[#057a55] text-white font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition"
-                >
-                  <i className="fas fa-file-pdf"></i>
-                  <span>Generate & Download PDF</span>
-                </button>
+                {/* Action Buttons: Preview & Download */}
+                <div className="flex flex-col sm:flex-row gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handlePreviewPdf}
+                    disabled={loading}
+                    className="flex-1 py-3 bg-[var(--surface2)] hover:bg-[var(--hover)] text-[var(--accent)] border border-[var(--accent)]/30 font-bold text-sm rounded-xl shadow-sm flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <i className="fas fa-eye"></i>
+                    <span>Preview Letter</span>
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex-1 py-3 bg-[#0e9f6e] hover:bg-[#057a55] text-white font-bold text-sm rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer"
+                  >
+                    <i className="fas fa-file-pdf"></i>
+                    <span>Download PDF</span>
+                  </button>
+                </div>
               </form>
             </div>
 
