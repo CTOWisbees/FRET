@@ -101,11 +101,7 @@ export default function EquityResearchWorkPage() {
     { id: 2, label: 'Peer 1' },
     { id: 3, label: 'Peer 2' },
   ]);
-  const [peerNames, setPeerNames] = useState<Record<number, string>>({
-    1: 'WIPRO LIMITED (TARGET)',
-    2: 'INFY.NS',
-    3: 'TCS.NS',
-  });
+  const [peerNames, setPeerNames] = useState<Record<number, string>>({});
 
   // ── Metadata ──
   const [industrySector, setIndustrySector] = useState('');
@@ -123,7 +119,7 @@ export default function EquityResearchWorkPage() {
 
   // ── Street Coverage ──
   const [consensusRows, setConsensusRows] = useState<ConsensusRow[]>([
-    { id: 1, callDate: '11/08/2026', brokerageHouse: 'GeoJit', rating: 'Buy', targetPrice: '900' },
+    { id: 1, callDate: '', brokerageHouse: '', rating: 'Buy', targetPrice: '' },
   ]);
 
   const [compiling, setCompiling] = useState(false);
@@ -274,14 +270,14 @@ export default function EquityResearchWorkPage() {
 
     const proceed = (chartImageData: string | null) => {
       const payload = {
-        stockQuery: stockQuery.trim() || 'WIPRO.NS',
-        currentPrice: currentPrice || '500',
+        stockQuery: stockQuery.trim(),
+        currentPrice: currentPrice || '',
         priceAsOn: priceAsOn || new Date().toISOString().split('T')[0],
-        targetPrice: targetPrice || '999.99',
+        targetPrice: targetPrice || '',
         recommendation,
         compMode,
-        industrySector: industrySector || 'Software IT',
-        timeHorizon: timeHorizon || '2-3 yrs',
+        industrySector: industrySector || '',
+        timeHorizon: timeHorizon || '',
         peers,
         peerNames,
         metricsData,

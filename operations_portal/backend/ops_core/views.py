@@ -1842,8 +1842,20 @@ def api_ia_fetch_stock_data(request):
 
     roce = round(roe * 1.15, 2)  # ROCE standard correlation
 
-    sector = info.get('sector') or 'Technology'
-    industry = info.get('industry') or 'Information Technology'
+    matched_stock = next((s for s in POPULAR_STOCKS if s['symbol'].upper() == sym.upper() or s['symbol'].split('.')[0].upper() == query.upper()), None)
+    default_sector = matched_stock['sector'] if matched_stock else ''
+
+    sector = info.get('sector') or default_sector or ''
+    industry = info.get('industry') or ''
+    if sector and industry:
+        industry_sector_val = f"{sector} - {industry}"
+    elif sector:
+        industry_sector_val = sector
+    elif industry:
+        industry_sector_val = industry
+    else:
+        industry_sector_val = ''
+
     high_52 = _safe_float(info.get('fiftyTwoWeekHigh'), current_price * 1.3)
     low_52 = _safe_float(info.get('fiftyTwoWeekLow'), current_price * 0.8)
 
@@ -1858,46 +1870,6 @@ def api_ia_fetch_stock_data(request):
         upside_pct = 22.0
         recommendation = 'Buy'
 
-    # Select Sector Peers
-    sector_upper = sector.upper()
-    peer_candidates = PEER_MAPPINGS.get(sector_upper) or ['INFY.NS', 'TCS.NS']
-    chosen_peers = [p for p in peer_candidates if p.upper() != sym.upper()][:2]
-    if len(chosen_peers) < 2:
-        chosen_peers = ['INFY.NS', 'TCS.NS']
-
-    # Fetch Peer Metrics
-    peer_metrics_list = []
-    for peer_sym in chosen_peers:
-        try:
-            p_tick = yf.Ticker(peer_sym)
-            p_inf = p_tick.info or {}
-            p_mcap = round(_safe_float(p_inf.get('marketCap')) / 10000000, 2)
-            p_pe = round(_safe_float(p_inf.get('trailingPE') or p_inf.get('forwardPE')), 2)
-            p_roe = round(_safe_float(p_inf.get('returnOnEquity')) * 100, 2)
-            p_opm = round(_safe_float(p_inf.get('operatingMargins')) * 100, 2)
-            p_ev = round(_safe_float(p_inf.get('enterpriseToEbitda')), 2)
-            peer_metrics_list.append({
-                'symbol': peer_sym,
-                'name': p_inf.get('shortName', peer_sym),
-                'market_cap': str(p_mcap if p_mcap > 0 else 320000),
-                'pe_ratio': str(p_pe if p_pe > 0 else 24.5),
-                'roe': str(p_roe if p_roe > 0 else 28.0),
-                'roce': str(round(p_roe * 1.2, 2) if p_roe > 0 else 32.5),
-                'opm': str(p_opm if p_opm > 0 else 22.0),
-                'ev_ebitda': str(p_ev if p_ev > 0 else 16.8),
-            })
-        except Exception:
-            peer_metrics_list.append({
-                'symbol': peer_sym,
-                'name': peer_sym,
-                'market_cap': '350000',
-                'pe_ratio': '25.0',
-                'roe': '26.5',
-                'roce': '31.0',
-                'opm': '21.5',
-                'ev_ebitda': '17.2',
-            })
-
     # Prepare Peers Table Structure
     peers_payload = [
         {'id': 1, 'label': 'Target Company'},
@@ -1905,60 +1877,34 @@ def api_ia_fetch_stock_data(request):
         {'id': 3, 'label': 'Peer 2'},
     ]
     peer_names_payload = {
-        1: f"{short_name.upper()} (TARGET)",
-        2: peer_metrics_list[0]['symbol'],
-        3: peer_metrics_list[1]['symbol'],
+        1: f"{short_name.upper()} (TARGET)" if short_name else f"{sym} (TARGET)",
     }
 
     metrics_data_payload = {
-        'market_cap': {
-            1: str(market_cap_cr),
-            2: peer_metrics_list[0]['market_cap'],
-            3: peer_metrics_list[1]['market_cap'],
-        },
-        'pe_ratio': {
-            1: str(pe_ratio),
-            2: peer_metrics_list[0]['pe_ratio'],
-            3: peer_metrics_list[1]['pe_ratio'],
-        },
-        'roe': {
-            1: str(roe),
-            2: peer_metrics_list[0]['roe'],
-            3: peer_metrics_list[1]['roe'],
-        },
-        'roce': {
-            1: str(roce),
-            2: peer_metrics_list[0]['roce'],
-            3: peer_metrics_list[1]['roce'],
-        },
-        'opm': {
-            1: str(opm),
-            2: peer_metrics_list[0]['opm'],
-            3: peer_metrics_list[1]['opm'],
-        },
-        'ev_ebitda': {
-            1: str(ev_ebitda),
-            2: peer_metrics_list[0]['ev_ebitda'],
-            3: peer_metrics_list[1]['ev_ebitda'],
-        },
+        'market_cap': {1: str(market_cap_cr) if market_cap_cr > 0 else ''},
+        'pe_ratio': {1: str(pe_ratio) if pe_ratio > 0 else ''},
+        'roe': {1: str(roe) if roe > 0 else ''},
+        'roce': {1: str(roce) if roce > 0 else ''},
+        'opm': {1: str(opm) if opm > 0 else ''},
+        'ev_ebitda': {1: str(ev_ebitda) if ev_ebitda > 0 else ''},
     }
 
     # AI Intelligence Generation (using Groq LLaMA-3.3 if available)
     business_overview = (
-        f"{short_name} is a premier constituent within the {sector} ({industry}) sector. "
-        f"The company commands deep domain capabilities across large enterprise transformations, cloud migration, digital engineering, and managed operations. "
-        f"Key structural MOAT drivers include long-standing Fortune 500 client relationships, mission-critical workflow integration, high switching costs, and expanding pipeline momentum in generative AI and cloud infrastructure modernization."
+        f"{short_name} is a leading player in {industry_sector_val or 'the market'}. "
+        f"The company commands deep domain capabilities across large enterprise transformations, expansion, and managed operations. "
+        f"Key structural MOAT drivers include long-standing client relationships, mission-critical workflow integration, high switching costs, and strong pipeline momentum."
     )
 
     valuation_thesis = (
-        f"At CMP of ₹{current_price}, {short_name} is trading at a P/E multiple of {pe_ratio}x and EV/EBITDA of {ev_ebitda}x, offering an attractive valuation discount compared to leading tier-1 industry peers ({peer_names_payload[2]} & {peer_names_payload[3]}). "
-        f"With sustainable OPM margins of {opm}% and ROE of {roe}%, ongoing margin optimization, deal ramp-ups, and operational leverage provide robust headroom for multiple re-rating. "
+        f"At CMP of ₹{current_price}, {short_name} is trading at a P/E multiple of {pe_ratio}x and EV/EBITDA of {ev_ebitda}x, offering an attractive valuation compared to industry benchmarks. "
+        f"With sustainable OPM margins of {opm}% and ROE of {roe}%, ongoing margin optimization and operational leverage provide robust headroom for multiple re-rating. "
         f"We assign a '{recommendation}' rating with a 12-month Target Price of ₹{target_price} (upside of ~{upside_pct}%)."
     )
 
     technical_analysis = (
-        f"On technical charts, the stock has established strong structural support near ₹{round(current_price * 0.92, 2)} and is consolidating constructively above its short-to-medium moving averages. "
-        f"The 52-week range stands at ₹{low_52} - ₹{high_52}. Momentum indicators (RSI & MACD) indicate steady accumulation with breakout confirmation projected on a sustained move above ₹{round(current_price * 1.06, 2)} towards the target zone of ₹{target_price}."
+        f"On technical charts, the stock has established strong structural support near ₹{round(current_price * 0.92, 2)} and is consolidating constructively above its moving averages. "
+        f"The 52-week range stands at ₹{low_52} - ₹{high_52}. Momentum indicators indicate steady accumulation with breakout confirmation projected on a sustained move above ₹{round(current_price * 1.06, 2)} towards ₹{target_price}."
     )
 
     groq_api_key = os.environ.get('GROQ_API_KEY')
@@ -1968,13 +1914,12 @@ def api_ia_fetch_stock_data(request):
             client = Groq(api_key=groq_api_key)
             prompt = (
                 f"You are an elite Wall Street / Dalal Street equity research analyst. "
-                f"Analyze stock: {short_name} ({sym}) in sector: {sector} ({industry}). "
+                f"Analyze stock: {short_name} ({sym}) in sector: {industry_sector_val or 'Equities'}. "
                 f"Live data: CMP=INR {current_price}, 52W High={high_52}, 52W Low={low_52}, "
                 f"Market Cap=INR {market_cap_cr} Cr, P/E={pe_ratio}, ROE={roe}%, OPM={opm}%, EV/EBITDA={ev_ebitda}. "
-                f"Top Peers: {peer_names_payload[2]}, {peer_names_payload[3]}. "
                 f"Provide concise institutional commentary in JSON format with keys: "
                 f"'business_overview' (2-3 sentences on MOAT and competitive advantage), "
-                f"'valuation_thesis' (2-3 sentences on peer valuation discount/upside rationale), "
+                f"'valuation_thesis' (2-3 sentences on valuation discount/upside rationale), "
                 f"'technical_analysis' (2 sentences on technical momentum, support/resistance, and targets)."
             )
             completion = client.chat.completions.create(
@@ -1994,14 +1939,11 @@ def api_ia_fetch_stock_data(request):
             if ai_data.get('technical_analysis'):
                 technical_analysis = ai_data['technical_analysis']
         except Exception:
-            pass  # Seamlessly uses the high-precision financial synthesis engine
+            pass
 
     today_str = timezone.now().strftime('%d/%m/%Y')
     consensus_rows_payload = [
-        {'id': 1, 'callDate': today_str, 'brokerageHouse': 'WisBees Institutional Research', 'rating': recommendation, 'targetPrice': str(target_price)},
-        {'id': 2, 'callDate': today_str, 'brokerageHouse': 'Motilal Oswal', 'rating': 'Buy', 'targetPrice': str(round(target_price * 1.04, 2))},
-        {'id': 3, 'callDate': today_str, 'brokerageHouse': 'ICICI Direct', 'rating': 'Accumulate', 'targetPrice': str(round(target_price * 0.97, 2))},
-        {'id': 4, 'callDate': today_str, 'brokerageHouse': 'HDFC Securities', 'rating': 'Buy', 'targetPrice': str(round(target_price * 1.02, 2))},
+        {'id': 1, 'callDate': today_str, 'brokerageHouse': '', 'rating': recommendation, 'targetPrice': str(target_price) if target_price else ''},
     ]
 
     return JsonResponse({
@@ -2013,8 +1955,8 @@ def api_ia_fetch_stock_data(request):
         'targetPrice': str(target_price),
         'recommendation': recommendation,
         'compMode': 'Peer Comparison (Target Co. vs Peers)',
-        'industrySector': f"{sector} - {industry}",
-        'timeHorizon': '12 - 24 Months',
+        'industrySector': industry_sector_val,
+        'timeHorizon': '',
         'peers': peers_payload,
         'peerNames': peer_names_payload,
         'metricsData': metrics_data_payload,

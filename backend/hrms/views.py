@@ -255,7 +255,7 @@ def employee_login_view(request):
             return redirect('employee_dashboard')
         messages.error(request, 'Invalid credentials')
 
-    return render(request, 'employee_login.html')
+    return render(request, 'login.html')
 
 
 @csrf_exempt

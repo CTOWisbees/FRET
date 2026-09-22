@@ -77,20 +77,20 @@ export default function EquityResearchReportPage() {
 
   // Fallback defaults if accessed directly
   const data = reportData || {
-    stockQuery: 'WIPRO',
-    currentPrice: '382.13',
+    stockQuery: '',
+    currentPrice: '',
     priceAsOn: new Date().toISOString().split('T')[0],
-    targetPrice: '999.99',
+    targetPrice: '',
     recommendation: 'Buy',
     compMode: 'Peer Comparison (Target Co. vs Peers)',
-    industrySector: 'Software IT',
-    timeHorizon: '2-3 yrs',
+    industrySector: '',
+    timeHorizon: '',
     peers: [
       { id: 1, label: 'Target Company' },
       { id: 2, label: 'Peer 1' },
       { id: 3, label: 'Peer 2' },
     ],
-    peerNames: { 1: 'WIPRO LIMITED (TARGET)', 2: 'INFY.NS', 3: 'TCS.NS' },
+    peerNames: {},
     metricsData: {},
     businessOverview: '',
     valuationThesis: '',
