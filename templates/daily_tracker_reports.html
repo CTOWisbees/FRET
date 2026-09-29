@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Work Tracker — Reports & Analytics | WisBees HRMS{% endblock %}
+{% block page_title %}Daily Tracker Reports & Analytics{% endblock %}
+
+{% block content %}
+<style>
+.rep-container {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* Header & Filter Card */
+.rep-filter-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* KPI Overview Grid */
+.rep-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+.rep-kpi-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.rep-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
+}
+.rep-kpi-icon.blue { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+.rep-kpi-icon.green { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+.rep-kpi-icon.yellow { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+.rep-kpi-icon.purple { background: rgba(139, 92, 246, 0.15); color: var(--accent2); }
+
+.rep-kpi-val {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+.rep-kpi-sub {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Tabs */
+.rep-tabs-bar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.rep-tab-btn {
+  background: transparent;
+  border: none;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+.rep-tab-btn:hover { background: var(--bg3); color: var(--text); }
+.rep-tab-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Data Table Card */
+.rep-table-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+.rep-table-header {
+  padding: 16px 20px;
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.rep-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  min-width: 900px;
+}
+.rep-table th {
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.rep-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.rep-table tr:hover td {
+  background: rgba(99, 102, 241, 0.02);
+}
+</style>
+
+<div class="rep-container">
+
+  <!-- FILTER & EXPORT BAR -->
+  <form method="GET" action="" class="rep-filter-card">
+    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:12px;">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:0.8rem; font-weight:600; color:var(--text3);">From:</span>
+        <input type="date" name="from_date" class="form-control" style="padding:6px 10px; font-size:0.85rem;" value="{{ from_date }}">
+      </div>
+
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:0.8rem; font-weight:600; color:var(--text3);">To:</span>
+        <input type="date" name="to_date" class="form-control" style="padding:6px 10px; font-size:0.85rem;" value="{{ to_date }}">
+      </div>
+
+      <select name="employee_id" class="form-control" style="padding:6px 10px; font-size:0.85rem;">
+        <option value="">All Employees</option>
+        {% for emp in employees %}
+          <option value="{{ emp.id }}" {% if selected_employee_id == emp.id|string %}selected{% endif %}>{{ emp.name }} ({{ emp.emp_id or 'EMP' ~ emp.id }})</option>
+        {% endfor %}
+      </select>
+
+      <select name="department" class="form-control" style="padding:6px 10px; font-size:0.85rem;">
+        <option value="">All Departments</option>
+        {% for dept in departments %}
+          <option value="{{ dept }}" {% if selected_department == dept %}selected{% endif %}>{{ dept }}</option>
+        {% endfor %}
+      </select>
+
+      <button type="submit" class="btn btn-primary" style="padding:7px 16px; font-size:0.85rem;"><i class="fas fa-filter"></i> Apply</button>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px;">
+      <a href="/api/daily-tracker/export?from_date={{ from_date }}&to_date={{ to_date }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}&format=xlsx" class="btn btn-outline" style="font-size:0.85rem;">
+        <i class="fas fa-file-excel text-green"></i> Export Excel
+      </a>
+      <a href="/api/daily-tracker/export?from_date={{ from_date }}&to_date={{ to_date }}{% if selected_employee_id %}&employee_id={{ selected_employee_id }}{% endif %}{% if selected_department %}&department={{ selected_department }}{% endif %}&format=csv" class="btn btn-outline" style="font-size:0.85rem;">
+        <i class="fas fa-file-csv text-accent"></i> Export CSV
+      </a>
+      <button type="button" class="btn btn-outline" onclick="window.print()" style="font-size:0.85rem;">
+        <i class="fas fa-print"></i> Print PDF
+      </button>
+    </div>
+  </form>
+
+  <!-- KPI SUMMARY ROW -->
+  <div class="rep-kpi-grid">
+    <div class="rep-kpi-card">
+      <div class="rep-kpi-icon blue"><i class="fas fa-business-time"></i></div>
+      <div>
+        <div class="rep-kpi-val">{{ total_hours }}h</div>
+        <div class="rep-kpi-sub">Total Hours Logged</div>
+      </div>
+    </div>
+
+    <div class="rep-kpi-card">
+      <div class="rep-kpi-icon green"><i class="fas fa-list-check"></i></div>
+      <div>
+        <div class="rep-kpi-val">{{ total_tasks }}</div>
+        <div class="rep-kpi-sub">Total Tasks Logged</div>
+      </div>
+    </div>
+
+    <div class="rep-kpi-card">
+      <div class="rep-kpi-icon yellow"><i class="fas fa-star"></i></div>
+      <div>
+        <div class="rep-kpi-val">{{ total_achievements }}</div>
+        <div class="rep-kpi-sub">Key Achievements</div>
+      </div>
+    </div>
+
+    <div class="rep-kpi-card">
+      <div class="rep-kpi-icon purple"><i class="fas fa-chart-pie"></i></div>
+      <div>
+        <div class="rep-kpi-val">{{ major_tasks_count }} / {{ minor_tasks_count }}</div>
+        <div class="rep-kpi-sub">Major vs Minor Tasks</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TABS BAR -->
+  <div class="rep-tabs-bar">
+    <button type="button" class="rep-tab-btn active" id="tabBtnDetailed" onclick="switchTab('detailed')">
+      <i class="fas fa-table"></i> Detailed Work Log Report
+    </button>
+    <button type="button" class="rep-tab-btn" id="tabBtnAudit" onclick="switchTab('audit')">
+      <i class="fas fa-clock-rotate-left"></i> Audit Trail History
+    </button>
+  </div>
+
+  <!-- DETAILED REPORT TABLE -->
+  <div class="rep-table-card" id="tabSectionDetailed">
+    <div class="rep-table-header">
+      <div style="font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px;">
+        <i class="fas fa-file-lines text-accent"></i> Daily Work Tasks Activity Log
+      </div>
+      <div style="font-size:0.85rem; color:var(--text3);">
+        Showing up to 200 records
+      </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="rep-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Employee</th>
+            <th>Department</th>
+            <th>Day Status</th>
+            <th>Task Description</th>
+            <th>Type</th>
+            <th style="text-align:center;">Hours</th>
+            <th style="text-align:center;">Achievement</th>
+            <th>Remarks / Blockers</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if records %}
+            {% for row in records %}
+            <tr>
+              <td style="white-space:nowrap; font-weight:600; color:var(--text2);">{{ row.tracker_day.date.strftime('%d-%b-%Y') }}</td>
+              <td>
+                <div style="font-weight:700; color:var(--text);">{{ row.tracker_day.employee.name }}</div>
+                <div style="font-size:0.72rem; color:var(--text3);">{{ row.tracker_day.employee.emp_id or 'EMP' ~ row.tracker_day.employee.id }}</div>
+              </td>
+              <td style="color:var(--text2);">{{ row.tracker_day.employee.department or '--' }}</td>
+              <td>{{ row.tracker_day.day_status }}</td>
+              <td style="max-width:300px; color:var(--text); font-weight:500;">{{ row.task_description }}</td>
+              <td>
+                <span class="badge-tag" style="background:rgba(99,102,241,0.15); color:var(--accent);">{{ row.task_type }}</span>
+              </td>
+              <td style="text-align:center; font-weight:700; color:var(--accent);">{{ row.hours_worked }}h</td>
+              <td style="text-align:center;">
+                {% if row.is_achievement %}
+                  <span style="color:#d97706; font-weight:700;">★ Yes</span>
+                {% else %}
+                  <span style="color:var(--text3); font-size:0.8rem;">No</span>
+                {% endif %}
+              </td>
+              <td style="max-width:220px; color:var(--text2); font-size:0.82rem;">{{ row.remarks or '--' }}</td>
+              <td>
+                <span class="status-pill {% if row.tracker_day.status == 'Submitted' %}status-submitted{% elif row.tracker_day.status == 'Locked' %}status-locked{% else %}status-draft{% endif %}">
+                  {{ row.tracker_day.status }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="10" style="text-align:center; padding:32px; color:var(--text3);">
+                No work log activity records found for this period.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- AUDIT TRAIL LOG TAB -->
+  <div class="rep-table-card" id="tabSectionAudit" style="display:none;">
+    <div class="rep-table-header">
+      <div style="font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px;">
+        <i class="fas fa-shield-halved text-accent"></i> System Audit Trail & Controlled Modifications Log
+      </div>
+      <button type="button" class="btn btn-outline" onclick="loadAuditLogs()" style="font-size:0.8rem; padding:4px 10px;">
+        <i class="fas fa-rotate"></i> Refresh
+      </button>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="rep-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Tracker Date</th>
+            <th>Action</th>
+            <th>Performed By</th>
+            <th>Role</th>
+            <th>Details / Reason</th>
+          </tr>
+        </thead>
+        <tbody id="auditLogsTbody">
+          <tr>
+            <td colspan="6" style="text-align:center; padding:24px; color:var(--text3);">
+              <i class="fas fa-spinner fa-spin"></i> Loading audit trail...
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function switchTab(tab) {
+  const btnDet = document.getElementById('tabBtnDetailed');
+  const btnAud = document.getElementById('tabBtnAudit');
+  const secDet = document.getElementById('tabSectionDetailed');
+  const secAud = document.getElementById('tabSectionAudit');
+
+  if (tab === 'audit') {
+    btnDet.classList.remove('active');
+    btnAud.classList.add('active');
+    secDet.style.display = 'none';
+    secAud.style.display = 'block';
+    loadAuditLogs();
+  } else {
+    btnAud.classList.remove('active');
+    btnDet.classList.add('active');
+    secAud.style.display = 'none';
+    secDet.style.display = 'block';
+  }
+}
+
+async function loadAuditLogs() {
+  const tbody = document.getElementById('auditLogsTbody');
+  try {
+    const res = await fetch('/api/daily-tracker/audit-log');
+    const data = await res.json();
+    tbody.innerHTML = '';
+
+    if (data.logs && data.logs.length > 0) {
+      data.logs.forEach(log => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="white-space:nowrap; font-weight:600; color:var(--text2);">${log.timestamp}</td>
+          <td style="white-space:nowrap;">${log.date}</td>
+          <td>
+            <span class="badge-tag" style="background:rgba(99,102,241,0.15); color:var(--accent);">${log.action}</span>
+          </td>
+          <td style="font-weight:700; color:var(--text);">${log.performed_by}</td>
+          <td style="color:var(--text3);">${log.role}</td>
+          <td style="color:var(--text2); font-size:0.85rem;">${log.details}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } else {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text3);">No audit logs recorded yet.</td></tr>';
+    }
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--red);">Failed to load audit logs.</td></tr>';
+  }
+}
+</script>
+{% endblock %}

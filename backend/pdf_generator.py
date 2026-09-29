@@ -9,6 +9,7 @@ import io
 import os
 from datetime import date, timedelta
 from xml.sax.saxutils import escape as xml_escape
+from django.conf import settings
 from pydoc import doc
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
@@ -19,7 +20,6 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_LEFT, TA_JUSTIFY, TA_CENTER, TA_RIGHT
-from flask import current_app
 from reportlab.platypus import Image as RLImage
 
 # ── Page geometry ─────────────────────────────────────────────────────────────
@@ -208,23 +208,64 @@ GENERIC_ROLE_TEMPLATE = {
 
 
 # ── Letterhead background ─────────────────────────────────────────────────────
-def _draw_letterhead(c, letterhead_path):
-    """Draw letterhead image as full-page background — called BEFORE text."""
-    if not letterhead_path or not os.path.exists(letterhead_path):
-        return
+# ── Letterhead background ─────────────────────────────────────────────────────
+def _draw_letterhead(c, letterhead_path=None):
+    """Draw crisp, high-resolution vector letterhead — called BEFORE text."""
     try:
         c.saveState()
-        c.drawImage(
-            letterhead_path,
-            0, 0,
-            width=PAGE_W, height=PAGE_H,
-            preserveAspectRatio=False,
-            mask='auto'
-        )
+
+        # Search for logo.png in static folder
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        logo_path = os.path.join(base_dir, '..', 'static', 'logo.png')
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(base_dir, 'static', 'logo.png')
+        if not os.path.exists(logo_path):
+            logo_path = 'static/logo.png'
+
+        # ── HEADER ──
+        if os.path.exists(logo_path):
+            c.drawImage(
+                logo_path,
+                MAR_LEFT, PAGE_H - 3.2 * cm,
+                width=3.6 * cm, height=1.2 * cm,
+                preserveAspectRatio=True,
+                mask='auto'
+            )
+
+        # Company Text next to logo
+        c.setFont("Helvetica-Bold", 10)
+        c.setFillColor(HexColor('#000000'))
+        c.drawString(MAR_LEFT + 3.8 * cm, PAGE_H - 2.4 * cm, "TIMEARROW")
+        c.setFont("Helvetica", 8)
+        c.setFillColor(HexColor('#444444'))
+        c.drawString(MAR_LEFT + 3.8 * cm, PAGE_H - 2.7 * cm, "PRIVATE LIMITED")
+
+        # Contact info on right
+        c.setFont("Helvetica-Bold", 9)
+        c.setFillColor(HexColor('#000000'))
+        c.drawRightString(PAGE_W - MAR_RIGHT, PAGE_H - 2.4 * cm, "+917977073233")
+        c.setFont("Helvetica", 9)
+        c.setFillColor(HexColor('#222222'))
+        c.drawRightString(PAGE_W - MAR_RIGHT, PAGE_H - 2.8 * cm, "info@wisbees.com")
+
+        # ── FOOTER ──
+        footer_y = 2.2 * cm
+        c.setStrokeColor(HexColor('#1a1a1a'))
+        c.setLineWidth(0.8)
+        c.line(MAR_LEFT, footer_y + 0.6 * cm, PAGE_W - MAR_RIGHT, footer_y + 0.6 * cm)
+
+        c.setFont("Helvetica-Bold", 9)
+        c.setFillColor(HexColor('#000000'))
+        c.drawString(MAR_LEFT, footer_y, "www.wisbees.com")
+
+        c.setFont("Helvetica", 8)
+        c.setFillColor(HexColor('#444444'))
+        c.drawRightString(PAGE_W - MAR_RIGHT, footer_y + 0.2 * cm, "Konark Orchid, Kesnand road, Wagholi,")
+        c.drawRightString(PAGE_W - MAR_RIGHT, footer_y - 0.2 * cm, "Pune-412207")
+
         c.restoreState()
     except Exception:
         pass
-
 
 
 # ── Main generator ────────────────────────────────────────────────────────────
@@ -232,15 +273,6 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
                                full_body_text=None):
     """
     Returns a BytesIO buffer containing the offer letter PDF.
-
-    emp              — Employee ORM object (needs: name, emp_id, joining_date, end_date, salary)
-    hr_user          — HR ORM object (needs: name, designation, signature_path)
-    settings         — CompanySettings ORM object
-    role_key         — str, one of ROLE_KEYS, or a custom/unrecognized value (e.g. '__other__')
-    role_title       — display title shown in the letter; defaults to role_key
-    full_body_text   — the entire letter body (everything between the salutation and the
-                        signature), as free-form text. Blank lines separate paragraphs; a
-                        line starting with "-" or "•" renders as a bullet point.
     """
     buf = io.BytesIO()
 
@@ -248,6 +280,17 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     company_name    = getattr(settings, 'company_name',    'TimeArrow Pvt. Ltd. (WisBees)') or 'TimeArrow Pvt. Ltd. (WisBees)'
 
     today_str = date.today().strftime('%d-%b-%Y')
+
+    # Ensure valid role key and title
+    if not role_key or role_key == '__other__':
+        role_key = getattr(emp, 'designation', '') or "IT Intern – Web & Automation Developer"
+
+    display_title = role_title or role_key or getattr(emp, 'designation', 'Intern')
+
+    # Fallback to default letter body if empty
+    if not full_body_text or not full_body_text.strip():
+        from hrms.utils import _default_full_letter_text
+        full_body_text = _default_full_letter_text(emp, role_key, display_title)
 
     # ── Document setup ────────────────────────────────────────────────────────
     doc = SimpleDocTemplate(
@@ -263,11 +306,9 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     def PS(name, **kw):
         return ParagraphStyle(name, **kw)
 
-    BASE = dict(fontName='Helvetica', textColor=DARK, leading=15)
-
     sty_title   = PS('Title',   fontName='Helvetica-Bold', fontSize=14,
                      textColor=BLACK, alignment=TA_CENTER, spaceAfter=10, leading=18)
-    sty_date    = PS('Date',    fontSize=10, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2,  **{k:v for k,v in BASE.items() if k != 'textColor'})
+    sty_date    = PS('Date',    fontName='Helvetica', fontSize=10, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2, leading=15)
     sty_salute  = PS('Salute',  fontSize=10, textColor=DARK, spaceAfter=6,  fontName='Helvetica', leading=15)
     sty_body    = PS('Body',    fontSize=10, textColor=DARK, spaceAfter=7,
                      alignment=TA_JUSTIFY, fontName='Helvetica', leading=15)
@@ -277,6 +318,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
                      fontName='Helvetica', leading=14)
     sty_signb   = PS('SignB',   fontSize=10, textColor=BLACK, spaceAfter=1,
                      fontName='Helvetica-Bold', leading=14)
+
 
     story = []
 
@@ -293,17 +335,18 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     story.append(Paragraph(f"Dear {emp.name},", sty_salute))
     story.append(Spacer(1, 0.1*cm))
 
-    # ── Letter body — free-form text edited by HR. Blank lines separate
-    # paragraphs; a line starting with "-" or "•" renders as a bullet point. ──
+    # ── Letter body ───────────────────────────────────────────────────────────
     for block in (full_body_text or '').split('\n\n'):
         lines = [ln.strip() for ln in block.split('\n') if ln.strip()]
         for line in lines:
             if line[:1] in ('-', '•'):
                 content = line[1:].strip()
                 story.append(Paragraph(
-                    f"·&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; {xml_escape(content)}",
+                    f"•&nbsp;&nbsp;&nbsp;&nbsp; {xml_escape(content)}",
                     sty_bullet
                 ))
+            elif line.startswith('Key Roles') or line.startswith('During your internship') or line.startswith('Upon successful'):
+                story.append(Paragraph(f"<b>{xml_escape(line)}</b>", sty_body))
             else:
                 story.append(Paragraph(xml_escape(line), sty_body))
         if lines:
@@ -314,11 +357,15 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     story.append(Paragraph("Warm regards,", sty_sign))
     story.append(Spacer(1, 0.15*cm))
 
+    hr_name = getattr(hr_user, 'name', 'HR Admin') if hr_user else 'HR Admin'
+    hr_desig = getattr(hr_user, 'designation', 'HR Manager') if hr_user else 'HR Manager'
+    sig_path = getattr(hr_user, 'signature_path', None) if hr_user else None
+
     # HR signature image
-    if hr_user.signature_path and os.path.exists(hr_user.signature_path):
+    if sig_path and os.path.exists(sig_path):
         from reportlab.platypus import Image as RLImage
         try:
-            sig = RLImage(hr_user.signature_path, width=3.5*cm, height=1.1*cm)
+            sig = RLImage(sig_path, width=3.5*cm, height=1.1*cm)
             sig.hAlign = 'LEFT'
             story.append(sig)
         except Exception:
@@ -326,9 +373,9 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     else:
         story.append(Spacer(1, 0.9*cm))
 
-    story.append(Paragraph(f"<b>{hr_user.name}</b>", sty_signb))
-    story.append(Paragraph(hr_user.designation, sty_sign))
-    story.append(Paragraph(company_name, sty_sign))
+    story.append(Paragraph(f"<b>{xml_escape(hr_name)}</b>", sty_signb))
+    story.append(Paragraph(xml_escape(hr_desig), sty_sign))
+    story.append(Paragraph(xml_escape(company_name), sty_sign))
 
     # ── Build ─────────────────────────────────────────────────────────────────
     def add_letterhead(canvas, doc):
@@ -532,11 +579,13 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms."):
     story.append(Spacer(1, 0.6 * cm))
 
     # 6. Authority Signatures Block
-    FOUNDER_SIGNATURE = os.path.join(
-        current_app.root_path,
-        "static",
-        "founder_signature.png"
-    )
+    from django.conf import settings as django_settings
+    base_dir = getattr(django_settings, 'BASE_DIR', None) or os.path.dirname(os.path.abspath(__file__))
+    FOUNDER_SIGNATURE = os.path.join(str(base_dir), "static", "founder_signature.png")
+    if not os.path.exists(FOUNDER_SIGNATURE):
+        alt_sig = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static", "founder_signature.png")
+        if os.path.exists(alt_sig):
+            FOUNDER_SIGNATURE = alt_sig
 
     if os.path.exists(FOUNDER_SIGNATURE):
         try:
@@ -561,5 +610,141 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms."):
         onLaterPages=add_letterhead
     )
     
+    buf.seek(0)
+    return buf
+
+
+def generate_leave_approval_pdf(leave_request, settings=None, hr_user=None):
+    """
+    Generates a Leave Approval Letter / Sanction Order on official company letterhead.
+    """
+    buf = io.BytesIO()
+
+    letterhead_path = getattr(settings, 'letterhead_path', None)
+    company_name = getattr(settings, 'company_name', 'TimeArrow Pvt. Ltd. (WisBees)') or 'TimeArrow Pvt. Ltd. (WisBees)'
+    emp = leave_request.employee
+
+    today_str = date.today().strftime('%d %B %Y')
+    ref_no = f"WIS/LV/{date.today().year}/{leave_request.id:04d}"
+
+    from_str = leave_request.from_date.strftime('%d %b %Y') if leave_request.from_date else 'N/A'
+    to_str = leave_request.to_date.strftime('%d %b %Y') if leave_request.to_date else 'N/A'
+    total_days = ((leave_request.to_date - leave_request.from_date).days + 1) if (leave_request.from_date and leave_request.to_date) else 1
+    resume_date = (leave_request.to_date + timedelta(days=1)) if leave_request.to_date else None
+    resume_str = resume_date.strftime('%d %b %Y') if resume_date else 'the next working day'
+
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        topMargin=MAR_TOP,
+        bottomMargin=MAR_BOTTOM,
+        leftMargin=MAR_LEFT,
+        rightMargin=MAR_RIGHT,
+    )
+
+    def PS(name, **kw):
+        return ParagraphStyle(name, **kw)
+
+    sty_title = PS('Title', fontName='Helvetica-Bold', fontSize=13, textColor=HexColor("#004D40"), alignment=TA_CENTER, spaceAfter=14, leading=17)
+    sty_date = PS('Date', fontName='Helvetica', fontSize=9, alignment=TA_RIGHT, textColor=DARK, spaceAfter=2, leading=15)
+    sty_ref = PS('Ref', fontName='Helvetica-Bold', fontSize=9, alignment=TA_LEFT, textColor=DARK, spaceAfter=8, leading=15)
+    sty_to = PS('To', fontSize=9.5, textColor=DARK, spaceAfter=3, fontName='Helvetica', leading=14)
+    sty_tob = PS('ToB', fontSize=9.5, textColor=DARK, spaceAfter=3, fontName='Helvetica-Bold', leading=14)
+    sty_subj = PS('Subj', fontSize=10, textColor=DARK, fontName='Helvetica-Bold', spaceAfter=10, leading=15)
+    sty_body = PS('Body', fontSize=9.5, textColor=DARK, spaceAfter=8, alignment=TA_JUSTIFY, fontName='Helvetica', leading=15)
+    sty_sign = PS('Sign', fontSize=9, textColor=DARK, spaceAfter=2, fontName='Helvetica', leading=13)
+    sty_signb = PS('SignB', fontSize=9.5, textColor=DARK, spaceAfter=2, fontName='Helvetica-Bold', leading=14)
+
+
+    story = []
+
+    # Date and Ref Header
+    story.append(Paragraph(f"<b>Date:</b> {today_str}", sty_date))
+    story.append(Paragraph(f"<b>Ref No:</b> {ref_no}", sty_ref))
+    story.append(Spacer(1, 0.2 * cm))
+
+    # Recipient Block
+    story.append(Paragraph("<b>To,</b>", sty_to))
+    story.append(Paragraph(f"<b>{emp.name if emp else 'Employee'}</b>", sty_tob))
+    if emp:
+        story.append(Paragraph(f"Employee ID: <b>{emp.emp_id}</b>", sty_to))
+        story.append(Paragraph(f"Designation: {emp.designation or 'Staff'} ({emp.emp_type or 'Normal'})", sty_to))
+        story.append(Paragraph(f"Department: {emp.department or 'General'}", sty_to))
+    story.append(Spacer(1, 0.4 * cm))
+
+    # Subject
+    story.append(Paragraph(f"<b>Subject: Leave Sanction Order — {leave_request.leave_type or 'Casual Leave'}</b>", sty_subj))
+    story.append(Spacer(1, 0.2 * cm))
+
+    # Main Body
+    story.append(Paragraph(f"Dear <b>{emp.name if emp else 'Employee'}</b>,", sty_body))
+    story.append(Paragraph(
+        f"With reference to your leave request submitted on <b>{leave_request.applied_on.strftime('%d %B %Y') if leave_request.applied_on else today_str}</b>, "
+        f"we are pleased to inform you that your application for <b>{leave_request.leave_type or 'Leave'}</b> has been "
+        f"<b>APPROVED</b> by the management.",
+        sty_body
+    ))
+
+    # Table of details
+    tbl_data = [
+        [Paragraph("<b>Leave Type</b>", sty_to), Paragraph(f": {leave_request.leave_type or 'Casual Leave'}", sty_to)],
+        [Paragraph("<b>From Date</b>", sty_to), Paragraph(f": {from_str}", sty_to)],
+        [Paragraph("<b>To Date</b>", sty_to), Paragraph(f": {to_str}", sty_to)],
+        [Paragraph("<b>Total Duration</b>", sty_to), Paragraph(f": <b>{total_days} Day(s)</b>", sty_to)],
+        [Paragraph("<b>Reason Stated</b>", sty_to), Paragraph(f": {leave_request.reason or 'Personal reasons'}", sty_to)],
+        [Paragraph("<b>Approval Status</b>", sty_to), Paragraph(": <font color='#059669'><b>SANCTIONED & APPROVED</b></font>", sty_to)],
+    ]
+    tbl = Table(tbl_data, colWidths=[3.2 * cm, BODY_W - 3.2 * cm])
+    tbl.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 4),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+        ('BACKGROUND', (0, 0), (-1, -1), HexColor('#F8FAFC')),
+        ('BOX', (0, 0), (-1, -1), 0.5, HexColor('#CBD5E1')),
+        ('INNERGRID', (0, 0), (-1, -1), 0.3, HexColor('#E2E8F0')),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 0.4 * cm))
+
+    story.append(Paragraph(
+        f"You are expected to resume your duties on <b>{resume_str}</b>. "
+        "Kindly ensure that all pending deliverables and urgent operational handovers are coordinated with your team lead.",
+        sty_body
+    ))
+    story.append(Paragraph("We wish you a restful time off.", sty_body))
+    story.append(Spacer(1, 0.5 * cm))
+
+    # Sign-off
+    story.append(Paragraph("Yours sincerely,", sty_sign))
+    story.append(Spacer(1, 0.2 * cm))
+
+    hr_sig_path = getattr(hr_user, 'signature_path', None) if hr_user else None
+    if hr_sig_path and os.path.exists(hr_sig_path):
+        try:
+            sig = RLImage(hr_sig_path, width=4.5 * cm, height=1.6 * cm)
+            sig.hAlign = "LEFT"
+            story.append(sig)
+        except Exception:
+            story.append(Spacer(1, 0.8 * cm))
+    else:
+        story.append(Spacer(1, 0.8 * cm))
+
+    hr_name = getattr(hr_user, 'name', 'HR Department') if hr_user else 'HR Department'
+    hr_desig = getattr(hr_user, 'designation', 'Human Resources Manager') if hr_user else 'Human Resources Manager'
+    story.append(Paragraph(f"<b>{hr_name}</b>", sty_signb))
+    story.append(Paragraph(hr_desig, sty_sign))
+    story.append(Paragraph(f"<b>{company_name}</b>", sty_sign))
+
+    def add_letterhead(canvas, doc):
+        _draw_letterhead(canvas, letterhead_path)
+
+    doc.build(
+        story,
+        onFirstPage=add_letterhead,
+        onLaterPages=add_letterhead
+    )
+
     buf.seek(0)
     return buf

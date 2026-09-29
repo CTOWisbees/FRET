@@ -5,7 +5,7 @@
 {% block content %}
 <div class="page-header">
   <div>
-    <div class="page-title">Edit Employee</div>
+    <div class="page-title">Edit Employee / Intern</div>
     <div class="page-subtitle">{{ emp.emp_id }} · {{ emp.name }}</div>
   </div>
   <a href="{{ url_for('employees') }}" class="btn btn-secondary">
@@ -32,26 +32,20 @@
         <label class="form-label">Phone Number</label>
         <input type="tel" name="phone" class="form-control" value="{{ emp.phone or '' }}"/>
       </div>
-            
-          <div class="form-group">
-              <label class="form-label">Gender *</label>
-              <select name="gender" class="form-control" required>
-                  <option value="" disabled hidden {% if not emp.gender %}selected{% endif %}>Select Gender</option>
-                  <option value="male" {% if emp.gender == 'male' %}selected{% endif %}>Male</option>
-                  <option value="female" {% if emp.gender == 'female' %}selected{% endif %}>Female</option>
-              </select>
-          </div>
-
-            <div class="form-group">
-              <label class="form-label">Status</label>
-              <select name="status" class="form-control">
-                <option value="Active" {% if emp.status == 'Active' %}selected{% endif %}>Active</option>
-                <option value="Inactive" {% if emp.status == 'Inactive' %}selected{% endif %}>Inactive</option>
-                <option value="On Leave" {% if emp.status == 'On Leave' %}selected{% endif %}>On Leave</option>
-                <option value="Probation" {% if emp.status == 'Probation' %}selected{% endif %}>Probation</option>
-              </select>
-            </div>
-          </div>
+      <div class="form-group">
+        <label class="form-label">Gender *</label>
+        <select name="gender" class="form-control" required>
+          <option value="" disabled hidden {% if not emp.gender %}selected{% endif %}>Select Gender</option>
+          <option value="male" {% if emp.gender == 'male' %}selected{% endif %}>Male</option>
+          <option value="female" {% if emp.gender == 'female' %}selected{% endif %}>Female</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select name="emp_type" class="form-control">
+          <option value="Normal" {% if emp.emp_type != 'Intern' %}selected{% endif %}>Normal Employee</option>
+          <option value="Intern" {% if emp.emp_type == 'Intern' %}selected{% endif %}>Intern</option>
+        </select>
       </div>
       <div class="form-group">
         <label class="form-label">Status</label>
@@ -73,7 +67,7 @@
       <div class="form-group">
         <label class="form-label">Department</label>
         <select name="department" class="form-control">
-          {% for dept in ['Engineering','Product','Design','Marketing','Sales','Human Resources','Finance','Operations','Customer Success','Legal','Data & Analytics'] %}
+          {% for dept in ['Engineering','Product','Design','Marketing','Sales','Human Resources','Finance','Operations','Customer Success','Legal','Research','Data & Analytics'] %}
           <option {% if emp.department == dept %}selected{% endif %}>{{ dept }}</option>
           {% endfor %}
         </select>
@@ -83,7 +77,7 @@
         <input type="text" name="designation" class="form-control" value="{{ emp.designation or '' }}"/>
       </div>
       <div class="form-group">
-        <label class="form-label">Annual CTC (₹)</label>
+        <label class="form-label">Annual CTC / Stipend (₹)</label>
         <input type="number" name="salary" class="form-control" value="{{ emp.salary }}" min="0" step="1000"/>
       </div>
       <div class="form-group">
@@ -94,6 +88,19 @@
         <label class="form-label">End Date</label>
         <input type="date" name="end_date" class="form-control" value="{{ emp.end_date.isoformat() if emp.end_date else '' }}"/>
       </div>
+    </div>
+  </div>
+
+  <!-- HR Remarks & Activity Notes -->
+  <div class="card" style="margin-bottom:20px;border-left:4px solid var(--accent);">
+    <div style="font-size:0.95rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;color:var(--text2);">
+      <i class="fas fa-comment-dots text-accent"></i> HR Remarks & Status Notes
+    </div>
+    <div class="form-group" style="margin-bottom:8px;">
+      <label class="form-label" style="font-size:0.8rem;color:var(--text3);">
+        Notes on why inactive, exit reason, sabbatical, performance remarks, or special HR observations:
+      </label>
+      <textarea name="remarks" class="form-control" rows="3" placeholder="e.g. Left company on 15 Aug to pursue Master's degree, Handover completed, eligible for rehire...">{{ emp.remarks or '' }}</textarea>
     </div>
   </div>
 

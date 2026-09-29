@@ -1,13 +1,25 @@
 """
 Production entry point used by gunicorn:  gunicorn wsgi:app
-
-Importing this module creates the database tables (and default settings)
-before the first request is served.
+Exports 'app' as the WSGI application alias for Gunicorn / Render.
 """
-from app import app, init_db
+import os
+import sys
 
-# Create tables on startup. Safe to call repeatedly (db.create_all is idempotent).
-init_db()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR = os.path.join(BASE_DIR, 'backend')
+if BACKEND_DIR not in sys.path:
+    sys.path.insert(0, BACKEND_DIR)
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'fret_project.settings')
+
+import django
+django.setup()
+
+from django.core.wsgi import get_wsgi_application
+
+application = get_wsgi_application()
+app = application
 
 if __name__ == '__main__':
-    app.run()
+    from django.core.management import execute_from_command_line
+    execute_from_command_line(['backend/manage.py', 'runserver', '5000'])
