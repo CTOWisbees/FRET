@@ -206,6 +206,9 @@ if (PROJECT_ROOT / 'static').exists():
 if (BASE_DIR / 'static').exists():
     STATICFILES_DIRS.append(str(BASE_DIR / 'static'))
 
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_MANIFEST_STRICT = False
+
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",
