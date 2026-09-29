@@ -147,8 +147,19 @@ urlpatterns = [
     path('api/daily-tracker/manager-review', tracker_views.api_daily_tracker_manager_review, name='api_daily_tracker_manager_review'),
     path('api/daily-tracker/manager-data', tracker_views.api_daily_tracker_manager_data, name='api_daily_tracker_manager_data'),
     path('api/daily-tracker/export', tracker_views.api_daily_tracker_export, name='api_daily_tracker_export'),
-
     path('api/daily-tracker/audit-log', tracker_views.api_daily_tracker_audit_log, name='api_daily_tracker_audit_log'),
     path('api/daily-tracker/config', tracker_views.api_daily_tracker_config, name='api_daily_tracker_config'),
 ]
+
+from django.conf import settings
+from django.conf.urls.static import static
+from django.views.static import serve
+from django.urls import re_path
+
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns += [
+    re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.PROJECT_ROOT / 'static'}),
+]
+
 
