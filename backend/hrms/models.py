@@ -238,3 +238,101 @@ class NewsletterUnsubscribe(models.Model):
 
     class Meta:
         db_table = 'newsletter_unsubscribe'
+
+
+# ============================================================================
+# DAILY WORK TRACKER MODULE (BRD Implementation)
+# ============================================================================
+
+class DailyTrackerDay(models.Model):
+    id = models.AutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, db_column='employee_id', related_name='daily_trackers')
+    date = models.DateField(db_index=True)
+    day_number = models.IntegerField(default=1)  # Sequence / Day number (e.g. Day 1, Day 2)
+    day_status = models.CharField(max_length=30, default='Working Day')  # Working Day | Weekly Off | Holiday | Leave | Other
+    status = models.CharField(max_length=20, default='Draft')  # Draft | Submitted | Locked
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    manager_rating = models.IntegerField(default=0)  # 1 to 5 stars
+    manager_remarks = models.TextField(null=True, blank=True)
+    reviewed_by = models.CharField(max_length=100, null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'daily_tracker_day'
+        unique_together = ('employee', 'date')
+
+    @property
+    def total_hours(self):
+        return sum((task.hours_worked or 0) for task in self.tasks.all())
+
+    @property
+    def achievements_count(self):
+        return self.tasks.filter(is_achievement=True).count()
+
+    @property
+    def tasks_count(self):
+        return self.tasks.count()
+
+
+class DailyTaskRow(models.Model):
+    id = models.AutoField(primary_key=True)
+    tracker_day = models.ForeignKey(DailyTrackerDay, on_delete=models.CASCADE, db_column='tracker_day_id', related_name='tasks')
+    task_description = models.TextField()
+    task_type = models.CharField(max_length=50, default='Major')  # Major / Minor or Admin Configured
+    hours_worked = models.FloatField(default=0.0)  # 0 to 24 hours
+    is_achievement = models.BooleanField(default=False)
+    remarks = models.TextField(null=True, blank=True)  # Blockers, dependencies, support required, delays, observations
+    order = models.IntegerField(default=0)
+    custom_data = models.TextField(null=True, blank=True)  # JSON for dynamic custom fields
+
+    class Meta:
+        db_table = 'daily_task_row'
+        ordering = ['order', 'id']
+
+
+class DailyTrackerUnlockRequest(models.Model):
+    id = models.AutoField(primary_key=True)
+    tracker_day = models.ForeignKey(DailyTrackerDay, on_delete=models.CASCADE, db_column='tracker_day_id', related_name='unlock_requests')
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, db_column='employee_id', related_name='tracker_unlock_requests')
+    reason = models.TextField()
+    status = models.CharField(max_length=20, default='Pending')  # Pending | Approved | Rejected
+    requested_at = models.DateTimeField(default=timezone.now)
+    reviewed_by = models.CharField(max_length=100, null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'daily_tracker_unlock_request'
+        ordering = ['-requested_at']
+
+
+class DailyTrackerAuditLog(models.Model):
+    id = models.AutoField(primary_key=True)
+    tracker_day = models.ForeignKey(DailyTrackerDay, on_delete=models.SET_NULL, null=True, blank=True, db_column='tracker_day_id', related_name='audit_logs')
+    employee = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True, db_column='employee_id')
+    action = models.CharField(max_length=50)  # CREATED, DRAFT_SAVED, SUBMITTED, LOCKED, UNLOCK_REQUESTED, UNLOCKED, EDITED_AFTER_UNLOCK, MANAGER_REVIEW
+    performed_by_name = models.CharField(max_length=100)
+    performed_by_role = models.CharField(max_length=50)  # Employee | Intern | Reporting Manager | HR / Admin
+    details = models.TextField(null=True, blank=True)
+    ip_address = models.CharField(max_length=50, null=True, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'daily_tracker_audit_log'
+        ordering = ['-timestamp']
+
+
+class DailyTrackerConfig(models.Model):
+    id = models.AutoField(primary_key=True)
+    cutoff_hours = models.IntegerField(default=24)  # Hours past midnight or tracker date after which tracker locks
+    task_types_json = models.TextField(default='["Major", "Minor"]')
+    custom_fields_json = models.TextField(default='[]')  # List of {id, name, type, required}
+    auto_lock_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'daily_tracker_config'
+

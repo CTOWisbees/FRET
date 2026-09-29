@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   BarChart3, Users, UserPlus, CalendarCheck, CalendarMinus, 
-  Megaphone, Settings, User, LogOut, Briefcase, X
+  Megaphone, Settings, User, LogOut, Briefcase, X, ClipboardCheck
 } from 'lucide-react';
+
 import { api } from '@/lib/api';
 
 export default function Sidebar({ 
@@ -183,6 +184,19 @@ export default function Sidebar({
                       <CalendarMinus className="w-4 h-4" />
                       <span>Leave Management</span>
                     </Link>
+
+                    <Link
+                      href="/daily-tracker-manager"
+                      onClick={closeMobile}
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                        pathname === '/daily-tracker-manager' || pathname === '/daily-tracker-reports'
+                          ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                          : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                      }`}
+                    >
+                      <ClipboardCheck className="w-4 h-4" />
+                      <span>Daily Work Tracker</span>
+                    </Link>
                   </div>
                 </div>
 
@@ -255,6 +269,19 @@ export default function Sidebar({
                   <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text3)] mb-1.5 px-3">My Work</div>
                   <div className="space-y-0.5">
                     <Link
+                      href="/daily-tracker"
+                      onClick={closeMobile}
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                        pathname === '/daily-tracker'
+                          ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                          : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                      }`}
+                    >
+                      <ClipboardCheck className="w-4 h-4" />
+                      <span>Daily Work Tracker</span>
+                    </Link>
+
+                    <Link
                       href="/attendance"
                       onClick={closeMobile}
                       className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
@@ -266,6 +293,7 @@ export default function Sidebar({
                       <CalendarCheck className="w-4 h-4" />
                       <span>Attendance</span>
                     </Link>
+
 
                     <Link
                       href="/work"

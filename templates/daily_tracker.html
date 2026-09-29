@@ -1,0 +1,1592 @@
+{% extends "employee_base.html" %}
+
+{% block title %}Daily Work Tracker | WisBees HRMS{% endblock %}
+{% block page_title %}Daily Work Tracker{% endblock %}
+
+{% block content %}
+<style>
+/* ─── DAILY TRACKER STYLES ─── */
+.tracker-container {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1380px;
+  margin: 0 auto;
+}
+
+/* Header & Meta Card */
+.tracker-meta-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.employee-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.emp-avatar-lg {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 1.3rem;
+  box-shadow: 0 4px 12px rgba(99,102,241,0.25);
+}
+
+.emp-meta-details h3 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.badge-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+.badge-intern { background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.3); }
+.badge-emp { background: rgba(99, 102, 241, 0.15); color: var(--accent); border: 1px solid rgba(99, 102, 241, 0.3); }
+
+.emp-meta-sub {
+  font-size: 0.82rem;
+  color: var(--text2);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.emp-meta-sub span { display: flex; align-items: center; gap: 5px; }
+
+/* Date Navigator */
+.date-navigator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--bg3);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+.date-btn {
+  background: transparent;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+}
+.date-btn:hover { background: var(--surface); color: var(--text); }
+.date-input-field {
+  background: transparent;
+  border: none;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+  text-align: center;
+}
+
+/* Day Status & Status Pill */
+.tracker-status-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.day-status-select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  font-weight: 600;
+  outline: none;
+  cursor: pointer;
+}
+
+.tracker-state-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.state-draft { background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.3); }
+.state-submitted { background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); }
+.state-locked { background: rgba(239, 68, 68, 0.15); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+/* Quick KPI Row */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+.kpi-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.kpi-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+.kpi-icon.blue { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+.kpi-icon.green { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+.kpi-icon.yellow { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+.kpi-icon.purple { background: rgba(139, 92, 246, 0.15); color: var(--accent2); }
+
+.kpi-data .kpi-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+.kpi-data .kpi-lbl {
+  font-size: 0.76rem;
+  color: var(--text3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* ─── SPREADSHEET GRID TABLE ─── */
+.spreadsheet-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.spreadsheet-header-bar {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  background: var(--bg3);
+}
+
+.spreadsheet-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.spreadsheet-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 900px;
+  font-size: 0.88rem;
+}
+
+.spreadsheet-table th {
+  background: var(--bg3);
+  color: var(--text2);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.spreadsheet-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  vertical-align: middle;
+  background: var(--bg2);
+  transition: background 0.15s;
+}
+
+.spreadsheet-table tr:hover td {
+  background: rgba(99, 102, 241, 0.02);
+}
+
+.spreadsheet-table tr.highlight-achievement td {
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.table-cell-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-family: inherit;
+  outline: none;
+  transition: all 0.2s;
+}
+.table-cell-input:focus {
+  background: var(--bg);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+.table-cell-input:disabled {
+  background: transparent;
+  color: var(--text2);
+  cursor: not-allowed;
+}
+
+.table-cell-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg3);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+.table-cell-select:disabled {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+/* Achievement Toggle */
+.btn-achievement-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: var(--text3);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+.btn-achievement-toggle.active {
+  background: rgba(245, 158, 11, 0.15);
+  border-color: #f59e0b;
+  color: #d97706;
+}
+.btn-achievement-toggle:hover:not(:disabled) {
+  border-color: #f59e0b;
+  color: #f59e0b;
+}
+
+/* Action Toolbar */
+.tracker-actions-bar {
+  padding: 16px 20px;
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.btn-brand {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  border: none;
+  padding: 9px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+  transition: all 0.2s;
+}
+.btn-brand:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4);
+}
+.btn-brand:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: var(--bg3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 9px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface2);
+  border-color: var(--text3);
+}
+
+.btn-danger-outline {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-danger-outline:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Manager Review Card (When Rated) */
+.manager-review-card {
+  background: linear-gradient(135deg, rgba(99,102,241,0.05), rgba(139,92,246,0.05));
+  border: 1px solid rgba(99,102,241,0.2);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.stars-display {
+  color: #f59e0b;
+  font-size: 1.1rem;
+  display: flex;
+  gap: 4px;
+}
+
+/* ─── GITHUB CONTRIBUTION HEATMAP ─── */
+.github-heatmap-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.github-heatmap-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.github-heatmap-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.heatmap-streak-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  padding: 2px 8px;
+  border-radius: 99px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.github-heatmap-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text2);
+}
+.github-heatmap-wrapper {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.github-heatmap-scroll {
+  min-width: 780px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.github-months-row {
+  display: flex;
+  gap: 10px;
+  margin-left: 32px;
+}
+.github-months-labels {
+  display: grid;
+  grid-template-columns: repeat(53, 13px);
+  gap: 3px;
+  font-size: 0.72rem;
+  color: var(--text3);
+  font-weight: 600;
+}
+.github-grid-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.github-weekdays-col {
+  display: grid;
+  grid-template-rows: repeat(7, 13px);
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text3);
+  line-height: 13px;
+  width: 24px;
+  text-align: right;
+}
+.github-weeks-grid {
+  display: grid;
+  grid-template-columns: repeat(53, 13px);
+  gap: 3px;
+}
+.github-week-col {
+  display: grid;
+  grid-template-rows: repeat(7, 13px);
+  gap: 3px;
+}
+.github-day-cell {
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  border-radius: 2.5px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+  box-sizing: border-box;
+}
+.github-day-cell:hover {
+  transform: scale(1.3);
+  z-index: 10;
+  outline: 2px solid var(--accent);
+}
+.github-day-cell.selected-day {
+  outline: 2px solid var(--accent) !important;
+  box-shadow: 0 0 8px var(--accent);
+  transform: scale(1.15);
+  z-index: 5;
+}
+.github-day-cell.today-cell {
+  border: 1.5px dashed var(--accent) !important;
+}
+
+/* Light Mode Defaults */
+.github-day-cell.level-0, .github-legend-square.level-0 { background: #ebedf0; border: 1px solid #d0d7de; }
+.github-day-cell.level-1, .github-legend-square.level-1 { background: #9be9a8; border: 1px solid #40c463; }
+.github-day-cell.level-2, .github-legend-square.level-2 { background: #40c463; border: 1px solid #30a14e; }
+.github-day-cell.level-3, .github-legend-square.level-3 { background: #30a14e; border: 1px solid #216e39; }
+.github-day-cell.level-4, .github-legend-square.level-4 { background: #216e39; border: 1px solid #196127; }
+
+/* Dark Mode Overrides */
+[data-theme="dark"] .github-day-cell.level-0, [data-theme="dark"] .github-legend-square.level-0 { background: #161b22; border: 1px solid #30363d; }
+[data-theme="dark"] .github-day-cell.level-1, [data-theme="dark"] .github-legend-square.level-1 { background: #0e4429; border: 1px solid #006d32; }
+[data-theme="dark"] .github-day-cell.level-2, [data-theme="dark"] .github-legend-square.level-2 { background: #006d32; border: 1px solid #26a641; }
+[data-theme="dark"] .github-day-cell.level-3, [data-theme="dark"] .github-legend-square.level-3 { background: #26a641; border: 1px solid #39d353; }
+[data-theme="dark"] .github-day-cell.level-4, [data-theme="dark"] .github-legend-square.level-4 { background: #39d353; border: 1px solid #56f06f; }
+
+.github-cell-star {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  font-size: 7px;
+  color: #f59e0b;
+  font-weight: bold;
+}
+
+.github-heatmap-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text3);
+}
+.github-learn-link {
+  color: var(--text3);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.github-learn-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.github-legend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.github-legend-label {
+  font-size: 0.7rem;
+  color: var(--text3);
+  margin: 0 3px;
+}
+.github-legend-square {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  display: inline-block;
+}
+.github-legend-square.level-0 { background: #161b22; }
+.github-legend-square.level-1 { background: #0e4429; }
+.github-legend-square.level-2 { background: #006d32; }
+.github-legend-square.level-3 { background: #26a641; }
+.github-legend-square.level-4 { background: #39d353; }
+
+:root:not([data-theme="dark"]) .github-legend-square.level-0 { background: #ebedf0; }
+:root:not([data-theme="dark"]) .github-legend-square.level-1 { background: #9be9a8; }
+:root:not([data-theme="dark"]) .github-legend-square.level-2 { background: #40c463; }
+:root:not([data-theme="dark"]) .github-legend-square.level-3 { background: #30a14e; }
+:root:not([data-theme="dark"]) .github-legend-square.level-4 { background: #216e39; }
+
+/* Streak Milestone Badges Card */
+.streak-badges-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.streak-badges-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.streak-badges-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.streak-fire-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+.streak-badges-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.streak-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.streak-badge-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+.streak-badge-card.unlocked {
+  background: var(--bg2);
+  border-color: rgba(245, 158, 11, 0.4);
+  box-shadow: 0 4px 14px rgba(245, 158, 11, 0.1);
+  outline: 1px solid rgba(245, 158, 11, 0.2);
+}
+.streak-badge-card.unlocked:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(245, 158, 11, 0.2);
+}
+.streak-badge-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.streak-badge-tier {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  background: rgba(0,0,0,0.06);
+  color: var(--text3);
+}
+.streak-badge-card.unlocked .streak-badge-tier {
+  background: rgba(245, 158, 11, 0.18);
+  color: #d97706;
+}
+.streak-badge-emblem {
+  width: 44px;
+  height: 44px;
+  margin: 4px auto;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 1.5rem;
+  background: var(--bg);
+  filter: grayscale(1);
+  opacity: 0.6;
+  transition: all 0.3s ease;
+}
+.streak-badge-card.unlocked .streak-badge-emblem {
+  background: rgba(245, 158, 11, 0.15);
+  filter: none;
+  opacity: 1;
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.25);
+}
+.streak-badge-name {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+}
+.streak-badge-target {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text3);
+  text-align: center;
+}
+.streak-progress-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+.streak-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text3);
+}
+.streak-progress-track {
+  width: 100%;
+  height: 5px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.streak-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width 0.5s ease;
+}
+.streak-badge-card.unlocked .streak-progress-fill {
+  background: linear-gradient(90deg, #f59e0b, #10b981);
+}
+
+.github-tooltip {
+  position: fixed;
+  background: #24292f;
+  color: #fff;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  pointer-events: none;
+  z-index: 1000;
+  display: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Modal Backdrop & Dialog */
+
+.custom-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: none;
+  place-items: center;
+  padding: 20px;
+}
+.custom-modal-backdrop.active {
+  display: grid;
+}
+.custom-modal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 520px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  overflow: hidden;
+  animation: modalIn 0.2s ease-out;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.custom-modal-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.custom-modal-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.custom-modal-body {
+  padding: 20px;
+}
+.custom-modal-footer {
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--bg3);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+</style>
+
+<div class="tracker-container">
+
+  <!-- TOP IDENTITY & METADATA BAR -->
+  <div class="tracker-meta-card">
+    <div class="employee-identity">
+      <div class="emp-avatar-lg">{{ employee.name[0].upper() }}</div>
+      <div class="emp-meta-details">
+        <h3>
+          {{ employee.name }}
+          <span class="badge-tag {% if employee.emp_type == 'Intern' %}badge-intern{% else %}badge-emp{% endif %}">
+            {{ employee.emp_type or 'Employee' }}
+          </span>
+        </h3>
+        <div class="emp-meta-sub">
+          <span><i class="fas fa-id-badge text-accent"></i> {{ employee.emp_id or 'EMP' ~ employee.id }}</span>
+          <span><i class="fas fa-building text-accent"></i> {{ employee.department or 'General' }}</span>
+          <span><i class="fas fa-user-tie text-accent"></i> {{ employee.designation or 'Member' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Date Navigation -->
+    <div class="date-navigator">
+      <a href="?date={{ prev_date }}{% if request.GET.employee_id %}&employee_id={{ request.GET.employee_id }}{% endif %}" class="date-btn" title="Previous Day">
+        <i class="fas fa-chevron-left"></i>
+      </a>
+      <i class="fas fa-calendar-alt text-accent"></i>
+      <input type="date" id="trackerDatePicker" class="date-input-field" value="{{ current_date }}" onchange="onDateChange(this.value)">
+      <a href="?date={{ next_date }}{% if request.GET.employee_id %}&employee_id={{ request.GET.employee_id }}{% endif %}" class="date-btn" title="Next Day">
+        <i class="fas fa-chevron-right"></i>
+      </a>
+    </div>
+
+    <!-- Day Status & Submission State -->
+    <div class="tracker-status-group">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 0.72rem; color: var(--text3); font-weight: 600; text-transform: uppercase;">Day Status</span>
+        <select id="dayStatusSelect" class="day-status-select" {% if tracker_day.status == 'Locked' %}disabled{% endif %} onchange="onDayStatusChange(this.value)">
+          <option value="Working Day" {% if tracker_day.day_status == 'Working Day' %}selected{% endif %}>💼 Working Day</option>
+          <option value="Weekly Off" {% if tracker_day.day_status == 'Weekly Off' %}selected{% endif %}>🏖️ Weekly Off</option>
+          <option value="Holiday" {% if tracker_day.day_status == 'Holiday' %}selected{% endif %}>🎉 Holiday</option>
+          <option value="Leave" {% if tracker_day.day_status == 'Leave' %}selected{% endif %}>🌴 Leave / Time-Off</option>
+          <option value="Other" {% if tracker_day.day_status == 'Other' %}selected{% endif %}>📌 Other</option>
+        </select>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <span style="font-size: 0.72rem; color: var(--text3); font-weight: 600; text-transform: uppercase;">Tracker Status</span>
+        <div>
+          {% if tracker_day.status == 'Locked' %}
+            <span class="tracker-state-badge state-locked"><i class="fas fa-lock"></i> Locked</span>
+          {% elif tracker_day.status == 'Submitted' %}
+            <span class="tracker-state-badge state-submitted"><i class="fas fa-check-circle"></i> Submitted</span>
+          {% else %}
+            <span class="tracker-state-badge state-draft"><i class="fas fa-pen"></i> Draft</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMMARY STATS KPI ROW -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-icon blue"><i class="fas fa-hashtag"></i></div>
+      <div class="kpi-data">
+        <div class="kpi-num">Day {{ tracker_day.day_number }}</div>
+        <div class="kpi-lbl">Day Sequence</div>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon green"><i class="fas fa-clock"></i></div>
+      <div class="kpi-data">
+        <div class="kpi-num" id="totalHoursDisplay">{{ tracker_day.total_hours|round(1) }}h</div>
+        <div class="kpi-lbl">Total Hours (Today)</div>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon yellow"><i class="fas fa-star"></i></div>
+      <div class="kpi-data">
+        <div class="kpi-num" id="totalAchievementsDisplay">{{ tracker_day.achievements_count }}</div>
+        <div class="kpi-lbl">Achievements Today</div>
+      </div>
+    </div>
+
+    <div class="kpi-card">
+      <div class="kpi-icon purple"><i class="fas fa-calendar-check"></i></div>
+      <div class="kpi-data">
+        <div class="kpi-num">{{ month_stats.total_submitted }} / {{ month_stats.total_hours }}h</div>
+        <div class="kpi-lbl">Month Submissions & Hours</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- GITHUB CONTRIBUTION ACTIVITY HEATMAP -->
+  <div class="github-heatmap-card">
+    <div class="github-heatmap-header">
+      <div class="github-heatmap-title">
+        <i class="fab fa-github text-accent" style="font-size:1.15rem;"></i>
+        <span>{{ heatmap.total_submitted_days }} submissions in the last year</span>
+        {% if heatmap.longest_streak > 0 %}
+        <span class="heatmap-streak-badge"><i class="fas fa-fire text-yellow"></i> Best Streak: {{ heatmap.longest_streak }} days</span>
+        {% endif %}
+      </div>
+      <div class="github-heatmap-meta">
+        <span><i class="fas fa-clock text-accent"></i> {{ heatmap.total_hours_year }}h Logged</span>
+        <span><i class="fas fa-star text-yellow"></i> {{ heatmap.total_achievements_year }} Achievements</span>
+      </div>
+    </div>
+
+    <div class="github-heatmap-wrapper">
+      <div class="github-heatmap-scroll">
+        <!-- Month Labels Bar -->
+        <div class="github-months-row">
+          <div class="github-months-labels">
+            {% for m in heatmap.months_labels %}
+              <span style="grid-column: {{ m.week_col + 1 }};">{{ m.name }}</span>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="github-grid-body">
+          <!-- Weekday Labels -->
+          <div class="github-weekdays-col">
+            <span>Mon</span>
+            <span></span>
+            <span>Wed</span>
+            <span></span>
+            <span>Fri</span>
+            <span></span>
+            <span></span>
+          </div>
+
+          <!-- 52-Week Grid Columns -->
+          <div class="github-weeks-grid">
+            {% for week in heatmap.weeks %}
+              <div class="github-week-col">
+                {% for day in week %}
+                  <div 
+                    class="github-day-cell level-{{ day.level }} {% if day.is_selected %}selected-day{% endif %} {% if day.is_today %}today-cell{% endif %} {% if day.achievements > 0 %}has-achievement{% endif %}"
+                    data-date="{{ day.date }}"
+                    data-tooltip="{{ day.day_name }}, {{ day.date_display }}: {{ day.hours }}h ({{ day.tasks_count }} tasks{% if day.achievements > 0 %}, {{ day.achievements }} ★{% endif %} - {{ day.status }})"
+                    onclick="onDateChange('{{ day.date }}')"
+                    onmouseenter="showGithubTooltip(event, this)"
+                    onmouseleave="hideGithubTooltip()"
+                  >
+                    {% if day.achievements > 0 %}
+                      <span class="github-cell-star">★</span>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Heatmap Footer Bar -->
+    <div class="github-heatmap-footer">
+      <a href="javascript:void(0)" onclick="openAchievementInfoModal()" class="github-learn-link">
+        Learn how we count contributions
+      </a>
+
+      <div class="github-legend">
+        <span class="github-legend-label">Less</span>
+        <span class="github-legend-square level-0"></span>
+        <span class="github-legend-square level-1"></span>
+        <span class="github-legend-square level-2"></span>
+        <span class="github-legend-square level-3"></span>
+        <span class="github-legend-square level-4"></span>
+        <span class="github-legend-label">More</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="githubTooltip" class="github-tooltip"></div>
+
+  <!-- STREAK MILESTONE BADGES CARD -->
+  <div class="streak-badges-card">
+    <div class="streak-badges-header">
+      <div class="streak-badges-title-wrap">
+        <div class="streak-fire-icon"><i class="fas fa-fire"></i></div>
+        <div>
+          <div class="streak-badges-title">
+            Streak Milestones & Consistency Badges
+            <span class="badge-tag badge-intern" style="font-size:0.7rem; padding:2px 8px;">
+              {{ heatmap.unlocked_badges_count|default(0) }} / 6 Unlocked
+            </span>
+          </div>
+          <div style="font-size:0.75rem; color:var(--text3); margin-top:2px;">
+            Unlock exclusive milestone badges by logging daily work for 21, 30, 60, 120, 240, and 360 days.
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:0.78rem; font-weight:700; background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:8px; color:var(--text);">
+          🔥 Current Streak: <span style="color:#f59e0b;">{{ heatmap.current_streak|default(0) }}d</span>
+        </span>
+        <span style="font-size:0.78rem; font-weight:700; background:var(--bg3); border:1px solid var(--border); padding:5px 10px; border-radius:8px; color:var(--text);">
+          🏆 Longest: <span style="color:var(--accent);">{{ heatmap.longest_streak|default(0) }}d</span>
+        </span>
+      </div>
+    </div>
+
+    <!-- 6 Milestone Badges Grid -->
+    <div class="streak-badges-grid">
+      {% for badge in heatmap.badges %}
+        <div class="streak-badge-card {% if badge.is_unlocked %}unlocked{% endif %}">
+          <div class="streak-badge-top">
+            <span class="streak-badge-tier">{{ badge.tier }}</span>
+            {% if badge.is_unlocked %}
+              <span style="font-size:0.7rem; font-weight:700; color:#10b981; display:flex; align-items:center; gap:3px;">
+                <i class="fas fa-check-circle"></i> Unlocked
+              </span>
+            {% else %}
+              <span style="font-size:0.7rem; font-weight:600; color:var(--text3); display:flex; align-items:center; gap:3px;">
+                <i class="fas fa-lock" style="font-size:0.6rem;"></i> {{ badge.days }}d
+              </span>
+            {% endif %}
+          </div>
+
+          <div>
+            <div class="streak-badge-emblem">{{ badge.emoji }}</div>
+            <div class="streak-badge-name">{{ badge.title }}</div>
+            <div class="streak-badge-target">{{ badge.days }} Days Streak</div>
+          </div>
+
+          <div class="streak-progress-wrap">
+            <div class="streak-progress-meta">
+              <span>Progress</span>
+              <span>{{ badge.current_days }} / {{ badge.days }}d</span>
+            </div>
+            <div class="streak-progress-track">
+              <div class="streak-progress-fill" style="width: {{ badge.progress_percent }}%;"></div>
+            </div>
+            <div style="font-size:0.68rem; color:var(--text3); text-align:center; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="{{ badge.description }}">
+              {{ badge.description }}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+
+  <!-- MANAGER REVIEW & RATING (If available) -->
+  {% if tracker_day.manager_rating or tracker_day.manager_remarks %}
+  <div class="manager-review-card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <div style="font-weight:700; color:var(--text); display:flex; align-items:center; gap:8px;">
+        <i class="fas fa-award text-accent"></i> Manager Review & Feedback
+        <span style="font-size:0.75rem; color:var(--text3); font-weight:normal;">(By {{ tracker_day.reviewed_by or 'Reporting Manager' }})</span>
+      </div>
+      <div class="stars-display">
+        {% for i in range(1, 6) %}
+          <i class="fas fa-star {% if i <= tracker_day.manager_rating %}text-yellow{% else %}text-muted{% endif %}" style="{% if i > tracker_day.manager_rating %}opacity:0.25;{% endif %}"></i>
+        {% endfor %}
+      </div>
+    </div>
+    {% if tracker_day.manager_remarks %}
+    <p style="font-size:0.9rem; color:var(--text2); line-height:1.5; margin:0;">
+      "{{ tracker_day.manager_remarks }}"
+    </p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- SPREADSHEET GRID CARD -->
+  <div class="spreadsheet-card">
+    <div class="spreadsheet-header-bar">
+      <div class="spreadsheet-title">
+        <i class="fas fa-table-cells text-accent"></i>
+        Daily Work Log Sheet — {{ current_date_display }}
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button type="button" class="btn-secondary" onclick="openAchievementInfoModal()" style="padding: 6px 12px; font-size: 0.8rem;">
+          <i class="fas fa-circle-info text-accent"></i> Achievement Criteria
+        </button>
+
+        {% if tracker_day.status != 'Locked' %}
+        <button type="button" class="btn-brand" onclick="addNewRow()" style="padding: 6px 14px; font-size: 0.82rem;">
+          <i class="fas fa-plus"></i> Add Row
+        </button>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="table-responsive">
+      <table class="spreadsheet-table" id="trackerGridTable">
+        <thead>
+          <tr>
+            <th style="width: 70px; text-align:center;">Day</th>
+            <th style="width: 100px;">Date</th>
+            <th>Task Worked On <span style="color:var(--red);">*</span></th>
+            <th style="width: 140px;">Type</th>
+            <th style="width: 110px;">Hours (0-24) <span style="color:var(--red);">*</span></th>
+            <th style="width: 140px; text-align:center;">Achievement</th>
+            <th>Remarks / Blockers / Dependencies</th>
+            <th style="width: 60px; text-align:center;">Action</th>
+          </tr>
+        </thead>
+        <tbody id="trackerTableBody">
+          {% if tasks %}
+            {% for task in tasks %}
+            <tr data-row-id="{{ task.id }}" class="{% if task.is_achievement %}highlight-achievement{% endif %}">
+              <td style="text-align:center; font-weight:700; color:var(--text2);">Day {{ tracker_day.day_number }}</td>
+              <td style="color:var(--text2); font-weight:500;">{{ current_date_display }}</td>
+              <td>
+                <input type="text" class="table-cell-input task-desc-input" placeholder="Describe the work performed in detail..." value="{{ task.task_description }}" {% if tracker_day.status == 'Locked' %}disabled{% endif %} required>
+              </td>
+              <td>
+                <select class="table-cell-select task-type-select" {% if tracker_day.status == 'Locked' %}disabled{% endif %}>
+                  {% for ttype in task_types %}
+                    <option value="{{ ttype }}" {% if task.task_type == ttype %}selected{% endif %}>{{ ttype }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" step="0.5" min="0" max="24" class="table-cell-input task-hours-input" style="font-weight:700; text-align:center;" value="{{ task.hours_worked }}" oninput="recalculateTotals()" {% if tracker_day.status == 'Locked' %}disabled{% endif %} required>
+              </td>
+              <td style="text-align:center;">
+                <button type="button" class="btn-achievement-toggle {% if task.is_achievement %}active{% endif %}" onclick="toggleAchievement(this)" {% if tracker_day.status == 'Locked' %}disabled{% endif %}>
+                  <i class="fas fa-star"></i> <span>{% if task.is_achievement %}Flagged{% else %}Mark{% endif %}</span>
+                </button>
+              </td>
+              <td>
+                <input type="text" class="table-cell-input task-remarks-input" placeholder="Blockers, dependencies, observations..." value="{{ task.remarks or '' }}" {% if tracker_day.status == 'Locked' %}disabled{% endif %}>
+              </td>
+              <td style="text-align:center;">
+                {% if tracker_day.status != 'Locked' %}
+                <button type="button" class="btn-danger-outline" onclick="deleteRow(this)" title="Delete Row">
+                  <i class="fas fa-trash-can fa-sm"></i>
+                </button>
+                {% else %}
+                <i class="fas fa-lock text-muted fa-sm"></i>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <!-- Default First Empty Row -->
+            <tr data-row-id="new-1">
+              <td style="text-align:center; font-weight:700; color:var(--text2);">Day {{ tracker_day.day_number }}</td>
+              <td style="color:var(--text2); font-weight:500;">{{ current_date_display }}</td>
+              <td>
+                <input type="text" class="table-cell-input task-desc-input" placeholder="Describe the work performed in detail..." {% if tracker_day.status == 'Locked' %}disabled{% endif %} required>
+              </td>
+              <td>
+                <select class="table-cell-select task-type-select" {% if tracker_day.status == 'Locked' %}disabled{% endif %}>
+                  {% for ttype in task_types %}
+                    <option value="{{ ttype }}">{{ ttype }}</option>
+                  {% endfor %}
+                </select>
+              </td>
+              <td>
+                <input type="number" step="0.5" min="0" max="24" class="table-cell-input task-hours-input" style="font-weight:700; text-align:center;" value="0" oninput="recalculateTotals()" {% if tracker_day.status == 'Locked' %}disabled{% endif %} required>
+              </td>
+              <td style="text-align:center;">
+                <button type="button" class="btn-achievement-toggle" onclick="toggleAchievement(this)" {% if tracker_day.status == 'Locked' %}disabled{% endif %}>
+                  <i class="fas fa-star"></i> <span>Mark</span>
+                </button>
+              </td>
+              <td>
+                <input type="text" class="table-cell-input task-remarks-input" placeholder="Blockers, dependencies, observations..." {% if tracker_day.status == 'Locked' %}disabled{% endif %}>
+              </td>
+              <td style="text-align:center;">
+                {% if tracker_day.status != 'Locked' %}
+                <button type="button" class="btn-danger-outline" onclick="deleteRow(this)" title="Delete Row">
+                  <i class="fas fa-trash-can fa-sm"></i>
+                </button>
+                {% else %}
+                <i class="fas fa-lock text-muted fa-sm"></i>
+                {% endif %}
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ACTION BUTTONS TOOLBAR -->
+    <div class="tracker-actions-bar">
+      <div style="display:flex; align-items:center; gap:10px;">
+        {% if tracker_day.status != 'Locked' %}
+        <button type="button" class="btn-secondary" onclick="addNewRow()">
+          <i class="fas fa-plus"></i> Add Row
+        </button>
+        {% endif %}
+      </div>
+
+      <div style="display:flex; align-items:center; gap:12px;">
+        {% if tracker_day.status == 'Locked' %}
+          {% if pending_unlock %}
+            <div style="font-size:0.85rem; color:#d97706; font-weight:600; display:flex; align-items:center; gap:6px;">
+              <i class="fas fa-hourglass-half"></i> Unlock Request Pending Review
+            </div>
+          {% else %}
+            <button type="button" class="btn-brand" onclick="openUnlockModal()" style="background:linear-gradient(135deg, #d97706, #b45309);">
+              <i class="fas fa-unlock"></i> Request Unlock
+            </button>
+          {% endif %}
+        {% else %}
+          <button type="button" class="btn-secondary" id="btnSaveDraft" onclick="saveTrackerData('draft')">
+            <i class="fas fa-floppy-disk"></i> Save Draft
+          </button>
+          <button type="button" class="btn-brand" id="btnSubmitDay" onclick="saveTrackerData('submit')">
+            <i class="fas fa-paper-plane"></i> Submit Day
+          </button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ACHIEVEMENT INFO MODAL ('I' Button modal) -->
+<div class="custom-modal-backdrop" id="achievementInfoModal">
+  <div class="custom-modal">
+    <div class="custom-modal-header">
+      <div class="custom-modal-title">
+        <i class="fas fa-star text-yellow"></i> Achievement Flagging Guidelines
+      </div>
+      <button type="button" class="btn-icon" onclick="closeAchievementInfoModal()"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="custom-modal-body" style="font-size:0.9rem; color:var(--text2); line-height:1.6;">
+      <p style="margin-bottom:12px;">
+        Marking a task as an <strong>Achievement (★)</strong> highlights significant contributions, key problem resolutions, milestones, or high-impact deliverables.
+      </p>
+      <ul style="padding-left:20px; display:flex; flex-direction:column; gap:8px;">
+        <li>Completing a major product release or critical feature.</li>
+        <li>Solving a complex production bug or blocker.</li>
+        <li>Publishing an impactful research dossier or client document.</li>
+        <li>Receiving outstanding praise from stakeholders or team leads.</li>
+      </ul>
+      <p style="margin-top:14px; font-size:0.82rem; color:var(--text3);">
+        Flagged achievements will automatically be featured in your weekly and monthly performance appraisal summaries.
+      </p>
+    </div>
+    <div class="custom-modal-footer">
+      <button type="button" class="btn-brand" onclick="closeAchievementInfoModal()">Understood</button>
+    </div>
+  </div>
+</div>
+
+<!-- REQUEST UNLOCK MODAL -->
+<div class="custom-modal-backdrop" id="unlockRequestModal">
+  <div class="custom-modal">
+    <div class="custom-modal-header">
+      <div class="custom-modal-title">
+        <i class="fas fa-unlock text-accent"></i> Request Tracker Unlock
+      </div>
+      <button type="button" class="btn-icon" onclick="closeUnlockModal()"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="custom-modal-body">
+      <p style="font-size:0.88rem; color:var(--text2); margin-bottom:14px;">
+        This tracker is locked. Please specify the reason for requesting a backdated correction or late entry. Your Reporting Manager & HR will review this request.
+      </p>
+      <div class="form-group">
+        <label style="font-size:0.82rem; font-weight:600; color:var(--text); margin-bottom:6px; display:block;">Reason for Unlock Request <span style="color:var(--red);">*</span></label>
+        <textarea id="unlockReasonInput" class="table-cell-input" style="height:100px; border:1px solid var(--border); background:var(--bg3);" placeholder="e.g., Missed submission due to urgent client deployment / Need to update hours on task..."></textarea>
+      </div>
+    </div>
+    <div class="custom-modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeUnlockModal()">Cancel</button>
+      <button type="button" class="btn-brand" id="btnSubmitUnlock" onclick="submitUnlockRequest()">Submit Request</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CURRENT_DATE = "{{ current_date }}";
+const DAY_NUMBER = "{{ tracker_day.day_number }}";
+const TASK_TYPES = {{ task_types|tojson }};
+const EMPLOYEE_ID = "{{ employee.id }}";
+
+function onDateChange(newDate) {
+  if (newDate) {
+    let url = "?date=" + encodeURIComponent(newDate);
+    {% if request.GET.employee_id %}
+      url += "&employee_id={{ request.GET.employee_id }}";
+    {% endif %}
+    window.location.href = url;
+  }
+}
+
+function onDayStatusChange(status) {
+  const isWorking = (status === 'Working Day');
+  const rows = document.querySelectorAll('#trackerTableBody tr');
+  if (!isWorking && rows.length === 1) {
+    const descInput = rows[0].querySelector('.task-desc-input');
+    const hoursInput = rows[0].querySelector('.task-hours-input');
+    if (descInput && !descInput.value) {
+      descInput.value = status;
+    }
+    if (hoursInput) {
+      hoursInput.value = '0';
+    }
+    recalculateTotals();
+  }
+}
+
+function recalculateTotals() {
+  let totalHours = 0;
+  let achievementsCount = 0;
+  
+  const rows = document.querySelectorAll('#trackerTableBody tr');
+  rows.forEach(row => {
+    const hoursVal = parseFloat(row.querySelector('.task-hours-input')?.value || 0);
+    if (!isNaN(hoursVal)) {
+      totalHours += hoursVal;
+    }
+    const isAch = row.querySelector('.btn-achievement-toggle')?.classList.contains('active');
+    if (isAch) {
+      achievementsCount++;
+    }
+  });
+
+  const hElem = document.getElementById('totalHoursDisplay');
+  if (hElem) hElem.innerText = totalHours.toFixed(1) + 'h';
+
+  const aElem = document.getElementById('totalAchievementsDisplay');
+  if (aElem) aElem.innerText = achievementsCount;
+}
+
+function toggleAchievement(btn) {
+  if (btn.disabled) return;
+  const isAct = btn.classList.toggle('active');
+  const tr = btn.closest('tr');
+  if (tr) {
+    tr.classList.toggle('highlight-achievement', isAct);
+  }
+  const span = btn.querySelector('span');
+  if (span) {
+    span.innerText = isAct ? 'Flagged' : 'Mark';
+  }
+  recalculateTotals();
+}
+
+function addNewRow() {
+  const tbody = document.getElementById('trackerTableBody');
+  const rowCount = tbody.querySelectorAll('tr').length + 1;
+  const tr = document.createElement('tr');
+  tr.setAttribute('data-row-id', 'new-' + Date.now());
+
+  let optionsHtml = '';
+  TASK_TYPES.forEach(t => {
+    optionsHtml += `<option value="${t}">${t}</option>`;
+  });
+
+  tr.innerHTML = `
+    <td style="text-align:center; font-weight:700; color:var(--text2);">Day ${DAY_NUMBER}</td>
+    <td style="color:var(--text2); font-weight:500;">{{ current_date_display }}</td>
+    <td>
+      <input type="text" class="table-cell-input task-desc-input" placeholder="Describe the work performed in detail..." required>
+    </td>
+    <td>
+      <select class="table-cell-select task-type-select">
+        ${optionsHtml}
+      </select>
+    </td>
+    <td>
+      <input type="number" step="0.5" min="0" max="24" class="table-cell-input task-hours-input" style="font-weight:700; text-align:center;" value="0" oninput="recalculateTotals()" required>
+    </td>
+    <td style="text-align:center;">
+      <button type="button" class="btn-achievement-toggle" onclick="toggleAchievement(this)">
+        <i class="fas fa-star"></i> <span>Mark</span>
+      </button>
+    </td>
+    <td>
+      <input type="text" class="table-cell-input task-remarks-input" placeholder="Blockers, dependencies, observations...">
+    </td>
+    <td style="text-align:center;">
+      <button type="button" class="btn-danger-outline" onclick="deleteRow(this)" title="Delete Row">
+        <i class="fas fa-trash-can fa-sm"></i>
+      </button>
+    </td>
+  `;
+
+  tbody.appendChild(tr);
+  const newDesc = tr.querySelector('.task-desc-input');
+  if (newDesc) newDesc.focus();
+  recalculateTotals();
+}
+
+function deleteRow(btn) {
+  const tr = btn.closest('tr');
+  const tbody = document.getElementById('trackerTableBody');
+  if (tbody.querySelectorAll('tr').length <= 1) {
+    // If only one row remains, just clear its values
+    const desc = tr.querySelector('.task-desc-input');
+    const hours = tr.querySelector('.task-hours-input');
+    const remarks = tr.querySelector('.task-remarks-input');
+    if (desc) desc.value = '';
+    if (hours) hours.value = '0';
+    if (remarks) remarks.value = '';
+    const achBtn = tr.querySelector('.btn-achievement-toggle');
+    if (achBtn && achBtn.classList.contains('active')) {
+      toggleAchievement(achBtn);
+    }
+  } else {
+    tr.remove();
+  }
+  recalculateTotals();
+}
+
+async function saveTrackerData(actionType) {
+  const dayStatus = document.getElementById('dayStatusSelect').value;
+  const rows = document.querySelectorAll('#trackerTableBody tr');
+  const tasks = [];
+
+  let hasError = false;
+  let errorMsg = '';
+
+  rows.forEach((row, idx) => {
+    const desc = row.querySelector('.task-desc-input')?.value.trim() || '';
+    const type = row.querySelector('.task-type-select')?.value || 'Major';
+    const hours = parseFloat(row.querySelector('.task-hours-input')?.value || 0);
+    const isAchievement = row.querySelector('.btn-achievement-toggle')?.classList.contains('active') || false;
+    const remarks = row.querySelector('.task-remarks-input')?.value.trim() || '';
+
+    if (actionType === 'submit' && dayStatus === 'Working Day') {
+      if (!desc) {
+        hasError = true;
+        errorMsg = `Task description is required on row #${idx + 1}.`;
+      }
+      if (isNaN(hours) || hours < 0 || hours > 24) {
+        hasError = true;
+        errorMsg = `Hours worked must be between 0 and 24 on row #${idx + 1}.`;
+      }
+    }
+
+    if (desc || hours > 0 || dayStatus === 'Working Day') {
+      tasks.push({
+        task_description: desc,
+        task_type: type,
+        hours_worked: isNaN(hours) ? 0 : hours,
+        is_achievement: isAchievement,
+        remarks: remarks
+      });
+    }
+  });
+
+  if (hasError) {
+    alert(errorMsg);
+    return;
+  }
+
+  if (actionType === 'submit' && dayStatus === 'Working Day' && tasks.length === 0) {
+    alert('Please add at least one task row before submitting.');
+    return;
+  }
+
+  const payload = {
+    employee_id: EMPLOYEE_ID,
+    date: CURRENT_DATE,
+    day_status: dayStatus,
+    action: actionType,
+    tasks: tasks
+  };
+
+  const btnDraft = document.getElementById('btnSaveDraft');
+  const btnSubmit = document.getElementById('btnSubmitDay');
+  if (btnDraft) btnDraft.disabled = true;
+  if (btnSubmit) btnSubmit.disabled = true;
+
+  try {
+    const res = await fetch('/api/daily-tracker/save', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Employee-Id': EMPLOYEE_ID
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await res.json();
+    if (res.ok && result.success) {
+      window.location.reload();
+    } else {
+      alert(result.error || 'Failed to save tracker. Please try again.');
+    }
+  } catch (err) {
+    console.error(err);
+    alert('Network error while saving tracker.');
+  } finally {
+    if (btnDraft) btnDraft.disabled = false;
+    if (btnSubmit) btnSubmit.disabled = false;
+  }
+}
+
+function openAchievementInfoModal() {
+  document.getElementById('achievementInfoModal').classList.add('active');
+}
+function closeAchievementInfoModal() {
+  document.getElementById('achievementInfoModal').classList.remove('active');
+}
+
+function openUnlockModal() {
+  document.getElementById('unlockRequestModal').classList.add('active');
+}
+function closeUnlockModal() {
+  document.getElementById('unlockRequestModal').classList.remove('active');
+}
+
+async function submitUnlockRequest() {
+  const reason = document.getElementById('unlockReasonInput').value.trim();
+  if (!reason) {
+    alert('Please enter the reason for requesting an unlock.');
+    return;
+  }
+
+  const btn = document.getElementById('btnSubmitUnlock');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/daily-tracker/request-unlock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Employee-Id': EMPLOYEE_ID
+      },
+      body: JSON.stringify({
+        date: CURRENT_DATE,
+        reason: reason
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      alert(data.message);
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to submit unlock request.');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Network error submitting unlock request.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function showGithubTooltip(event, elem) {
+  const tip = document.getElementById('githubTooltip');
+  const text = elem.getAttribute('data-tooltip');
+  if (!tip || !text) return;
+  tip.innerText = text;
+  tip.style.display = 'block';
+  
+  const rect = elem.getBoundingClientRect();
+  tip.style.left = (rect.left + window.scrollX - (tip.offsetWidth / 2) + 6) + 'px';
+  tip.style.top = (rect.top + window.scrollY - tip.offsetHeight - 8) + 'px';
+}
+
+function hideGithubTooltip() {
+  const tip = document.getElementById('githubTooltip');
+  if (tip) tip.style.display = 'none';
+}
+</script>
+{% endblock %}
+

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from hrms import views, newsletter_views
+from hrms import views, newsletter_views, tracker_views
 
 def api_offer_draft_dispatch(request):
     if request.method == 'POST':
@@ -135,4 +135,20 @@ urlpatterns = [
     path('send-bulk-newsletter', newsletter_views.send_bulk_newsletter, name='send_bulk_newsletter'),
     path('api/newsletter/job/<int:job_id>', newsletter_views.job_status, name='job_status'),
     path('newsletter/unsubscribe', newsletter_views.unsubscribe, name='unsubscribe'),
+
+    # Daily Work Tracker (BRD Module)
+    path('daily-tracker', tracker_views.daily_tracker_view, name='daily_tracker'),
+    path('daily-tracker-manager', tracker_views.daily_tracker_manager_view, name='daily_tracker_manager'),
+    path('daily-tracker-reports', tracker_views.daily_tracker_reports_view, name='daily_tracker_reports'),
+    path('api/daily-tracker', tracker_views.api_daily_tracker_get, name='api_daily_tracker_get'),
+    path('api/daily-tracker/save', tracker_views.api_daily_tracker_save, name='api_daily_tracker_save'),
+    path('api/daily-tracker/request-unlock', tracker_views.api_daily_tracker_request_unlock, name='api_daily_tracker_request_unlock'),
+    path('api/daily-tracker/unlock-action', tracker_views.api_daily_tracker_unlock_action, name='api_daily_tracker_unlock_action'),
+    path('api/daily-tracker/manager-review', tracker_views.api_daily_tracker_manager_review, name='api_daily_tracker_manager_review'),
+    path('api/daily-tracker/manager-data', tracker_views.api_daily_tracker_manager_data, name='api_daily_tracker_manager_data'),
+    path('api/daily-tracker/export', tracker_views.api_daily_tracker_export, name='api_daily_tracker_export'),
+
+    path('api/daily-tracker/audit-log', tracker_views.api_daily_tracker_audit_log, name='api_daily_tracker_audit_log'),
+    path('api/daily-tracker/config', tracker_views.api_daily_tracker_config, name='api_daily_tracker_config'),
 ]
+

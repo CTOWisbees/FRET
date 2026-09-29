@@ -1,0 +1,721 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Work Tracker — Team Hub | WisBees HRMS{% endblock %}
+{% block page_title %}Daily Work Tracker — Manager Dashboard{% endblock %}
+
+{% block content %}
+<style>
+.mgr-container {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* KPI Summary Cards */
+.mgr-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+}
+.mgr-kpi-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.mgr-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+}
+.mgr-kpi-icon.blue { background: rgba(99, 102, 241, 0.15); color: var(--accent); }
+.mgr-kpi-icon.green { background: rgba(16, 185, 129, 0.15); color: var(--green); }
+.mgr-kpi-icon.yellow { background: rgba(245, 158, 11, 0.15); color: var(--yellow); }
+.mgr-kpi-icon.red { background: rgba(239, 68, 68, 0.15); color: var(--red); }
+.mgr-kpi-icon.purple { background: rgba(139, 92, 246, 0.15); color: var(--accent2); }
+
+.mgr-kpi-num {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+.mgr-kpi-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Filter Bar */
+.filter-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.filter-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.filter-input, .filter-select {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  color: var(--text);
+  outline: none;
+  font-family: inherit;
+}
+.filter-input:focus, .filter-select:focus {
+  border-color: var(--accent);
+}
+
+/* Data Table Card */
+.table-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+.table-card-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.table-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.team-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  min-width: 900px;
+}
+.team-table th {
+  background: var(--bg3);
+  color: var(--text2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.team-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.team-table tr:hover td {
+  background: rgba(99, 102, 241, 0.02);
+}
+
+.emp-avatar-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.emp-mini-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: grid;
+  place-items: center;
+}
+
+/* Status Badges */
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 99px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.status-submitted { background: rgba(16, 185, 129, 0.15); color: #059669; border: 1px solid rgba(16, 185, 129, 0.3); }
+.status-locked { background: rgba(239, 68, 68, 0.15); color: #dc2626; border: 1px solid rgba(239, 68, 68, 0.3); }
+.status-draft { background: rgba(245, 158, 11, 0.15); color: #d97706; border: 1px solid rgba(245, 158, 11, 0.3); }
+.status-pending { background: rgba(148, 163, 184, 0.15); color: var(--text3); border: 1px solid rgba(148, 163, 184, 0.3); }
+
+/* Rating Stars */
+.rating-stars {
+  color: #f59e0b;
+  display: inline-flex;
+  gap: 3px;
+  font-size: 0.9rem;
+}
+
+/* Action Buttons */
+.btn-action-view {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.btn-action-view:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-action-unlock {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.btn-action-unlock:hover {
+  background: #d97706;
+  color: #fff;
+}
+
+/* Modals */
+.mgr-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: none;
+  place-items: center;
+  padding: 20px;
+}
+.mgr-modal-backdrop.active {
+  display: grid;
+}
+.mgr-modal {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 780px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: modalIn 0.2s ease-out;
+}
+.mgr-modal-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.mgr-modal-body {
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.mgr-modal-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  background: var(--bg3);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.star-interactive {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+.star-interactive:hover {
+  transform: scale(1.2);
+}
+</style>
+
+<div class="mgr-container">
+
+  <!-- KPI SUMMARY GRID -->
+  <div class="mgr-kpi-grid">
+    <div class="mgr-kpi-card">
+      <div class="mgr-kpi-icon blue"><i class="fas fa-users"></i></div>
+      <div>
+        <div class="mgr-kpi-num">{{ stats.total_employees }}</div>
+        <div class="mgr-kpi-label">Active Team</div>
+      </div>
+    </div>
+
+    <div class="mgr-kpi-card">
+      <div class="mgr-kpi-icon green"><i class="fas fa-check-double"></i></div>
+      <div>
+        <div class="mgr-kpi-num">{{ stats.submitted_count }}</div>
+        <div class="mgr-kpi-label">Submitted Today</div>
+      </div>
+    </div>
+
+    <div class="mgr-kpi-card">
+      <div class="mgr-kpi-icon red"><i class="fas fa-clock-rotate-left"></i></div>
+      <div>
+        <div class="mgr-kpi-num">{{ stats.pending_count }}</div>
+        <div class="mgr-kpi-label">Pending / Overdue</div>
+      </div>
+    </div>
+
+    <div class="mgr-kpi-card">
+      <div class="mgr-kpi-icon purple"><i class="fas fa-business-time"></i></div>
+      <div>
+        <div class="mgr-kpi-num">{{ stats.total_hours|round(1) }}h</div>
+        <div class="mgr-kpi-label">Total Logged Hours</div>
+      </div>
+    </div>
+
+    <div class="mgr-kpi-card">
+      <div class="mgr-kpi-icon yellow"><i class="fas fa-star"></i></div>
+      <div>
+        <div class="mgr-kpi-num">{{ stats.total_achievements }}</div>
+        <div class="mgr-kpi-label">Key Achievements</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PENDING UNLOCK REQUESTS CARD (If any) -->
+  {% if pending_unlocks %}
+  <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: var(--radius); padding: 18px 22px;">
+    <div style="font-weight: 700; color: #d97706; font-size: 1rem; margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+      <i class="fas fa-unlock-keyhole"></i> Pending Unlock Requests ({{ pending_unlocks.count() }})
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      {% for req in pending_unlocks %}
+      <div style="background:var(--bg2); border:1px solid var(--border); border-radius:var(--radius-sm); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div style="font-weight:700; color:var(--text);">
+            {{ req.employee.name }} ({{ req.employee.emp_id or 'EMP' ~ req.employee.id }}) — Date: {{ req.tracker_day.date.strftime('%d-%b-%Y') }}
+          </div>
+          <div style="font-size:0.85rem; color:var(--text2); margin-top:2px;">
+            <strong>Reason:</strong> "{{ req.reason }}"
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button type="button" class="btn-action-unlock" onclick="handleUnlockAction({{ req.id }}, 'approve')" style="background:rgba(16, 185, 129, 0.15); color:#059669; border-color:rgba(16, 185, 129, 0.3);">
+            <i class="fas fa-check"></i> Approve & Unlock
+          </button>
+          <button type="button" class="btn-action-unlock" onclick="handleUnlockAction({{ req.id }}, 'reject')" style="background:rgba(239, 68, 68, 0.15); color:#dc2626; border-color:rgba(239, 68, 68, 0.3);">
+            <i class="fas fa-xmark"></i> Reject
+          </button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- FILTER & ACTION TOOLBAR -->
+  <form method="GET" action="" class="filter-card">
+    <div class="filter-fields">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span style="font-size:0.8rem; font-weight:600; color:var(--text3);">Date:</span>
+        <input type="date" name="date" class="filter-input" value="{{ filter_date }}" onchange="this.form.submit()">
+      </div>
+
+      <select name="department" class="filter-select" onchange="this.form.submit()">
+        <option value="">All Departments</option>
+        {% for dept in departments %}
+          <option value="{{ dept }}" {% if selected_department == dept %}selected{% endif %}>{{ dept }}</option>
+        {% endfor %}
+      </select>
+
+      <select name="status" class="filter-select" onchange="this.form.submit()">
+        <option value="">All Statuses</option>
+        <option value="Submitted" {% if selected_status == 'Submitted' %}selected{% endif %}>Submitted</option>
+        <option value="Pending" {% if selected_status == 'Pending' %}selected{% endif %}>Pending</option>
+        <option value="Locked" {% if selected_status == 'Locked' %}selected{% endif %}>Locked</option>
+        <option value="Draft" {% if selected_status == 'Draft' %}selected{% endif %}>Draft</option>
+      </select>
+
+      <select name="emp_type" class="filter-select" onchange="this.form.submit()">
+        <option value="">All Roles</option>
+        <option value="Normal" {% if selected_type == 'Normal' %}selected{% endif %}>Employees</option>
+        <option value="Intern" {% if selected_type == 'Intern' %}selected{% endif %}>Interns</option>
+      </select>
+
+      <input type="text" name="search" class="filter-input" placeholder="Search employee..." value="{{ search }}">
+      <button type="submit" class="btn-secondary" style="padding: 7px 14px; font-size: 0.85rem;"><i class="fas fa-search"></i></button>
+    </div>
+
+    <div style="display:flex; align-items:center; gap:10px;">
+      <a href="{{ url_for('daily_tracker_reports') }}?from_date={{ filter_date }}&to_date={{ filter_date }}" class="btn-secondary" style="padding: 8px 14px; font-size: 0.85rem;">
+        <i class="fas fa-chart-pie text-accent"></i> Analytics & Reports
+      </a>
+      <a href="/api/daily-tracker/export?from_date={{ filter_date }}&to_date={{ filter_date }}&format=xlsx" class="btn-secondary" style="padding: 8px 14px; font-size: 0.85rem;">
+        <i class="fas fa-file-excel text-green"></i> Excel
+      </a>
+      <a href="/api/daily-tracker/export?from_date={{ filter_date }}&to_date={{ filter_date }}&format=csv" class="btn-secondary" style="padding: 8px 14px; font-size: 0.85rem;">
+        <i class="fas fa-file-csv text-accent"></i> CSV
+      </a>
+    </div>
+  </form>
+
+  <!-- TEAM SUBMISSIONS TABLE -->
+  <div class="table-card">
+    <div class="table-card-header">
+      <div class="table-title">
+        <i class="fas fa-list-check text-accent"></i> Team Daily Work Trackers — {{ filter_date_display }}
+      </div>
+      <div style="font-size:0.85rem; color:var(--text3);">
+        Showing {{ team_data|length }} members
+      </div>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table class="team-table">
+        <thead>
+          <tr>
+            <th>Employee</th>
+            <th>Role</th>
+            <th>Department</th>
+            <th>Day Status</th>
+            <th style="text-align:center;">Tasks</th>
+            <th style="text-align:center;">Hours</th>
+            <th style="text-align:center;">Achievements</th>
+            <th>Tracker Status</th>
+            <th>Manager Rating</th>
+            <th style="text-align:center;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if team_data %}
+            {% for item in team_data %}
+            <tr>
+              <td>
+                <div class="emp-avatar-cell">
+                  <div class="emp-mini-avatar">{{ item.employee.name[0].upper() }}</div>
+                  <div>
+                    <div style="font-weight:700; color:var(--text);">{{ item.employee.name }}</div>
+                    <div style="font-size:0.75rem; color:var(--text3);">{{ item.employee.emp_id or 'EMP' ~ item.employee.id }}</div>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <span class="badge-tag {% if item.employee.emp_type == 'Intern' %}badge-intern{% else %}badge-emp{% endif %}">
+                  {{ item.employee.emp_type or 'Employee' }}
+                </span>
+              </td>
+              <td style="color:var(--text2);">{{ item.employee.department or '--' }}</td>
+              <td>
+                <span style="font-weight:600; color:var(--text);">{{ item.day_status }}</span>
+              </td>
+              <td style="text-align:center; font-weight:700;">{{ item.tasks_count }}</td>
+              <td style="text-align:center; font-weight:700; color:var(--accent);">{{ item.hours|round(1) }}h</td>
+              <td style="text-align:center;">
+                {% if item.achievements > 0 %}
+                  <span style="background:rgba(245, 158, 11, 0.15); color:#d97706; padding:3px 8px; border-radius:99px; font-weight:700; font-size:0.78rem;">
+                    ★ {{ item.achievements }}
+                  </span>
+                {% else %}
+                  <span style="color:var(--text3); font-size:0.8rem;">0</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if item.status == 'Submitted' %}
+                  <span class="status-pill status-submitted"><i class="fas fa-check-circle"></i> Submitted</span>
+                {% elif item.status == 'Locked' %}
+                  <span class="status-pill status-locked"><i class="fas fa-lock"></i> Locked</span>
+                {% elif item.status == 'Draft' %}
+                  <span class="status-pill status-draft"><i class="fas fa-pen"></i> Draft</span>
+                {% else %}
+                  <span class="status-pill status-pending"><i class="fas fa-hourglass-start"></i> Pending</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if item.manager_rating > 0 %}
+                  <div class="rating-stars">
+                    {% for i in range(1, 6) %}
+                      <i class="fas fa-star {% if i <= item.manager_rating %}text-yellow{% else %}text-muted{% endif %}" style="{% if i > item.manager_rating %}opacity:0.25;{% endif %}"></i>
+                    {% endfor %}
+                  </div>
+                {% else %}
+                  <span style="color:var(--text3); font-size:0.8rem;">Unrated</span>
+                {% endif %}
+              </td>
+              <td style="text-align:center;">
+                <div style="display:inline-flex; gap:6px;">
+                  {% if item.tracker_id %}
+                    <button type="button" class="btn-action-view" onclick="openReviewModal({{ item.tracker_id }}, '{{ item.employee.name }}', {{ item.manager_rating }}, '{{ item.manager_remarks|escape }}')">
+                      <i class="fas fa-eye"></i> Review
+                    </button>
+                    {% if item.status == 'Locked' and user_role == 'hr' %}
+                    <button type="button" class="btn-action-unlock" onclick="handleForceUnlock({{ item.tracker_id }})" title="Force Unlock">
+                      <i class="fas fa-unlock"></i>
+                    </button>
+                    {% endif %}
+                  {% else %}
+                    <span style="color:var(--text3); font-size:0.78rem;">No Entry</span>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          {% else %}
+            <tr>
+              <td colspan="10" style="text-align:center; padding:32px; color:var(--text3);">
+                No team tracker records found for this date/filter.
+              </td>
+            </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- REVIEW & RATING MODAL -->
+<div class="mgr-modal-backdrop" id="reviewModal">
+  <div class="mgr-modal">
+    <div class="mgr-modal-header">
+      <div class="table-title">
+        <i class="fas fa-award text-accent"></i> Review Work & Provide Rating
+      </div>
+      <button type="button" class="btn-icon" onclick="closeReviewModal()"><i class="fas fa-xmark"></i></button>
+    </div>
+    <div class="mgr-modal-body">
+      <div style="background:var(--bg3); border-radius:var(--radius-sm); padding:12px 16px; font-size:0.9rem;">
+        <span style="color:var(--text3);">Employee:</span> <strong id="modalEmpName" style="color:var(--text);">--</strong>
+      </div>
+
+      <!-- Task Details Container -->
+      <div id="modalTasksLoading" style="text-align:center; padding:20px; color:var(--text3);">
+        <i class="fas fa-spinner fa-spin"></i> Loading task details...
+      </div>
+      <div id="modalTasksList" style="display:flex; flex-direction:column; gap:10px;"></div>
+
+      <!-- Rating Section -->
+      <div style="border-top:1px solid var(--border); padding-top:16px;">
+        <label style="font-size:0.85rem; font-weight:700; color:var(--text); margin-bottom:8px; display:block;">
+          Manager Rating (1 to 5 Stars)
+        </label>
+        <div id="ratingStarPicker" style="font-size:1.6rem; color:#f59e0b; display:flex; gap:8px;">
+          <i class="fas fa-star star-interactive" data-star="1" onclick="selectRating(1)"></i>
+          <i class="fas fa-star star-interactive" data-star="2" onclick="selectRating(2)"></i>
+          <i class="fas fa-star star-interactive" data-star="3" onclick="selectRating(3)"></i>
+          <i class="fas fa-star star-interactive" data-star="4" onclick="selectRating(4)"></i>
+          <i class="fas fa-star star-interactive" data-star="5" onclick="selectRating(5)"></i>
+        </div>
+      </div>
+
+      <!-- Manager Remarks -->
+      <div>
+        <label style="font-size:0.85rem; font-weight:700; color:var(--text); margin-bottom:6px; display:block;">
+          Manager Feedback & Remarks
+        </label>
+        <textarea id="modalRemarksInput" class="filter-input" style="width:100%; height:80px;" placeholder="Provide feedback, praise achievements, or note suggestions..."></textarea>
+      </div>
+    </div>
+    <div class="mgr-modal-footer">
+      <button type="button" class="btn-secondary" onclick="closeReviewModal()">Close</button>
+      <button type="button" class="btn-brand" id="btnSaveReview" onclick="saveManagerReview()">Save Rating & Feedback</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentReviewTrackerId = null;
+let currentRatingValue = 0;
+
+function selectRating(val) {
+  currentRatingValue = val;
+  const stars = document.querySelectorAll('#ratingStarPicker i');
+  stars.forEach((s, idx) => {
+    if (idx < val) {
+      s.style.opacity = '1';
+    } else {
+      s.style.opacity = '0.25';
+    }
+  });
+}
+
+async function openReviewModal(trackerId, empName, existingRating, existingRemarks) {
+  currentReviewTrackerId = trackerId;
+  document.getElementById('modalEmpName').innerText = empName;
+  document.getElementById('modalRemarksInput').value = existingRemarks || '';
+  selectRating(existingRating || 0);
+
+  const container = document.getElementById('modalTasksList');
+  const loading = document.getElementById('modalTasksLoading');
+  container.innerHTML = '';
+  loading.style.display = 'block';
+
+  document.getElementById('reviewModal').classList.add('active');
+
+  try {
+    const res = await fetch(`/api/daily-tracker?tracker_id=${trackerId}`);
+    const data = await res.json();
+    loading.style.display = 'none';
+
+    if (data.tasks && data.tasks.length > 0) {
+      data.tasks.forEach((t, i) => {
+        const item = document.createElement('div');
+        item.style.cssText = `background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:12px 14px; ${t.is_achievement ? 'border-left: 4px solid #f59e0b;' : ''}`;
+        item.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <div style="font-weight:700; font-size:0.9rem; color:var(--text);">
+              #${i+1}. ${t.task_description}
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="badge-tag" style="background:rgba(99,102,241,0.15); color:var(--accent);">${t.task_type}</span>
+              <span style="font-weight:700; color:var(--accent);">${t.hours_worked}h</span>
+              ${t.is_achievement ? '<span style="background:rgba(245,158,11,0.2); color:#d97706; padding:2px 8px; border-radius:6px; font-weight:700; font-size:0.75rem;">★ Achievement</span>' : ''}
+            </div>
+          </div>
+          ${t.remarks ? `<div style="font-size:0.82rem; color:var(--text2); margin-top:4px;"><strong>Remarks:</strong> ${t.remarks}</div>` : ''}
+        `;
+        container.appendChild(item);
+      });
+    } else {
+      container.innerHTML = `<div style="text-align:center; color:var(--text3); padding:10px;">No individual tasks logged for this day (${data.day_status}).</div>`;
+    }
+  } catch (err) {
+    loading.style.display = 'none';
+    container.innerHTML = '<div style="color:var(--red);">Failed to load task details.</div>';
+  }
+}
+
+function closeReviewModal() {
+  document.getElementById('reviewModal').classList.remove('active');
+}
+
+async function saveManagerReview() {
+  if (!currentReviewTrackerId) return;
+
+  const btn = document.getElementById('btnSaveReview');
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/daily-tracker/manager-review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tracker_day_id: currentReviewTrackerId,
+        rating: currentRatingValue,
+        remarks: document.getElementById('modalRemarksInput').value.trim()
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      alert(data.message);
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to save review.');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Network error while saving manager review.');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function handleUnlockAction(reqId, action) {
+  if (!confirm(`Are you sure you want to ${action} this unlock request?`)) return;
+
+  try {
+    const res = await fetch('/api/daily-tracker/unlock-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        request_id: reqId,
+        action: action
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      alert(data.message);
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to perform unlock action.');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Network error.');
+  }
+}
+
+async function handleForceUnlock(trackerId) {
+  if (!confirm('Are you sure you want to unlock this tracker?')) return;
+
+  try {
+    const res = await fetch('/api/daily-tracker/unlock-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tracker_day_id: trackerId,
+        action: 'force_unlock',
+        review_notes: 'HR Admin override unlock'
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      alert(data.message);
+      window.location.reload();
+    } else {
+      alert(data.error || 'Failed to unlock tracker.');
+    }
+  } catch (e) {
+    console.error(e);
+    alert('Network error.');
+  }
+}
+</script>
+{% endblock %}
