@@ -59,17 +59,25 @@ export default function DailyTrackerPage() {
       const res = await api.get(`/api/daily-tracker?date=${dateStr}`);
       if (res.data) {
         setTrackerDay(res.data);
+        if (!employee && res.data.employee_name) {
+          setEmployee({
+            name: res.data.employee_name,
+            emp_type: res.data.emp_type || 'Employee',
+            emp_id: res.data.emp_id || `EMP${res.data.employee_id}`,
+            department: res.data.department || '',
+            designation: res.data.designation || ''
+          });
+        }
         setDayStatus(res.data.day_status || 'Working Day');
         setDayNumber(res.data.day_number || 1);
         setStatus(res.data.status || 'Draft');
         setPendingUnlock(res.data.pending_unlock || null);
         setHeatmap(res.data.heatmap || null);
 
-
         if (res.data.tasks && res.data.tasks.length > 0) {
           setTasks(res.data.tasks.map((t: any) => ({
             id: t.id,
-            task_description: t.task_description,
+            task_description: t.task_description || '',
             task_type: t.task_type || 'Major',
             hours_worked: Number(t.hours_worked) || 0,
             is_achievement: Boolean(t.is_achievement),
@@ -230,19 +238,21 @@ export default function DailyTrackerPage() {
               <div>
                 <div className="flex items-center space-x-2">
                   <h2 className="text-lg font-extrabold text-[var(--text)] font-['Plus_Jakarta_Sans']">
-                    {employee?.name || 'Staff Member'}
+                    {employee?.name || trackerDay?.employee_name || 'Employee'}
                   </h2>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${
-                    employee?.emp_type === 'Intern' 
+                    (employee?.emp_type || trackerDay?.emp_type) === 'Intern' 
                       ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20' 
                       : 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20'
                   }`}>
-                    {employee?.emp_type || 'Employee'}
+                    {employee?.emp_type || trackerDay?.emp_type || 'Employee'}
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--text2)] mt-0.5">
-                  <span className="flex items-center gap-1"><User className="w-3.5 h-3.5 text-[var(--accent)]" /> {employee?.emp_id || 'EMP001'}</span>
-                  <span className="flex items-center gap-1"><Building2 className="w-3.5 h-3.5 text-[var(--accent)]" /> {employee?.department || 'Operations'}</span>
+                  <span className="flex items-center gap-1"><User className="w-3.5 h-3.5 text-[var(--accent)]" /> {employee?.emp_id || (trackerDay?.employee_id ? `EMP${trackerDay.employee_id}` : '')}</span>
+                  {(employee?.department || trackerDay?.department) && (
+                    <span className="flex items-center gap-1"><Building2 className="w-3.5 h-3.5 text-[var(--accent)]" /> {employee?.department || trackerDay?.department}</span>
+                  )}
                 </div>
               </div>
             </div>
