@@ -62,6 +62,9 @@ class Employee(models.Model):
     blood_group = models.CharField(max_length=5, null=True, blank=True)
     remarks = models.TextField(null=True, blank=True)
     rating = models.IntegerField(default=0)
+    is_manager = models.BooleanField(default=False)
+    managed_department = models.CharField(max_length=100, null=True, blank=True)
+    reporting_manager = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='direct_reports')
 
     class Meta:
         db_table = 'employee'
@@ -277,13 +280,38 @@ class DailyTrackerDay(models.Model):
         return self.tasks.count()
 
 
+class DailyAssignedTask(models.Model):
+    id = models.AutoField(primary_key=True)
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    department = models.CharField(max_length=100, db_index=True)
+    assigned_by = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='assigned_tasks_created')
+    assigned_to = models.ForeignKey(Employee, on_delete=models.CASCADE, null=True, blank=True, related_name='assigned_tasks_received')
+    task_type = models.CharField(max_length=50, default='Major')
+    priority = models.CharField(max_length=20, default='Normal')  # Normal | High | Urgent
+    due_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=30, default='Pending')  # Pending | In Progress | Completed | Flagged
+    is_flagged = models.BooleanField(default=False)
+    flag_reason = models.TextField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'daily_assigned_task'
+        ordering = ['-created_at']
+
+
 class DailyTaskRow(models.Model):
     id = models.AutoField(primary_key=True)
     tracker_day = models.ForeignKey(DailyTrackerDay, on_delete=models.CASCADE, db_column='tracker_day_id', related_name='tasks')
+    assigned_task = models.ForeignKey(DailyAssignedTask, on_delete=models.SET_NULL, null=True, blank=True, related_name='daily_log_rows')
     task_description = models.TextField()
     task_type = models.CharField(max_length=50, default='Major')  # Major / Minor or Admin Configured
     hours_worked = models.FloatField(default=0.0)  # 0 to 24 hours
     is_achievement = models.BooleanField(default=False)
+    is_flagged = models.BooleanField(default=False)
+    flag_reason = models.TextField(null=True, blank=True)
     remarks = models.TextField(null=True, blank=True)  # Blockers, dependencies, support required, delays, observations
     order = models.IntegerField(default=0)
     custom_data = models.TextField(null=True, blank=True)  # JSON for dynamic custom fields

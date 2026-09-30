@@ -149,6 +149,11 @@ urlpatterns = [
     path('api/daily-tracker/export', tracker_views.api_daily_tracker_export, name='api_daily_tracker_export'),
     path('api/daily-tracker/audit-log', tracker_views.api_daily_tracker_audit_log, name='api_daily_tracker_audit_log'),
     path('api/daily-tracker/config', tracker_views.api_daily_tracker_config, name='api_daily_tracker_config'),
+    path('api/daily-tracker/assign-manager', tracker_views.api_assign_manager_role, name='api_assign_manager_role'),
+    path('api/daily-tracker/assign-task', tracker_views.api_daily_tracker_assign_task, name='api_daily_tracker_assign_task'),
+    path('api/daily-tracker/assigned-tasks', tracker_views.api_daily_tracker_assigned_tasks_list, name='api_daily_tracker_assigned_tasks_list'),
+    path('api/daily-tracker/flag-task', tracker_views.api_daily_tracker_flag_task, name='api_daily_tracker_flag_task'),
+    path('api/daily-tracker/department-team', tracker_views.api_get_department_team, name='api_get_department_team'),
 ]
 
 from django.conf import settings

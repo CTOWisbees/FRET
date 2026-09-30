@@ -50,6 +50,12 @@ export default function EmployeesPage() {
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [savingRemark, setSavingRemark] = useState(false);
 
+  // Manager Role Assignment Modal State
+  const [showManagerModal, setShowManagerModal] = useState(false);
+  const [isManagerChecked, setIsManagerChecked] = useState(false);
+  const [managedDept, setManagedDept] = useState('');
+  const [savingManagerRole, setSavingManagerRole] = useState(false);
+
   // 1. Instantly hydrate cached employees for 0ms initial render
   useEffect(() => {
     try {
@@ -394,6 +400,42 @@ export default function EmployeesPage() {
     }
   };
 
+  const openManagerModal = (emp: any) => {
+    setSelectedEmp(emp);
+    setIsManagerChecked(Boolean(emp.is_manager));
+    setManagedDept(emp.managed_department || emp.department || (departments.length > 0 ? departments[0] : 'IT'));
+    setShowManagerModal(true);
+  };
+
+  const saveManagerRole = async () => {
+    if (!selectedEmp) return;
+    setSavingManagerRole(true);
+    try {
+      const res = await api.post('/api/daily-tracker/assign-manager', {
+        employee_id: selectedEmp.id,
+        is_manager: isManagerChecked,
+        managed_department: managedDept,
+      });
+      if (res.data?.success) {
+        alert(res.data.message || 'Manager assignment updated successfully!');
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e.id === selectedEmp.id
+              ? { ...e, is_manager: isManagerChecked, managed_department: isManagerChecked ? managedDept : '' }
+              : e
+          )
+        );
+        setShowManagerModal(false);
+      } else {
+        alert(res.data?.message || 'Failed to update manager assignment');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to update manager assignment');
+    } finally {
+      setSavingManagerRole(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)]">
       <Sidebar mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} />
@@ -526,12 +568,30 @@ export default function EmployeesPage() {
                               <div style={{ minWidth: 0, maxWidth: '160px' }}>
                                 <div style={{ fontWeight: 600, fontSize: '0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={emp.name}>{emp.name}</div>
                                 <div style={{ fontSize: '0.68rem', color: 'var(--text3)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={emp.email}>{emp.email || '—'}</div>
-                                <span 
-                                  className={`badge-pill ${emp.emp_type === 'Intern' ? 'badge-sent' : 'badge-active'}`}
-                                  style={{ fontSize: '0.58rem', marginTop: '1px', padding: '1px 5px' }}
-                                >
-                                  {emp.emp_type || 'Normal'}
-                                </span>
+                                <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginTop: '2px' }}>
+                                  <span 
+                                    className={`badge-pill ${emp.emp_type === 'Intern' ? 'badge-sent' : 'badge-active'}`}
+                                    style={{ fontSize: '0.58rem', padding: '1px 5px' }}
+                                  >
+                                    {emp.emp_type || 'Normal'}
+                                  </span>
+                                  {emp.is_manager ? (
+                                    <span 
+                                      className="badge-pill"
+                                      style={{ 
+                                        fontSize: '0.58rem', 
+                                        padding: '1px 5px',
+                                        background: 'rgba(245, 158, 11, 0.15)',
+                                        color: '#f59e0b',
+                                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                                        fontWeight: 700
+                                      }}
+                                      title={`Department Manager for ${emp.managed_department || emp.department || 'Domain'}`}
+                                    >
+                                      👑 Manager
+                                    </span>
+                                  ) : null}
+                                </div>
                               </div>
                             </div>
                           </td>
@@ -643,6 +703,20 @@ export default function EmployeesPage() {
                           </td>
                           <td style={{ padding: '8px 12px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              <button 
+                                className="btn btn-warning btn-sm"
+                                style={{ 
+                                  padding: '4px 7px', 
+                                  fontSize: '0.72rem',
+                                  background: emp.is_manager ? 'linear-gradient(135deg, #f59e0b, #d97706)' : undefined,
+                                  color: emp.is_manager ? '#fff' : undefined,
+                                  borderColor: emp.is_manager ? '#d97706' : undefined
+                                }}
+                                onClick={() => openManagerModal(emp)}
+                                title={emp.is_manager ? `Manager of ${emp.managed_department || emp.department} (Click to edit)` : 'Assign as Department Manager'}
+                              >
+                                👑
+                              </button>
                               <button 
                                 className="btn btn-success btn-sm"
                                 style={{ padding: '4px 7px', fontSize: '0.72rem' }}
@@ -1226,6 +1300,117 @@ export default function EmployeesPage() {
                   ) : (
                     <>
                       <i className="fas fa-save"></i> Save Remark & Rating
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Manager Role Assignment Modal */}
+          <div className={`modal-backdrop ${showManagerModal ? 'open' : ''}`} style={{ zIndex: 220 }}>
+            <div className="modal" style={{ maxWidth: '480px', width: '90%' }}>
+              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.2rem' }}>👑</span>
+                <span>Assign Department Manager</span>
+              </div>
+
+              {selectedEmp && (
+                <div style={{
+                  background: 'var(--bg2)',
+                  border: '1px solid var(--border)',
+                  borderRadius: '8px',
+                  padding: '12px 14px',
+                  marginBottom: '16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px'
+                }}>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontWeight: 700,
+                    color: '#fff',
+                    flexShrink: 0
+                  }}>
+                    {selectedEmp.name ? selectedEmp.name[0].toUpperCase() : 'E'}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>{selectedEmp.name}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text3)' }}>
+                      {selectedEmp.emp_id} · {selectedEmp.department || 'No dept'} · {selectedEmp.designation || 'Employee'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>
+                  <input
+                    type="checkbox"
+                    checked={isManagerChecked}
+                    onChange={(e) => setIsManagerChecked(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: '#f59e0b' }}
+                  />
+                  <span>Designate as Department Manager</span>
+                </label>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: '4px', marginLeft: '26px' }}>
+                  When enabled, this employee will gain access to the Daily Tracker Manager portal and can assign daily tasks to their department team.
+                </div>
+              </div>
+
+              {isManagerChecked && (
+                <div className="form-group" style={{ marginBottom: '16px' }}>
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+                    Managed Department / Domain *
+                  </label>
+                  <select
+                    className="form-control"
+                    value={managedDept}
+                    onChange={(e) => setManagedDept(e.target.value)}
+                    style={{ width: '100%' }}
+                  >
+                    {departments.map((dept) => (
+                      <option key={dept} value={dept}>{dept}</option>
+                    ))}
+                    {!departments.includes(selectedEmp?.department) && selectedEmp?.department && (
+                      <option value={selectedEmp.department}>{selectedEmp.department}</option>
+                    )}
+                    <option value="IT">IT</option>
+                    <option value="Engineering">Engineering</option>
+                    <option value="Design">Design</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Sales">Sales</option>
+                    <option value="HR">HR</option>
+                    <option value="Operations">Operations</option>
+                  </select>
+                  <div style={{ fontSize: '0.76rem', color: 'var(--text3)', marginTop: '4px' }}>
+                    This manager will manage and assign tasks to employees and interns within this department.
+                  </div>
+                </div>
+              )}
+
+              <div className="modal-actions" style={{ marginTop: '20px' }}>
+                <button className="btn btn-secondary" onClick={() => setShowManagerModal(false)}>
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-primary"
+                  disabled={savingManagerRole}
+                  onClick={saveManagerRole}
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', borderColor: '#d97706', color: '#fff' }}
+                >
+                  {savingManagerRole ? (
+                    <>
+                      <i className="fas fa-spinner fa-spin"></i> Saving...
+                    </>
+                  ) : (
+                    <>
+                      <i className="fas fa-check-circle"></i> Save Manager Role
                     </>
                   )}
                 </button>

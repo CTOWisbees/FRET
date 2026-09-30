@@ -28,6 +28,8 @@ export default function EditEmployeePage() {
   const [endDate, setEndDate] = useState('');
   const [empType, setEmpType] = useState('Normal');
   const [duration, setDuration] = useState('');
+  const [isManager, setIsManager] = useState(false);
+  const [managedDepartment, setManagedDepartment] = useState('');
 
   // Master Data
   const [masterRoles, setMasterRoles] = useState<string[]>([]);
@@ -107,6 +109,8 @@ export default function EditEmployeePage() {
           setJoiningDate(emp.joining_date || '');
           setEndDate(emp.end_date || '');
           setEmpType(emp.emp_type || 'Normal');
+          setIsManager(Boolean(emp.is_manager));
+          setManagedDepartment(emp.managed_department || emp.department || '');
         }
       } catch (err) {
         console.error('Error loading employee:', err);
@@ -132,6 +136,8 @@ export default function EditEmployeePage() {
         joining_date: joiningDate,
         end_date: endDate,
         emp_type: empType,
+        is_manager: isManager,
+        managed_department: isManager ? (managedDepartment || department) : '',
       });
       alert('Employee details updated successfully!');
       router.push('/employees');
@@ -318,6 +324,57 @@ export default function EditEmployeePage() {
                     />
                   </div>
                 )}
+
+                {/* Manager Designation */}
+                <div className="md:col-span-2 pt-3 border-t border-[var(--border)]">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="isManagerCheckbox"
+                      checked={isManager}
+                      onChange={(e) => {
+                        setIsManager(e.target.checked);
+                        if (e.target.checked && !managedDepartment) {
+                          setManagedDepartment(department || 'IT');
+                        }
+                      }}
+                      className="w-4 h-4 text-[var(--accent)] rounded border-[var(--border)] focus:ring-[var(--accent)]"
+                    />
+                    <label htmlFor="isManagerCheckbox" className="text-xs font-bold text-[var(--text)] cursor-pointer flex items-center gap-1.5">
+                      👑 Designate as Department Manager
+                    </label>
+                  </div>
+                  <p className="text-[11px] text-[var(--text3)] mt-1 ml-6">
+                    Allows this employee to access the Manager Task Delegation portal and assign daily tasks to their department.
+                  </p>
+
+                  {isManager && (
+                    <div className="mt-3 ml-6 max-w-sm">
+                      <label className="block text-xs font-semibold text-[var(--text3)] mb-1">
+                        Managed Department / Domain
+                      </label>
+                      <select
+                        value={managedDepartment || department}
+                        onChange={(e) => setManagedDepartment(e.target.value)}
+                        className="form-control text-sm"
+                      >
+                        {masterDepts.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                        {department && !masterDepts.includes(department) && (
+                          <option value={department}>{department}</option>
+                        )}
+                        <option value="IT">IT</option>
+                        <option value="Engineering">Engineering</option>
+                        <option value="Design">Design</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Sales">Sales</option>
+                        <option value="HR">HR</option>
+                        <option value="Operations">Operations</option>
+                      </select>
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-[var(--text3)] mb-1">Joining / Start Date</label>
