@@ -256,15 +256,28 @@ def _get_employee_github_heatmap(employee, selected_date=None):
     current_streak = 0
 
     # Calculate current ongoing streak
-    check_d = selected_date
+    today_dt = date.today()
+    today_tracker = tracker_map.get(today_dt)
+    
+    if today_tracker and today_tracker.status in ['Submitted', 'Locked']:
+        check_d = today_dt
+    else:
+        # Today is still ongoing; start checking from yesterday so pending state doesn't reset previous streak
+        check_d = today_dt - timedelta(days=1)
+    
     while check_d >= start_date:
         t = tracker_map.get(check_d)
-        if t and t.status in ['Submitted', 'Locked'] and t.total_hours > 0:
+        is_sub = t and t.status in ['Submitted', 'Locked']
+        is_off = (check_d.weekday() in [5, 6]) or (t and t.day_status in ['Weekly Off', 'Holiday', 'Leave'])
+        
+        if is_sub:
             current_streak += 1
             check_d -= timedelta(days=1)
-        elif check_d.weekday() in [5, 6]:
+        elif is_off:
+            # Weekends/Holidays/Leaves bridge the streak
             check_d -= timedelta(days=1)
         else:
+            # Missed a working day
             break
 
     while curr_d <= end_date:
@@ -287,27 +300,36 @@ def _get_employee_github_heatmap(employee, selected_date=None):
             status = 'None'
             day_status = 'Weekly Off' if curr_d.weekday() in [5, 6] else 'Working Day'
 
-        if status in ['Submitted', 'Locked'] and hours > 0:
+        is_sub = status in ['Submitted', 'Locked']
+        is_off_day = (curr_d.weekday() in [5, 6]) or (day_status in ['Weekly Off', 'Holiday', 'Leave'])
+
+        if is_sub:
             total_submitted_days += 1
             running_streak += 1
             if running_streak > longest_streak:
                 longest_streak = running_streak
-        elif curr_d.weekday() not in [5, 6] and curr_d < date.today():
+        elif is_off_day:
+            # Weekends or off days do not reset running streak
+            pass
+        elif curr_d < date.today():
+            # Past working day was missed
             running_streak = 0
 
         total_hours_sum += hours
         total_achievements_sum += achievements
 
-        if hours == 0 or status == 'None':
+        # GitHub Contribution Level:
+        # If Submitted/Locked -> Always show GREEN (Levels 1 to 4)
+        if not is_sub:
             level = 0
-        elif hours < 4:
-            level = 1
-        elif hours < 7:
-            level = 2
-        elif hours < 9:
-            level = 3
-        else:
+        elif hours >= 9:
             level = 4
+        elif hours >= 7:
+            level = 3
+        elif hours >= 4:
+            level = 2
+        else:
+            level = 1
 
         day_info = {
             'date': curr_d.strftime('%Y-%m-%d'),
