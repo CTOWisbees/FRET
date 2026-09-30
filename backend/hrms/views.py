@@ -158,8 +158,9 @@ def login_view(request):
 
             user = HR.objects.filter(email__iexact=email).first()
             if user and user.check_password(password):
-                request.session.flush()
-                request.session['hr_id'] = user.id
+                if hasattr(request, 'session'):
+                    request.session.flush()
+                    request.session['hr_id'] = user.id
                 token = f"hr:{user.id}"
                 if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
                     return JsonResponse({
@@ -176,7 +177,7 @@ def login_view(request):
                     })
                 return redirect('dashboard')
             if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
-                return JsonResponse({'success': False, 'message': 'Invalid HR credentials'}, status=400)
+                return JsonResponse({'success': False, 'message': 'Invalid HR credentials. Please check your email & password.'}, status=400)
             messages.error(request, 'Invalid HR credentials')
         else:
             account = EmployeeAccount.objects.filter(email__iexact=email, is_active=True).first()
@@ -195,15 +196,17 @@ def login_view(request):
             if account and account.check_password(password):
                 token = f"emp:{account.id}"
                 if account.must_change_password:
-                    request.session.flush()
-                    request.session['employee_id'] = account.employee_id
+                    if hasattr(request, 'session'):
+                        request.session.flush()
+                        request.session['employee_id'] = account.employee_id
                     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
                         return JsonResponse({'success': True, 'redirect': '/change-password', 'token': token})
                     return redirect('change_password')
 
-                request.session.flush()
-                request.session['account_id'] = account.id
-                request.session['employee_id'] = account.employee_id
+                if hasattr(request, 'session'):
+                    request.session.flush()
+                    request.session['account_id'] = account.id
+                    request.session['employee_id'] = account.employee_id
                 employee = Employee.objects.filter(id=account.employee_id).first()
                 redirect_url = '/employee-dashboard'
                 if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
