@@ -1440,6 +1440,11 @@ def add_employee_view(request):
         except ValueError:
             salary_num = 0.0
 
+        is_manager = bool(data.get('is_manager', False))
+        managed_department = (data.get('managed_department') or '') if is_manager else ''
+        reporting_manager_id = data.get('reporting_manager_id')
+        reporting_manager = Employee.objects.filter(id=reporting_manager_id).first() if reporting_manager_id else None
+
         emp = Employee(
             emp_id=emp_id,
             name=data.get('name'),
@@ -1447,6 +1452,9 @@ def add_employee_view(request):
             phone=data.get('phone'),
             department=data.get('department'),
             designation=designation,
+            is_manager=is_manager,
+            managed_department=managed_department,
+            reporting_manager=reporting_manager,
             salary=salary_num,
             joining_date=joining_date,
             end_date=end_date,
@@ -1503,6 +1511,15 @@ def edit_employee_view(request, emp_id):
             emp.blood_group = str(data.get('blood_group')).strip()
         if data.get('status') is not None:
             emp.status = data.get('status')
+        if 'is_manager' in data:
+            emp.is_manager = bool(data.get('is_manager'))
+            if not emp.is_manager:
+                emp.managed_department = ''
+        if 'managed_department' in data and emp.is_manager:
+            emp.managed_department = data.get('managed_department', '')
+        if 'reporting_manager_id' in data:
+            rm_id = data.get('reporting_manager_id')
+            emp.reporting_manager = Employee.objects.filter(id=rm_id).first() if rm_id else None
         if 'remarks' in data:
             emp.remarks = str(data.get('remarks', '')).strip() or None
 
@@ -2388,6 +2405,10 @@ def api_employees_list(request):
         'nda_sent': bool(e.nda_sent),
         'remarks': e.remarks or '',
         'rating': int(getattr(e, 'rating', 0) or 0),
+        'is_manager': bool(e.is_manager),
+        'managed_department': e.managed_department or '',
+        'reporting_manager_id': e.reporting_manager_id,
+        'reporting_manager_name': e.reporting_manager.name if e.reporting_manager else '',
         'joining_date': e.joining_date.isoformat() if e.joining_date else None,
         'end_date': e.end_date.isoformat() if e.end_date else None
     } for e in emps], safe=False)
@@ -2406,6 +2427,10 @@ def api_employee(request, emp_id):
         'department': emp.department or '',
         'designation': emp.designation or '',
         'emp_type': emp.emp_type or 'Normal',
+        'is_manager': bool(emp.is_manager),
+        'managed_department': emp.managed_department or '',
+        'reporting_manager_id': emp.reporting_manager_id,
+        'reporting_manager_name': emp.reporting_manager.name if emp.reporting_manager else '',
         'salary': float(emp.salary or 0),
         'blood_group': emp.blood_group or '',
         'remarks': emp.remarks or '',

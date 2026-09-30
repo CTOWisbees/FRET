@@ -7,13 +7,16 @@ import {
   ClipboardCheck, Plus, Trash2, Star, Save, Send, Lock, Unlock, 
   ChevronLeft, ChevronRight, Calendar, Info, Clock, CheckCircle2, 
   AlertCircle, Building2, User, Hash, X, Sparkles, Flame, Trophy,
-  Award, Zap, Shield, Crown, Gem
+  Award, Zap, Shield, Crown, Gem, Flag, Check, ArrowRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
 interface TaskRow {
   id?: number | string;
+  assigned_task_id?: number | null;
+  is_flagged?: boolean;
+  flag_reason?: string;
   task_description: string;
   task_type: string;
   hours_worked: number;
@@ -26,8 +29,9 @@ export default function DailyTrackerPage() {
   const [currentDate, setCurrentDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [trackerDay, setTrackerDay] = useState<any>(null);
   const [tasks, setTasks] = useState<TaskRow[]>([
-    { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '' }
+    { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '', assigned_task_id: null, is_flagged: false, flag_reason: '' }
   ]);
+  const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
   const [dayStatus, setDayStatus] = useState<string>('Working Day');
   const [dayNumber, setDayNumber] = useState<number>(1);
   const [status, setStatus] = useState<string>('Draft');
@@ -45,6 +49,12 @@ export default function DailyTrackerPage() {
   const [heatmap, setHeatmap] = useState<any>(null);
   const [hoveredDay, setHoveredDay] = useState<any>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Flag Modal State
+  const [flagModalOpen, setFlagModalOpen] = useState(false);
+  const [flagRowIdx, setFlagRowIdx] = useState<number | null>(null);
+  const [flagAssignedTask, setFlagAssignedTask] = useState<any | null>(null);
+  const [flagReasonText, setFlagReasonText] = useState('');
 
   const fetchTracker = async (dateStr: string) => {
     setLoading(true);
@@ -73,10 +83,14 @@ export default function DailyTrackerPage() {
         setStatus(res.data.status || 'Draft');
         setPendingUnlock(res.data.pending_unlock || null);
         setHeatmap(res.data.heatmap || null);
+        setAssignedTasks(res.data.assigned_tasks || []);
 
         if (res.data.tasks && res.data.tasks.length > 0) {
           setTasks(res.data.tasks.map((t: any) => ({
             id: t.id,
+            assigned_task_id: t.assigned_task_id || null,
+            is_flagged: Boolean(t.is_flagged),
+            flag_reason: t.flag_reason || '',
             task_description: t.task_description || '',
             task_type: t.task_type || 'Major',
             hours_worked: Number(t.hours_worked) || 0,
@@ -85,7 +99,7 @@ export default function DailyTrackerPage() {
           })));
         } else {
           setTasks([
-            { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '' }
+            { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '', assigned_task_id: null, is_flagged: false, flag_reason: '' }
           ]);
         }
       }
@@ -113,20 +127,157 @@ export default function DailyTrackerPage() {
     setTasks(updated);
   };
 
+  const handleSelectAssignedTask = (rowIndex: number, assignedTaskIdStr: string) => {
+    if (!assignedTaskIdStr) {
+      handleTaskChange(rowIndex, 'assigned_task_id', null);
+      return;
+    }
+    const selected = assignedTasks.find(a => a.id === Number(assignedTaskIdStr));
+    if (!selected) return;
+
+    const updated = [...tasks];
+    updated[rowIndex] = {
+      ...updated[rowIndex],
+      assigned_task_id: selected.id,
+      task_description: selected.title + (selected.description ? ` (${selected.description})` : ''),
+      task_type: selected.task_type || updated[rowIndex].task_type,
+      is_flagged: Boolean(selected.is_flagged),
+      flag_reason: selected.flag_reason || ''
+    };
+    setTasks(updated);
+  };
+
+  const handleAddAssignedTaskRow = (assignedTask: any) => {
+    const desc = assignedTask.title + (assignedTask.description ? ` (${assignedTask.description})` : '');
+    // If only row is empty, fill it
+    if (tasks.length === 1 && !tasks[0].task_description.trim()) {
+      setTasks([{
+        assigned_task_id: assignedTask.id,
+        task_description: desc,
+        task_type: assignedTask.task_type || 'Major',
+        hours_worked: 0,
+        is_achievement: false,
+        remarks: '',
+        is_flagged: Boolean(assignedTask.is_flagged),
+        flag_reason: assignedTask.flag_reason || ''
+      }]);
+    } else {
+      setTasks([
+        ...tasks,
+        {
+          assigned_task_id: assignedTask.id,
+          task_description: desc,
+          task_type: assignedTask.task_type || 'Major',
+          hours_worked: 0,
+          is_achievement: false,
+          remarks: '',
+          is_flagged: Boolean(assignedTask.is_flagged),
+          flag_reason: assignedTask.flag_reason || ''
+        }
+      ]);
+    }
+  };
+
   const handleAddRow = () => {
     setTasks([
       ...tasks,
-      { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '' }
+      { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '', assigned_task_id: null, is_flagged: false, flag_reason: '' }
     ]);
   };
 
   const handleDeleteRow = (index: number) => {
     if (tasks.length <= 1) {
       setTasks([
-        { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '' }
+        { task_description: '', task_type: 'Major', hours_worked: 0, is_achievement: false, remarks: '', assigned_task_id: null, is_flagged: false, flag_reason: '' }
       ]);
     } else {
       setTasks(tasks.filter((_, i) => i !== index));
+    }
+  };
+
+  const openFlagModal = (rowIndex: number | null, assignedTask: any | null = null) => {
+    setFlagRowIdx(rowIndex);
+    setFlagAssignedTask(assignedTask);
+    if (rowIndex !== null) {
+      setFlagReasonText(tasks[rowIndex].flag_reason || '');
+    } else if (assignedTask) {
+      setFlagReasonText(assignedTask.flag_reason || '');
+    } else {
+      setFlagReasonText('');
+    }
+    setFlagModalOpen(true);
+  };
+
+  const handleSaveFlag = async () => {
+    if (!flagReasonText.trim()) {
+      alert('Please describe the blocker or reason for flagging.');
+      return;
+    }
+
+    if (flagRowIdx !== null) {
+      const updated = [...tasks];
+      updated[flagRowIdx] = {
+        ...updated[flagRowIdx],
+        is_flagged: true,
+        flag_reason: flagReasonText.trim()
+      };
+      setTasks(updated);
+
+      const aId = updated[flagRowIdx].assigned_task_id;
+      if (aId) {
+        try {
+          await api.post('/api/daily-tracker/flag-task', {
+            task_id: aId,
+            is_flagged: true,
+            flag_reason: flagReasonText.trim()
+          });
+        } catch (e) {}
+      }
+    } else if (flagAssignedTask) {
+      try {
+        await api.post('/api/daily-tracker/flag-task', {
+          task_id: flagAssignedTask.id,
+          is_flagged: true,
+          flag_reason: flagReasonText.trim()
+        });
+        await fetchTracker(currentDate);
+      } catch (e) {}
+    }
+
+    setFlagModalOpen(false);
+    setFlagRowIdx(null);
+    setFlagAssignedTask(null);
+    setFlagReasonText('');
+  };
+
+  const handleRemoveFlag = async (rowIndex: number | null, assignedTask: any | null = null) => {
+    if (rowIndex !== null) {
+      const updated = [...tasks];
+      const aId = updated[rowIndex].assigned_task_id;
+      updated[rowIndex] = {
+        ...updated[rowIndex],
+        is_flagged: false,
+        flag_reason: ''
+      };
+      setTasks(updated);
+      if (aId) {
+        try {
+          await api.post('/api/daily-tracker/flag-task', {
+            task_id: aId,
+            is_flagged: false,
+            flag_reason: ''
+          });
+        } catch (e) {}
+      }
+    } else if (assignedTask) {
+      try {
+        await api.post('/api/daily-tracker/flag-task', {
+          task_id: assignedTask.id,
+          is_flagged: false,
+          flag_reason: ''
+        });
+        await fetchTracker(currentDate);
+      } catch (e) {}
     }
   };
 
@@ -625,6 +776,100 @@ export default function DailyTrackerPage() {
             </div>
           )}
 
+          {/* MANAGER ASSIGNED TASKS BANNER (If tasks exist for employee) */}
+          {assignedTasks.length > 0 && (
+            <div className="bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-purple-500/10 border border-blue-500/25 rounded-2xl p-5 shadow-sm space-y-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center space-x-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 text-blue-600 flex items-center justify-center font-bold">
+                    <ClipboardCheck className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-extrabold text-[var(--text)] font-['Plus_Jakarta_Sans'] flex items-center gap-2">
+                      Tasks Assigned by Department Manager
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-600 border border-blue-500/30">
+                        {assignedTasks.length} Active
+                      </span>
+                    </h3>
+                    <p className="text-[11px] text-[var(--text3)]">
+                      Your manager has delegated these tasks to you/your department. You can pick them directly into your daily log or flag blockers.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {assignedTasks.map((at) => (
+                  <div key={at.id} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-3.5 flex flex-col justify-between space-y-2.5 shadow-sm hover:border-blue-500/40 transition">
+                    <div>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <span className="font-bold text-xs text-[var(--text)] line-clamp-1">{at.title}</span>
+                        <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${
+                          at.priority === 'Urgent' ? 'bg-rose-500/15 text-rose-600' :
+                          at.priority === 'High' ? 'bg-orange-500/15 text-orange-600' :
+                          at.priority === 'Low' ? 'bg-gray-500/15 text-gray-500' :
+                          'bg-blue-500/15 text-blue-600'
+                        }`}>
+                          {at.priority || 'Medium'}
+                        </span>
+                      </div>
+
+                      {at.description && (
+                        <p className="text-[11px] text-[var(--text2)] line-clamp-2 mb-1.5">{at.description}</p>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-2 text-[10px] text-[var(--text3)]">
+                        <span className="px-1.5 py-0.5 rounded bg-[var(--bg3)] font-semibold">{at.task_type}</span>
+                        {at.due_date && <span>Due: <strong>{at.due_date}</strong></span>}
+                        <span>By: <strong>{at.assigned_by_name}</strong></span>
+                      </div>
+
+                      {at.is_flagged && (
+                        <div className="mt-2 text-[10px] text-rose-600 bg-rose-500/10 border border-rose-500/20 rounded-md p-1.5 flex items-center gap-1.5">
+                          <Flag className="w-3 h-3 text-rose-600 flex-shrink-0 fill-rose-600" />
+                          <span className="line-clamp-1"><strong>Blocker:</strong> {at.flag_reason || 'Flagged'}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center space-x-2 pt-1 border-t border-[var(--border)]">
+                      <button
+                        type="button"
+                        onClick={() => handleAddAssignedTaskRow(at)}
+                        disabled={isLocked}
+                        className="flex-1 py-1 px-2 text-[11px] font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white flex items-center justify-center gap-1 shadow-xs transition disabled:opacity-50"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Log Task</span>
+                      </button>
+
+                      {at.is_flagged ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFlag(null, at)}
+                          className="py-1 px-2 text-[11px] font-semibold rounded-lg bg-gray-500/10 hover:bg-gray-500/20 text-gray-600 border border-gray-500/20 transition"
+                          title="Remove blocker flag"
+                        >
+                          Unflag
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => openFlagModal(null, at)}
+                          className="py-1 px-2 text-[11px] font-semibold rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 border border-rose-500/20 flex items-center gap-1 transition"
+                          title="Flag blocker to manager"
+                        >
+                          <Flag className="w-3 h-3" />
+                          <span>Flag</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* SPREADSHEET GRID TABLE */}
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl overflow-hidden shadow-sm flex flex-col">
             <div className="p-4 bg-[var(--bg3)] border-b border-[var(--border)] flex flex-wrap items-center justify-between gap-3">
@@ -662,19 +907,19 @@ export default function DailyTrackerPage() {
                   <tr className="bg-[var(--bg3)] text-[var(--text3)] uppercase tracking-wider text-[11px] font-bold border-b border-[var(--border)]">
                     <th className="p-3.5 text-center w-16">Day</th>
                     <th className="p-3.5 w-24">Date</th>
-                    <th className="p-3.5">Task Worked On <span className="text-rose-500">*</span></th>
+                    <th className="p-3.5 min-w-[280px]">Task Worked On & Assigned Selector <span className="text-rose-500">*</span></th>
                     <th className="p-3.5 w-32">Type</th>
                     <th className="p-3.5 w-28 text-center">Hours (0-24) <span className="text-rose-500">*</span></th>
                     <th className="p-3.5 w-28 text-center">Achievement</th>
                     <th className="p-3.5">Remarks / Blockers / Dependencies</th>
-                    <th className="p-3.5 text-center w-16">Action</th>
+                    <th className="p-3.5 text-center w-24">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--border)]">
                   {tasks.map((task, idx) => (
                     <tr 
                       key={idx} 
-                      className={`hover:bg-[var(--bg3)]/50 transition ${task.is_achievement ? 'bg-amber-500/[0.03]' : ''}`}
+                      className={`hover:bg-[var(--bg3)]/50 transition ${task.is_flagged ? 'bg-rose-500/[0.04]' : task.is_achievement ? 'bg-amber-500/[0.03]' : ''}`}
                     >
                       <td className="p-3 text-center font-bold text-[var(--text2)]">
                         Day {dayNumber}
@@ -683,14 +928,51 @@ export default function DailyTrackerPage() {
                         {currentDate}
                       </td>
                       <td className="p-2.5">
-                        <input
-                          type="text"
-                          value={task.task_description}
-                          onChange={(e) => handleTaskChange(idx, 'task_description', e.target.value)}
-                          disabled={isLocked}
-                          placeholder="Describe the task or project deliverable..."
-                          className="w-full bg-transparent border border-transparent focus:border-[var(--accent)] focus:bg-[var(--bg)] px-2.5 py-1.5 rounded-lg text-xs text-[var(--text)] outline-none transition disabled:opacity-75"
-                        />
+                        <div className="space-y-1.5">
+                          {assignedTasks.length > 0 && !isLocked && (
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={task.assigned_task_id || ''}
+                                onChange={(e) => handleSelectAssignedTask(idx, e.target.value)}
+                                className="w-full bg-[var(--bg3)] border border-blue-500/30 text-[11px] font-semibold text-blue-600 dark:text-blue-400 rounded-md px-2 py-1 outline-none cursor-pointer"
+                              >
+                                <option value="">📋 Select / Link Assigned Task (Optional)</option>
+                                {assignedTasks.map((at) => (
+                                  <option key={at.id} value={at.id}>
+                                    [{at.priority}] {at.title} ({at.task_type})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <input
+                            type="text"
+                            value={task.task_description}
+                            onChange={(e) => handleTaskChange(idx, 'task_description', e.target.value)}
+                            disabled={isLocked}
+                            placeholder="Describe the task or project deliverable..."
+                            className="w-full bg-transparent border border-transparent focus:border-[var(--accent)] focus:bg-[var(--bg)] px-2.5 py-1.5 rounded-lg text-xs text-[var(--text)] outline-none transition disabled:opacity-75"
+                          />
+
+                          {task.is_flagged && (
+                            <div className="flex items-center justify-between text-[10px] text-rose-600 bg-rose-500/10 border border-rose-500/20 px-2 py-1 rounded-md">
+                              <span className="flex items-center gap-1">
+                                <Flag className="w-3 h-3 fill-rose-600" />
+                                <strong>Blocker:</strong> {task.flag_reason || 'Flagged by employee'}
+                              </span>
+                              {!isLocked && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveFlag(idx)}
+                                  className="text-gray-500 hover:text-rose-700 underline font-semibold ml-2"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                       <td className="p-2.5">
                         <select
@@ -728,7 +1010,7 @@ export default function DailyTrackerPage() {
                           }`}
                         >
                           <Star className={`w-3.5 h-3.5 ${task.is_achievement ? 'fill-amber-500 text-amber-500' : ''}`} />
-                          <span>{task.is_achievement ? 'Flagged' : 'Mark'}</span>
+                          <span>{task.is_achievement ? 'Star' : 'Mark'}</span>
                         </button>
                       </td>
                       <td className="p-2.5">
@@ -742,18 +1024,34 @@ export default function DailyTrackerPage() {
                         />
                       </td>
                       <td className="p-2.5 text-center">
-                        {!isLocked ? (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteRow(idx)}
-                            className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition"
-                            title="Delete Row"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        ) : (
-                          <Lock className="w-3.5 h-3.5 text-gray-400 mx-auto" />
-                        )}
+                        <div className="flex items-center justify-center space-x-1">
+                          {!isLocked ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => openFlagModal(idx)}
+                                className={`p-1.5 rounded-lg transition ${
+                                  task.is_flagged 
+                                    ? 'bg-rose-500/20 text-rose-600' 
+                                    : 'text-gray-400 hover:text-rose-500 hover:bg-rose-500/10'
+                                }`}
+                                title={task.is_flagged ? 'Edit Blocker Flag' : 'Flag Blocker (🚩)'}
+                              >
+                                <Flag className={`w-3.5 h-3.5 ${task.is_flagged ? 'fill-rose-600' : ''}`} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteRow(idx)}
+                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition"
+                                title="Delete Row"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          ) : (
+                            <Lock className="w-3.5 h-3.5 text-gray-400 mx-auto" />
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -821,6 +1119,52 @@ export default function DailyTrackerPage() {
 
         </main>
       </div>
+
+      {/* FLAG BLOCKER MODAL */}
+      {flagModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[var(--border)] pb-3">
+              <div className="font-bold text-base text-rose-600 flex items-center gap-2">
+                <Flag className="w-5 h-5 fill-rose-600" />
+                Flag Task Blocker / Impediment
+              </div>
+              <button onClick={() => setFlagModalOpen(false)} className="text-[var(--text3)] hover:text-[var(--text)]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-xs text-[var(--text2)]">
+              Specify what is blocking progress on this task (e.g., dependency on another team, technical issue, missing credentials). Your manager will be notified in their portal.
+            </p>
+            <div>
+              <label className="text-[11px] font-bold uppercase text-[var(--text3)] mb-1 block">Blocker Reason & Notes <span className="text-rose-500">*</span></label>
+              <textarea
+                value={flagReasonText}
+                onChange={(e) => setFlagReasonText(e.target.value)}
+                placeholder="e.g., Blocked waiting for API keys from third-party vendor..."
+                className="w-full bg-[var(--bg3)] border border-[var(--border)] rounded-xl p-3 text-xs text-[var(--text)] outline-none h-24 focus:border-rose-500"
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setFlagModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--bg3)] text-[var(--text)]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveFlag}
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-rose-600 hover:bg-rose-700 text-white flex items-center gap-1.5 shadow-sm"
+              >
+                <Flag className="w-3.5 h-3.5 fill-white" />
+                <span>Save Flag</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ACHIEVEMENT CRITERIA INFO MODAL */}
       {showInfoModal && (
@@ -903,3 +1247,4 @@ export default function DailyTrackerPage() {
     </div>
   );
 }
+

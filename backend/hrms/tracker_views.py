@@ -15,7 +15,7 @@ from django.utils import timezone
 from hrms.models import (
     HR, Employee, EmployeeAccount, Attendance, LeaveRequest,
     DailyTrackerDay, DailyTaskRow, DailyTrackerUnlockRequest,
-    DailyTrackerAuditLog, DailyTrackerConfig
+    DailyTrackerAuditLog, DailyTrackerConfig, DailyAssignedTask
 )
 
 
@@ -36,15 +36,19 @@ def _resolve_user_and_employee(request):
     Returns (user_obj, role, employee_obj)
     where role is 'hr', 'manager', or 'employee'
     """
-    user = getattr(request, 'current_user', None)
+    session = getattr(request, 'session', {})
+    user = getattr(request, 'current_user', None) or getattr(request, 'user', None)
     
     # Check if HR
     if isinstance(user, HR):
         return user, 'hr', None
 
+    if getattr(user, 'is_staff', False) or getattr(user, 'is_superuser', False):
+        return user, 'hr', None
+
     # Check session hr_id
-    if request.session.get('hr_id'):
-        hr = HR.objects.filter(id=request.session['hr_id']).first()
+    if hasattr(session, 'get') and session.get('hr_id'):
+        hr = HR.objects.filter(id=session['hr_id']).first()
         if hr:
             return hr, 'hr', None
 
@@ -67,22 +71,31 @@ def _resolve_user_and_employee(request):
         emp_id = user.employee_id
     elif isinstance(user, Employee):
         emp_id = user.id
+    elif hasattr(user, 'email') and user.email:
+        matched_emp = Employee.objects.filter(email__iexact=user.email).first()
+        if matched_emp:
+            emp_id = matched_emp.id
     elif request.headers.get('X-Employee-Id'):
         try:
             emp_id = int(request.headers.get('X-Employee-Id'))
         except Exception:
             pass
-    elif request.session.get('employee_id'):
-        emp_id = request.session.get('employee_id')
-    elif request.session.get('account_id'):
-        acc = EmployeeAccount.objects.filter(id=request.session['account_id']).first()
+    elif hasattr(session, 'get') and session.get('employee_id'):
+        emp_id = session.get('employee_id')
+    elif hasattr(session, 'get') and session.get('account_id'):
+        acc = EmployeeAccount.objects.filter(id=session['account_id']).first()
         if acc:
             emp_id = acc.employee_id
 
     if emp_id:
         emp = Employee.objects.filter(id=emp_id).first()
         if emp:
-            role = 'intern' if (emp.emp_type and emp.emp_type.lower() == 'intern') else 'employee'
+            if emp.is_manager:
+                role = 'manager'
+            elif emp.emp_type and emp.emp_type.lower() == 'intern':
+                role = 'intern'
+            else:
+                role = 'employee'
             return emp, role, emp
 
     return None, 'anonymous', None
@@ -467,6 +480,11 @@ def daily_tracker_view(request):
         status='Pending'
     ).first()
 
+    # Active assigned tasks for dropdown
+    assigned_tasks = DailyAssignedTask.objects.filter(
+        Q(assigned_to=target_emp) | (Q(department__iexact=target_emp.department or '') & Q(assigned_to__isnull=True))
+    ).exclude(status='Completed').order_by('-created_at')
+
     # GitHub style contribution heatmap data
     heatmap_data = _get_employee_github_heatmap(target_emp, current_date)
 
@@ -476,6 +494,7 @@ def daily_tracker_view(request):
         'user_role': role,
         'tracker_day': tracker_day,
         'tasks': tracker_day.tasks.all(),
+        'assigned_tasks': assigned_tasks,
         'current_date': current_date.strftime('%Y-%m-%d'),
         'current_date_display': current_date.strftime('%d-%b-%Y'),
         'prev_date': (current_date - timedelta(days=1)).strftime('%Y-%m-%d'),
@@ -537,6 +556,9 @@ def api_daily_tracker_get(request):
     for task in tracker_day.tasks.all():
         tasks_data.append({
             'id': task.id,
+            'assigned_task_id': task.assigned_task_id,
+            'is_flagged': bool(task.is_flagged),
+            'flag_reason': task.flag_reason or '',
             'task_description': task.task_description,
             'task_type': task.task_type,
             'hours_worked': task.hours_worked,
@@ -545,6 +567,28 @@ def api_daily_tracker_get(request):
             'order': task.order,
             'custom_data': task.custom_data or '{}'
         })
+
+    # Assigned tasks available for employee/intern to pick from
+    assigned_tasks_qs = DailyAssignedTask.objects.filter(
+        Q(assigned_to=target_emp) | (Q(department__iexact=target_emp.department or '') & Q(assigned_to__isnull=True))
+    ).exclude(status='Completed').order_by('-created_at')
+
+    assigned_tasks_data = [
+        {
+            'id': at.id,
+            'title': at.title,
+            'description': at.description or '',
+            'department': at.department,
+            'task_type': at.task_type,
+            'priority': at.priority,
+            'due_date': at.due_date.isoformat() if at.due_date else None,
+            'status': at.status,
+            'is_flagged': at.is_flagged,
+            'flag_reason': at.flag_reason or '',
+            'assigned_by_name': at.assigned_by.name if at.assigned_by else 'Management/HR'
+        }
+        for at in assigned_tasks_qs
+    ]
 
     pending_unlock = DailyTrackerUnlockRequest.objects.filter(
         tracker_day=tracker_day,
@@ -573,6 +617,7 @@ def api_daily_tracker_get(request):
         'total_hours': tracker_day.total_hours,
         'achievements_count': tracker_day.achievements_count,
         'tasks': tasks_data,
+        'assigned_tasks': assigned_tasks_data,
         'heatmap': heatmap_data,
         'pending_unlock': {
             'id': pending_unlock.id,
@@ -681,12 +726,25 @@ def api_daily_tracker_save(request):
         is_ach = bool(t.get('is_achievement', False))
         remarks = (t.get('remarks') or '').strip()
         task_type = (t.get('task_type') or 'Major').strip()
+        assigned_task_id = t.get('assigned_task_id')
+        is_flagged = bool(t.get('is_flagged', False))
+        flag_reason = (t.get('flag_reason') or '').strip()
         custom_data = t.get('custom_data', '{}')
         if isinstance(custom_data, dict):
             custom_data = json.dumps(custom_data)
 
+        assigned_task_obj = None
+        if assigned_task_id:
+            try:
+                assigned_task_obj = DailyAssignedTask.objects.filter(id=assigned_task_id).first()
+            except Exception:
+                assigned_task_obj = None
+
         task_obj = DailyTaskRow.objects.create(
             tracker_day=tracker_day,
+            assigned_task=assigned_task_obj,
+            is_flagged=is_flagged,
+            flag_reason=flag_reason,
             task_description=desc or 'Day Off / Leave',
             task_type=task_type,
             hours_worked=h if day_status == 'Working Day' else 0.0,
@@ -696,6 +754,21 @@ def api_daily_tracker_save(request):
             custom_data=custom_data
         )
         created_tasks.append(task_obj)
+
+        if assigned_task_obj:
+            if is_flagged:
+                assigned_task_obj.is_flagged = True
+                assigned_task_obj.flag_reason = flag_reason
+                assigned_task_obj.status = 'Flagged'
+                assigned_task_obj.save()
+            elif action == 'submit':
+                assigned_task_obj.is_flagged = False
+                assigned_task_obj.status = 'Completed'
+                assigned_task_obj.completed_at = timezone.now()
+                assigned_task_obj.save()
+            elif action == 'draft' and assigned_task_obj.status == 'Pending':
+                assigned_task_obj.status = 'In Progress'
+                assigned_task_obj.save()
 
     # Audit Trail
     audit_action = 'SUBMITTED' if action == 'submit' else 'DRAFT_SAVED'
@@ -883,6 +956,12 @@ def daily_tracker_manager_view(request):
     departments = Employee.objects.exclude(department__isnull=True).exclude(department='').values_list('department', flat=True).distinct()
     config = _get_or_create_tracker_config()
 
+    if role == 'manager' and employee:
+        mgr_dept = employee.managed_department or employee.department or ''
+        assigned_tasks_qs = DailyAssignedTask.objects.filter(Q(department__iexact=mgr_dept) | Q(assigned_by=employee)).select_related('assigned_to', 'assigned_by')
+    else:
+        assigned_tasks_qs = DailyAssignedTask.objects.all().select_related('assigned_to', 'assigned_by')
+
     context = {
         'current_user': user_obj,
         'user_role': role,
@@ -891,6 +970,7 @@ def daily_tracker_manager_view(request):
         'team_data': team_data,
         'stats': stats,
         'pending_unlocks': pending_unlocks,
+        'assigned_tasks': assigned_tasks_qs.order_by('-created_at')[:100],
         'departments': departments,
         'selected_department': department_filter,
         'selected_status': status_filter,
@@ -961,6 +1041,9 @@ def api_daily_tracker_manager_data(request):
             tasks_list = [
                 {
                     'id': t.id,
+                    'assigned_task_id': t.assigned_task_id,
+                    'is_flagged': bool(t.is_flagged),
+                    'flag_reason': t.flag_reason or '',
                     'task_description': t.task_description,
                     'task_type': t.task_type,
                     'hours_worked': t.hours_worked,
@@ -1001,6 +1084,8 @@ def api_daily_tracker_manager_data(request):
             'emp_id': emp.emp_id or f"EMP{emp.id:04d}",
             'emp_type': emp.emp_type or 'Normal',
             'department': emp.department or '',
+            'is_manager': emp.is_manager,
+            'managed_department': emp.managed_department or '',
             'tracker_id': t_id,
             'date': filter_date.strftime('%Y-%m-%d'),
             'tasks_count': t_tasks_count,
@@ -1026,21 +1111,54 @@ def api_daily_tracker_manager_data(request):
         for u in pending_unlocks_qs
     ]
 
+    # Delegated / Assigned tasks for manager / HR
+    if role == 'manager' and employee:
+        mgr_dept = employee.managed_department or employee.department or ''
+        assigned_tasks_qs = DailyAssignedTask.objects.filter(Q(department__iexact=mgr_dept) | Q(assigned_by=employee)).select_related('assigned_to', 'assigned_by')
+    else:
+        assigned_tasks_qs = DailyAssignedTask.objects.all().select_related('assigned_to', 'assigned_by')
+
+    assigned_tasks_list = [
+        {
+            'id': at.id,
+            'title': at.title,
+            'description': at.description or '',
+            'department': at.department,
+            'assigned_to_id': at.assigned_to_id,
+            'assigned_to_name': at.assigned_to.name if at.assigned_to else 'All Team Members',
+            'assigned_by_name': at.assigned_by.name if at.assigned_by else 'Management/HR',
+            'task_type': at.task_type,
+            'priority': at.priority,
+            'due_date': at.due_date.isoformat() if at.due_date else None,
+            'status': at.status,
+            'is_flagged': at.is_flagged,
+            'flag_reason': at.flag_reason or '',
+            'completed_at': at.completed_at.isoformat() if at.completed_at else None,
+            'created_at': at.created_at.strftime('%d-%b-%Y')
+        }
+        for at in assigned_tasks_qs.order_by('-created_at')[:150]
+    ]
+
     departments = list(Employee.objects.exclude(department__isnull=True).exclude(department='').values_list('department', flat=True).distinct())
+
+    mgr_dept_str = getattr(employee, 'managed_department', None) or getattr(employee, 'department', '') if employee else ''
 
     return JsonResponse({
         'filter_date': filter_date.strftime('%Y-%m-%d'),
         'team_data': team_data,
         'stats': stats,
         'pending_unlocks': pending_unlocks,
-        'departments': departments
+        'assigned_tasks': assigned_tasks_list,
+        'departments': departments,
+        'user_role': role,
+        'is_manager_role': role in ['manager', 'hr'],
+        'manager_department': mgr_dept_str
     })
 
 
 @csrf_exempt
 @require_POST
 def api_daily_tracker_unlock_action(request):
-
     """
     Manager / HR approves or rejects an unlock request or overrides lock.
     """
@@ -1362,7 +1480,6 @@ def api_daily_tracker_export(request):
         csv_buffer = StringIO()
         df.to_csv(csv_buffer, index=False)
         response = HttpResponse(csv_buffer.getvalue(), content_type='text/csv')
-
         response['Content-Disposition'] = f'attachment; filename="Daily_Work_Tracker_Export_{timestamp_str}.csv"'
         return response
 
@@ -1469,3 +1586,251 @@ def api_daily_tracker_config(request):
         'custom_fields': custom_fields,
         'updated_at': config.updated_at.isoformat()
     })
+
+
+# ============================================================================
+# MANAGER ROLE DELEGATION & TASK ASSIGNMENT APIS
+# ============================================================================
+
+@csrf_exempt
+@require_POST
+def api_assign_manager_role(request):
+    """
+    HR / Admin designates an employee as a Manager for a specific department.
+    """
+    user_obj, role, _ = _resolve_user_and_employee(request)
+    if not user_obj or role != 'hr':
+        return JsonResponse({'error': 'Unauthorized. Admin permissions required to assign manager role.'}, status=403)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON body'}, status=400)
+
+    emp_id = data.get('employee_id')
+    is_manager = bool(data.get('is_manager', False))
+    managed_dept = (data.get('managed_department') or '').strip()
+
+    if not emp_id:
+        return JsonResponse({'error': 'employee_id is required'}, status=400)
+
+    emp = Employee.objects.filter(id=emp_id).first()
+    if not emp:
+        return JsonResponse({'error': 'Employee not found'}, status=404)
+
+    emp.is_manager = is_manager
+    emp.managed_department = managed_dept if is_manager else ''
+    emp.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': f"Manager role {'assigned to' if is_manager else 'removed from'} {emp.name}.",
+        'employee_id': emp.id,
+        'is_manager': emp.is_manager,
+        'managed_department': emp.managed_department
+    })
+
+
+def api_get_department_team(request):
+    """
+    Returns list of team members (employees & interns) in manager's department.
+    """
+    user_obj, role, employee = _resolve_user_and_employee(request)
+    if not user_obj:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    dept = request.GET.get('department', '').strip()
+    if not dept and role == 'manager' and employee:
+        dept = employee.managed_department or employee.department or ''
+
+    emps_qs = Employee.objects.filter(status='Active')
+    if dept:
+        emps_qs = emps_qs.filter(department__iexact=dept)
+
+    data = [
+        {
+            'id': e.id,
+            'name': e.name,
+            'emp_id': e.emp_id or f"EMP{e.id:04d}",
+            'email': e.email or '',
+            'department': e.department or '',
+            'designation': e.designation or '',
+            'emp_type': e.emp_type or 'Normal',
+            'is_manager': e.is_manager
+        }
+        for e in emps_qs.order_by('name')
+    ]
+    return JsonResponse({'department': dept, 'members': data})
+
+
+@csrf_exempt
+@require_POST
+def api_daily_tracker_assign_task(request):
+    """
+    Manager assigns a task to an employee/intern or their entire department.
+    """
+    user_obj, role, employee = _resolve_user_and_employee(request)
+    if not user_obj or role not in ['hr', 'manager']:
+        return JsonResponse({'error': 'Unauthorized. Only Department Managers and HR can assign tasks.'}, status=403)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON body'}, status=400)
+
+    title = (data.get('title') or '').strip()
+    description = (data.get('description') or '').strip()
+    task_type = (data.get('task_type') or 'Major').strip()
+    priority = (data.get('priority') or 'Medium').strip()
+    department = (data.get('department') or '').strip()
+    assigned_to_id = data.get('assigned_to_id')
+    due_date_str = data.get('due_date')
+
+    if not title:
+        return JsonResponse({'error': 'Task title is required.'}, status=400)
+
+    if role == 'manager' and employee:
+        mgr_dept = employee.managed_department or employee.department or ''
+        if not department:
+            department = mgr_dept
+
+    due_date = None
+    if due_date_str:
+        try:
+            due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+        except Exception:
+            pass
+
+    assigned_to = None
+    if assigned_to_id and str(assigned_to_id) not in ['0', 'all', '']:
+        assigned_to = Employee.objects.filter(id=assigned_to_id).first()
+        if assigned_to and not department:
+            department = assigned_to.department
+
+    assigned_by_emp = employee if isinstance(user_obj, Employee) else None
+
+    task = DailyAssignedTask.objects.create(
+        title=title,
+        description=description,
+        department=department or 'General',
+        assigned_by=assigned_by_emp,
+        assigned_to=assigned_to,
+        task_type=task_type,
+        priority=priority,
+        due_date=due_date,
+        status='Pending'
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': f"Task '{task.title}' assigned successfully.",
+        'task': {
+            'id': task.id,
+            'title': task.title,
+            'description': task.description,
+            'department': task.department,
+            'assigned_to_name': task.assigned_to.name if task.assigned_to else 'All Department Members',
+            'task_type': task.task_type,
+            'priority': task.priority,
+            'due_date': task.due_date.isoformat() if task.due_date else None,
+            'status': task.status
+        }
+    })
+
+
+def api_daily_tracker_assigned_tasks_list(request):
+    """
+    Returns list of assigned tasks (filtered by department, status, or assignee).
+    """
+    user_obj, role, employee = _resolve_user_and_employee(request)
+    if not user_obj:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    dept_filter = request.GET.get('department', '').strip()
+    status_filter = request.GET.get('status', '').strip()
+    emp_id_filter = request.GET.get('employee_id')
+
+    tasks_qs = DailyAssignedTask.objects.all().select_related('assigned_to', 'assigned_by')
+
+    if role in ['employee', 'intern'] and employee:
+        tasks_qs = tasks_qs.filter(
+            Q(assigned_to=employee) | (Q(department__iexact=employee.department or '') & Q(assigned_to__isnull=True))
+        )
+    elif role == 'manager' and employee:
+        mgr_dept = employee.managed_department or employee.department or ''
+        if mgr_dept:
+            tasks_qs = tasks_qs.filter(Q(department__iexact=mgr_dept) | Q(assigned_by=employee))
+
+    if dept_filter:
+        tasks_qs = tasks_qs.filter(department__iexact=dept_filter)
+    if status_filter:
+        tasks_qs = tasks_qs.filter(status__iexact=status_filter)
+    if emp_id_filter:
+        tasks_qs = tasks_qs.filter(assigned_to_id=emp_id_filter)
+
+    tasks_list = []
+    for t in tasks_qs.order_by('-created_at')[:200]:
+        tasks_list.append({
+            'id': t.id,
+            'title': t.title,
+            'description': t.description or '',
+            'department': t.department,
+            'assigned_to_id': t.assigned_to_id,
+            'assigned_to_name': t.assigned_to.name if t.assigned_to else 'All Team Members',
+            'assigned_by_name': t.assigned_by.name if t.assigned_by else 'Management/HR',
+            'task_type': t.task_type,
+            'priority': t.priority,
+            'due_date': t.due_date.isoformat() if t.due_date else None,
+            'status': t.status,
+            'is_flagged': t.is_flagged,
+            'flag_reason': t.flag_reason or '',
+            'completed_at': t.completed_at.isoformat() if t.completed_at else None,
+            'created_at': t.created_at.strftime('%d-%b-%Y')
+        })
+
+    return JsonResponse({'tasks': tasks_list})
+
+
+@csrf_exempt
+@require_POST
+def api_daily_tracker_flag_task(request):
+    """
+    Flags/unflags a task with a blocker or impediment reason.
+    """
+    user_obj, role, employee = _resolve_user_and_employee(request)
+    if not user_obj:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'error': 'Invalid JSON body'}, status=400)
+
+    task_id = data.get('task_id') or data.get('assigned_task_id')
+    is_flagged = bool(data.get('is_flagged', True))
+    flag_reason = (data.get('flag_reason') or '').strip()
+
+    if not task_id:
+        return JsonResponse({'error': 'Task ID is required'}, status=400)
+
+    task = DailyAssignedTask.objects.filter(id=task_id).first()
+    if not task:
+        return JsonResponse({'error': 'Assigned task not found.'}, status=404)
+
+    task.is_flagged = is_flagged
+    task.flag_reason = flag_reason if is_flagged else ''
+    if is_flagged:
+        task.status = 'Flagged'
+    elif task.status == 'Flagged':
+        task.status = 'In Progress'
+    task.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': f"Task {'flagged with blocker' if is_flagged else 'unflagged'}.",
+        'task_id': task.id,
+        'is_flagged': task.is_flagged,
+        'flag_reason': task.flag_reason,
+        'status': task.status
+    })
+
