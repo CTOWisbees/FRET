@@ -1359,7 +1359,7 @@ export default function EmployeesPage() {
                   <span>Designate as Department Manager</span>
                 </label>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: '4px', marginLeft: '26px' }}>
-                  When enabled, this employee will gain access to the Daily Tracker Manager portal and can assign daily tasks to their department team.
+                  When enabled, this employee will gain manager workspace access in the Operations Portal to review and assign department work.
                 </div>
               </div>
 

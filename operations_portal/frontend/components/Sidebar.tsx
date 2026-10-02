@@ -22,8 +22,11 @@ import {
   TrendingUp,
   FileText,
   FolderKanban,
-  UserCog
+  UserCog,
+  Crown,
+  CalendarCheck
 } from 'lucide-react';
+import { WisBeesLogo } from './WisBeesLogo';
 
 interface SidebarProps {
   user: any;
@@ -103,26 +106,43 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
     (deptName) => !standardScopeCheck(deptName)
   );
 
+  const isManager = Boolean(user?.is_manager || (Array.isArray(user?.managed_departments) && user.managed_departments.length > 0));
+
   const handleLogout = () => {
     localStorage.removeItem('ops_token');
     localStorage.removeItem('ops_user');
     router.push('/login');
   };
 
-  const adminNav = [
+  interface NavItem {
+    name: string;
+    href: string;
+    icon: any;
+    badge?: string;
+  }
+
+  const adminNav: NavItem[] = [
     { name: 'Operations Overview', href: '/admin/dashboard', icon: LayoutDashboard },
+    { name: 'Department Managers', href: '/admin/managers', icon: Crown },
+    { name: 'Daily Trackers Review', href: '/admin/daily-trackers', icon: CalendarCheck },
     { name: 'Department Directory', href: '/admin/departments', icon: Building2 },
     { name: 'OP User Directory', href: '/admin/employees', icon: Users },
     { name: 'Work & Task Manager', href: '/admin/tasks', icon: CheckSquare },
     { name: 'Admin Profile', href: '/admin/profile', icon: UserCog },
   ];
 
-  const employeeNav = [
+  const employeeNav: NavItem[] = [
     { name: 'My Dashboard', href: '/employee/dashboard', icon: LayoutDashboard },
+    { name: 'Daily Work Tracker', href: '/employee/daily-tracker', icon: CalendarCheck },
     { name: 'My Assigned Work', href: '/employee/my-work', icon: Briefcase },
     { name: 'My Role & Scope', href: '/employee/my-role', icon: UserCheck },
     { name: 'Daily Work Logs', href: '/employee/work-logs', icon: Clock },
     { name: 'My Profile', href: '/employee/profile', icon: UserCog },
+  ];
+
+  const managerNav: NavItem[] = [
+    { name: 'Assign Dept Tasks', href: '/employee/manager-tasks', icon: CheckSquare },
+    { name: 'Review Dept Trackers', href: '/employee/tracker-review', icon: CalendarCheck },
   ];
 
   const navItems = isAdmin ? adminNav : employeeNav;
@@ -151,19 +171,15 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
           {/* Header with WisBees Official Logo */}
           <div className="flex items-center justify-between pb-5 border-b border-[var(--card-border)]">
             <Link href={isAdmin ? '/admin/dashboard' : '/employee/dashboard'} className="flex items-center gap-3">
-              <div className="p-1.5 rounded-xl bg-slate-100/90 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 shadow-xs">
-                <img
-                  src="/logo.png"
-                  alt="WisBees Logo"
-                  className="h-8 w-auto object-contain dark:drop-shadow-[0_0_1px_rgba(255,255,255,0.9)]"
-                />
+              <div className="flex items-center">
+                <WisBeesLogo imgClassName="h-7 w-auto object-contain" />
               </div>
               <div>
                 <span className="text-xs font-black uppercase tracking-wider text-[var(--accent)] block">
                   OP Portal
                 </span>
                 <span className="text-[10px] font-bold text-[var(--text-muted)] block">
-                  Access & Management
+                  {isAdmin ? 'Superadmin & Ops' : (isManager ? 'Manager Workspace' : 'Employee Workspace')}
                 </span>
               </div>
             </Link>
@@ -178,8 +194,13 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
 
           {/* Navigation Links */}
           <nav className="mt-6 space-y-1.5">
-            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
-              {isAdmin ? 'OP Administration Console' : 'My Workspace'}
+            <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between">
+              <span>{isAdmin ? 'OP Administration Console' : 'My Workspace'}</span>
+              {isManager && !isAdmin && (
+                <span className="px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 text-[9px] font-extrabold">
+                  Manager
+                </span>
+              )}
             </div>
 
             {navItems.map((item) => {
@@ -190,17 +211,53 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
-                  className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold transition ${
+                  className={`flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold transition whitespace-nowrap ${
                     active
                       ? 'bg-[var(--accent-light)] text-[var(--accent)] font-extrabold shadow-2xs'
                       : 'text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${active ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} />
-                  <span>{item.name}</span>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-[var(--accent)]' : 'text-[var(--text-muted)]'}`} />
+                    <span className="truncate whitespace-nowrap">{item.name}</span>
+                  </div>
+                  {item.badge && (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-sky-100 dark:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 shrink-0 ml-2">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               );
             })}
+
+            {/* ─── DEPARTMENT MANAGER SECTION (If user is manager) ─── */}
+            {!isAdmin && isManager && (
+              <div className="pt-4 mt-4 border-t border-[var(--card-border)]">
+                <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5">
+                  <Crown className="w-3.5 h-3.5" />
+                  <span>Dept Manager Hub ({user?.managed_department || 'Assigned Dept'})</span>
+                </div>
+                {managerNav.map((item) => {
+                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                  const Icon = item.icon;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition whitespace-nowrap ${
+                        active
+                          ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-extrabold shadow-2xs'
+                          : 'text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-purple-600' : 'text-[var(--text-muted)]'}`} />
+                      <span className="truncate whitespace-nowrap">{item.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
 
             {/* ─── DYNAMIC EMPLOYEE ROLE WORK SECTIONS ─── */}
             {!isAdmin && (
@@ -236,9 +293,28 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                 {isEquityResearch && (
                   <div className="pt-4 mt-4 border-t border-[var(--card-border)]">
                     <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                      Equity Research Work
+                      Equity Research & Advisory
                     </div>
                     <div className="space-y-1">
+                      {(() => {
+                        const perfHref = '/employee/equity-research-work/performance';
+                        const active = pathname === perfHref;
+                        return (
+                          <Link
+                            href={perfHref}
+                            onClick={() => setMobileOpen(false)}
+                            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs font-bold transition ${
+                              active
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-extrabold shadow-2xs'
+                                : 'text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)]'
+                            }`}
+                          >
+                            <TrendingUp className={`w-4 h-4 ${active ? 'text-emerald-600' : 'text-[var(--text-muted)]'}`} />
+                            <span className="truncate">Stock Returns Tracker</span>
+                          </Link>
+                        );
+                      })()}
+
                       {(() => {
                         const erHref = '/employee/equity-research-work';
                         const active = pathname === erHref;
@@ -253,7 +329,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                             }`}
                           >
                             <BarChart2 className={`w-4 h-4 ${active ? 'text-emerald-600' : 'text-[var(--text-muted)]'}`} />
-                            <span>Research Hub</span>
+                            <span>Research Compiler</span>
                           </Link>
                         );
                       })()}
@@ -279,6 +355,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                     </div>
                   </div>
                 )}
+
 
                 {/* 3. IT & Systems Work */}
                 {isIT && (
@@ -402,13 +479,22 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
               onClick={() => setMobileOpen(false)}
               className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-85 transition cursor-pointer"
             >
-              <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-sky-500/20">
-                {user?.avatar_url ? (
-                  <img src={user.avatar_url} alt={user?.name || 'User'} className="w-full h-full object-cover" />
-                ) : (
-                  <span>{user?.name ? user.name[0].toUpperCase() : 'U'}</span>
-                )}
-              </div>
+              {(() => {
+                const avatarSrc = user?.avatar_url || user?.avatar || user?.profile_photo || user?.photo;
+                return (
+                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-sky-500/20">
+                    {avatarSrc ? (
+                      <img
+                        src={avatarSrc}
+                        alt={user?.name || 'User'}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{user?.name ? user.name[0].toUpperCase() : 'U'}</span>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="min-w-0">
                 <div className="text-xs font-bold text-[var(--text-primary)] truncate">
                   {user?.full_name || user?.name || 'User'}

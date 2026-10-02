@@ -8,13 +8,16 @@ import {
   Clock,
   CheckCircle2,
   Calendar,
+  CalendarCheck,
   ArrowRight,
   Shield,
   Layers,
   Sparkles,
   TrendingUp,
   FileText,
-  Building2
+  Building2,
+  Flame,
+  Star
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { StatusBadge, PriorityBadge } from '@/components/Badges';
@@ -89,21 +92,51 @@ export default function EmployeeDashboardPage() {
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 relative z-10 w-full md:w-auto">
           <Link
+            href="/employee/daily-tracker"
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl sm:rounded-2xl text-xs font-black shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer"
+          >
+            <CalendarCheck className="w-4 h-4 shrink-0" />
+            <span>📅 Daily Work Tracker</span>
+          </Link>
+
+          <Link
             href="/employee/my-work"
             className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer"
           >
             <Briefcase className="w-4 h-4 shrink-0" />
-            <span>View Assigned Work ({stats.in_progress_count ?? 0})</span>
-          </Link>
-
-          <Link
-            href="/employee/work-logs"
-            className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl sm:rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer"
-          >
-            <Clock className="w-4 h-4 shrink-0" />
-            <span>Attendance & Logs</span>
+            <span>Assigned Work ({stats.in_progress_count ?? 0})</span>
           </Link>
         </div>
+      </div>
+
+      {/* ─── DAILY WORK TRACKER PROMINENT CALLOUT CARD ─── */}
+      <div className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-sky-500/10 border border-emerald-300/80 dark:border-emerald-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-start gap-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800">
+            <CalendarCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white">
+                Today's Daily Work Tracker
+              </h3>
+              <span className="px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-extrabold">
+                Live Sync
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Log today's tasks, link deliverables assigned by your Manager or Superadmin, and build your 52-week streak!
+            </p>
+          </div>
+        </div>
+
+        <Link
+          href="/employee/daily-tracker"
+          className="w-full sm:w-auto px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md shadow-emerald-500/25 transition flex items-center justify-center gap-2 cursor-pointer shrink-0"
+        >
+          <span>Open Work Tracker</span>
+          <ArrowRight className="w-4 h-4" />
+        </Link>
       </div>
 
       {/* ─── LIVE ATTENDANCE & SHIFT TIMER ─── */}

@@ -104,6 +104,27 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
     setAvatarUrl(userData.avatar_url || '');
   };
 
+  const saveAvatarDirectly = async (newUrl: string) => {
+    try {
+      setSaving(true);
+      const res = await api.post('/auth/profile', {
+        avatar_url: newUrl,
+      });
+      if (res.data?.success) {
+        const updatedUser = res.data.user;
+        setUser(updatedUser);
+        localStorage.setItem('ops_user', JSON.stringify(updatedUser));
+        window.dispatchEvent(new CustomEvent('ops_user_updated', { detail: updatedUser }));
+        window.dispatchEvent(new Event('storage'));
+        setSuccessMsg('Profile photo updated and saved successfully!');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.response?.data?.error || 'Failed to save profile photo.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Handle local image file upload & convert to Base64
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -119,6 +140,7 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
       const base64String = reader.result as string;
       setAvatarUrl(base64String);
       setErrorMsg(null);
+      saveAvatarDirectly(base64String);
     };
     reader.readAsDataURL(file);
   };
@@ -128,6 +150,7 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+    saveAvatarDirectly('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -185,6 +208,7 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
         setConfirmPassword('');
 
         // Notify other components of profile update
+        window.dispatchEvent(new CustomEvent('ops_user_updated', { detail: updatedUser }));
         window.dispatchEvent(new Event('storage'));
       } else {
         setErrorMsg(res.data?.error || 'Failed to update profile.');
@@ -361,7 +385,10 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => setAvatarUrl(preset)}
+                  onClick={() => {
+                    setAvatarUrl(preset);
+                    saveAvatarDirectly(preset);
+                  }}
                   className={`w-10 h-10 rounded-2xl overflow-hidden border-2 transition cursor-pointer hover:scale-105 ${
                     avatarUrl === preset
                       ? 'border-sky-500 ring-2 ring-sky-500/30 shadow-md'

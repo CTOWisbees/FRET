@@ -17,12 +17,19 @@ from ops_core.models import (
     WorkTask,
     WorkLog,
     ActivityLog,
+    DepartmentManagerAssignment,
+    DailyTrackerConfig,
+    DailyAssignedTask,
+    DailyTrackerDay,
+    DailyTaskRow,
+    DailyTrackerUnlockRequest,
+    DailyTrackerAuditLog,
 )
 
 def seed():
-    print("Seeding OP Access Management Database...")
+    print("Seeding Operations Portal Database with Superadmin, Managers, Tracker, and Assigned Tasks...")
 
-    # 1. Create / Update Django Admin Superuser (admin / admin123) for Django Administration (/admin/)
+    # 1. Create / Update Django Admin Superuser
     superuser = DjangoSuperUser.objects.filter(username='admin').first()
     if not superuser:
         superuser = DjangoSuperUser.objects.create_superuser(
@@ -30,34 +37,33 @@ def seed():
             email='admin@operations.wisbees.com',
             password='admin123'
         )
-        print("Created Django Superuser: username='admin', password='admin123'")
+        print("[+] Created Django Superuser: username='admin', password='admin123'")
     else:
         superuser.set_password('admin123')
         superuser.is_staff = True
         superuser.is_superuser = True
         superuser.save()
-        print("Updated Django Superuser: username='admin', password='admin123'")
 
-    # 2. Seed All Reference Departments from Django Admin Screenshots
+    # 2. Seed All Reference Departments
     REFERENCE_DEPARTMENTS = [
+        {"name": "IT", "page_key": "IT", "is_active": True},
+        {"name": "Digital Marketing", "page_key": "Digital Marketing", "is_active": True},
+        {"name": "IA - Research", "page_key": "IA - Research", "is_active": True},
+        {"name": "Equity", "page_key": "Equity", "is_active": True},
         {"name": "Accounts", "page_key": "Accounts", "is_active": True},
         {"name": "Compliance", "page_key": "Compliance", "is_active": True},
+        {"name": "HR", "page_key": "HR", "is_active": True},
+        {"name": "HR Authorities", "page_key": "HR Authorities", "is_active": True},
         {"name": "Compliance Checker", "page_key": "Compliance Checker", "is_active": True},
         {"name": "Debt", "page_key": "Debt", "is_active": True},
         {"name": "Distribution", "page_key": "Distribution", "is_active": True},
-        {"name": "Equity", "page_key": "Equity", "is_active": True},
-        {"name": "HR", "page_key": "HR", "is_active": True},
-        {"name": "HR Authorities", "page_key": "HR Authorities", "is_active": True},
         {"name": "Investor Relations", "page_key": "Investor Relations", "is_active": True},
         {"name": "Mgmt View", "page_key": "Mgmt View", "is_active": True},
         {"name": "Treasury", "page_key": "Treasury", "is_active": True},
-        # Operational departments
-        {"name": "Digital Marketing", "page_key": "Digital Marketing", "is_active": True},
-        {"name": "IT", "page_key": "IT", "is_active": True},
-        {"name": "IA - Research", "page_key": "IA - Research", "is_active": True},
         {"name": "WBC", "page_key": "WBC", "is_active": True},
         {"name": "Wealth", "page_key": "Wealth", "is_active": True},
         {"name": "Content Publishing", "page_key": "Content Publishing", "is_active": True},
+        {"name": "Operations", "page_key": "Operations", "is_active": True},
     ]
 
     dept_objs = {}
@@ -75,7 +81,7 @@ def seed():
             obj.save()
         dept_objs[d["name"]] = obj
 
-    print(f"Seeded {len(dept_objs)} departments into Department model.")
+    print(f"[+] Seeded {len(dept_objs)} departments into Department model.")
 
     # 3. Operational Roles
     role_mktg, _ = OperationalRole.objects.get_or_create(
@@ -84,14 +90,8 @@ def seed():
             'department': "Digital Marketing",
             'level': "Intern",
             'description': "Executes digital marketing campaigns, bulk email dispatch, SEO/SEM, newsletter distributions, and social media branding.",
-            'responsibilities': "• Manage high-volume transactional and campaign bulk email dispatches.\n• Create engaging social media content and promotional assets.\n• Monitor campaign analytics, CTR, and conversion metrics.\n• Coordinate with research analysts for newsletter publishing.",
-            'permissions': [
-                "view_assigned_work",
-                "update_task_status",
-                "submit_work_logs",
-                "attach_deliverables",
-                "bulk_email_access",
-            ]
+            'responsibilities': "• Manage bulk email dispatches.\n• Create social media content.\n• Monitor campaign analytics.",
+            'permissions': ["view_assigned_work", "update_task_status", "submit_work_logs", "bulk_email_access"]
         }
     )
 
@@ -101,53 +101,64 @@ def seed():
             'department': "IT",
             'level': "Intern",
             'description': "Designs, implements, and maintains operational web portals, task management workflows, and internal tooling.",
-            'responsibilities': "• Develop interactive responsive Next.js frontend interfaces.\n• Integrate Django backend REST APIs and secure authentication.\n• Manage task management pipelines, SLAs, and automation scripts.\n• Submit daily progress and deliverable reports to Operations Admin.",
-            'permissions': [
-                "view_assigned_work",
-                "update_task_status",
-                "submit_work_logs",
-                "attach_deliverables",
-                "task_management_access",
-            ]
-        }
-    )
-
-    role_research, _ = OperationalRole.objects.get_or_create(
-        title="Investment Research Analyst Intern",
-        defaults={
-            'department': "IA - Research",
-            'level': "Intern",
-            'description': "Conducts deep equity research, financial modeling, automated report generation, and portfolio dashboard tracking.",
-            'responsibilities': "• Generate automated institutional investment research reports.\n• Maintain and analyze client portfolio tracking dashboards.\n• Perform macroeconomic analysis, company filings reviews, and market intelligence.\n• Deliver investment notes to wealth advisory desk.",
-            'permissions': [
-                "view_assigned_work",
-                "update_task_status",
-                "submit_work_logs",
-                "attach_deliverables",
-                "report_generation_access",
-                "portfolio_dashboard_access",
-            ]
+            'responsibilities': "• Develop interactive responsive Next.js interfaces.\n• Integrate Django backend REST APIs.\n• Manage daily progress and deliverables.",
+            'permissions': ["view_assigned_work", "update_task_status", "submit_work_logs", "task_management_access"]
         }
     )
 
     role_lead, _ = OperationalRole.objects.get_or_create(
-        title="Director of Operations / Head",
+        title="Superadmin / Managing Director",
         defaults={
-            'department': "IT",
+            'department': "Operations",
             'level': "Lead",
-            'description': "Supervises project execution, employee multi-role assignments, department matrix, and task distribution.",
-            'responsibilities': "• Assign and broadcast cross-functional tasks across departments.\n• Manage employee onboarding, role matrices, and module permissions.\n• Review submissions and provide sign-offs.",
-            'permissions': [
-                "manage_employees",
-                "assign_roles",
-                "create_tasks",
-                "review_submissions",
-                "export_reports",
-            ]
+            'description': "Supervises company-wide execution, department manager assignments, employee task distribution, and daily performance.",
+            'responsibilities': "• Appoint department managers.\n• Assign and broadcast cross-functional tasks.\n• Review submissions and daily work logs.",
+            'permissions': ["manage_employees", "assign_managers", "assign_roles", "create_tasks", "review_trackers", "export_reports"]
         }
     )
 
-    # 4. Create / Update Admin User
+    # 4. Superadmin: Jnana Sir
+    jnana_user = OperationUser.objects.filter(email='jnana@wisbees.com').first()
+    if not jnana_user:
+        jnana_user = OperationUser(
+            name="Jnana Ranjan Mohanty",
+            full_name="Jnana Ranjan Mohanty (Jnana Sir)",
+            email="jnana@wisbees.com",
+            role="admin",
+            is_superadmin=True,
+            is_manager=True,
+            phone="+91 9800000001",
+            emp_code="OPS-SUPER01",
+            designation="Managing Director & Super Admin",
+            department="Operations",
+            assigned_departments=[d["name"] for d in REFERENCE_DEPARTMENTS],
+            assigned_modules=["Bulk email", "Task Management", "Report Generation", "portfolio tracking dashboard"],
+            status="Active",
+            is_active=True,
+            assigned_role=role_lead,
+        )
+        jnana_user.set_password("superadmin123")
+        jnana_user.save()
+        jnana_user.assigned_roles.set([role_lead])
+        print("[+] Created Superadmin: Jnana Sir (jnana@wisbees.com / superadmin123)")
+    else:
+        jnana_user.name = "Jnana Ranjan Mohanty"
+        jnana_user.full_name = "Jnana Ranjan Mohanty (Jnana Sir)"
+        jnana_user.role = "admin"
+        jnana_user.is_superadmin = True
+        jnana_user.is_manager = True
+        jnana_user.is_active = True
+        jnana_user.status = "Active"
+        jnana_user.assigned_departments = [d["name"] for d in REFERENCE_DEPARTMENTS]
+        jnana_user.set_password("superadmin123")
+        jnana_user.save()
+        jnana_user.assigned_roles.set([role_lead])
+        print("[*] Updated Superadmin: Jnana Sir (jnana@wisbees.com / superadmin123)")
+
+    for d_obj in dept_objs.values():
+        OPUserDepartmentAccess.objects.get_or_create(user=jnana_user, department=d_obj, defaults={'is_active': True})
+
+    # Admin User (admin@operations.wisbees.com)
     admin_user = OperationUser.objects.filter(email='admin@operations.wisbees.com').first()
     if not admin_user:
         admin_user = OperationUser(
@@ -155,12 +166,13 @@ def seed():
             full_name="Operations Administrator",
             email="admin@operations.wisbees.com",
             role="admin",
+            is_superadmin=True,
+            is_manager=True,
             phone="+91 9876543210",
             emp_code="OPS-ADMIN01",
             designation="Director of Operations",
-            department="IT",
-            assigned_departments=["IT", "Digital Marketing", "IA - Research", "Equity", "Treasury", "Accounts", "Compliance", "HR", "Mgmt View"],
-            assigned_modules=["Bulk email", "Task Management", "Report Generation", "portfolio tracking dashboard"],
+            department="Operations",
+            assigned_departments=[d["name"] for d in REFERENCE_DEPARTMENTS],
             status="Active",
             is_active=True,
             assigned_role=role_lead,
@@ -168,25 +180,56 @@ def seed():
         admin_user.set_password("admin123")
         admin_user.save()
         admin_user.assigned_roles.set([role_lead])
-        print("Created Portal Admin: admin@operations.wisbees.com / admin123")
+        print("[+] Created Portal Admin: admin@operations.wisbees.com / admin123")
     else:
-        admin_user.full_name = "Operations Administrator"
+        admin_user.is_superadmin = True
+        admin_user.is_manager = True
         admin_user.set_password("admin123")
-        admin_user.is_active = True
-        admin_user.status = "Active"
-        admin_user.assigned_departments = ["IT", "Digital Marketing", "IA - Research", "Equity", "Treasury", "Accounts", "Compliance", "HR", "Mgmt View"]
-        admin_user.assigned_modules = ["Bulk email", "Task Management", "Report Generation", "portfolio tracking dashboard"]
-        admin_user.assigned_role = role_lead
         admin_user.save()
-        admin_user.assigned_roles.set([role_lead])
 
-    # Admin department accesses
-    for dname in ["IT", "Equity", "Treasury", "Accounts", "Compliance", "HR", "Mgmt View", "Digital Marketing", "IA - Research"]:
+    for d_obj in dept_objs.values():
+        OPUserDepartmentAccess.objects.get_or_create(user=admin_user, department=d_obj, defaults={'is_active': True})
+
+    # 5. Ashley Lobo (Employee / Intern, can be manager of IT)
+    ashley = OperationUser.objects.filter(email__in=["ashley.lobo@wisbees.com", "ashleyianlobo@gmail.com"]).first()
+    if not ashley:
+        ashley = OperationUser.objects.create(
+            name="Ashley Lobo",
+            full_name="Ashley Lobo",
+            email="ashley.lobo@wisbees.com",
+            role="employee",
+            is_manager=False,
+            emp_type="Intern",
+            phone="+91 9820011223",
+            emp_code="OPS-INT011",
+            designation="Digital Marketing Intern",
+            department="IT",
+            assigned_departments=["IT", "Digital Marketing", "HR", "Equity"],
+            assigned_modules=["Bulk email", "Campaign Analytics", "Task Management"],
+            status="Active",
+            is_active=True,
+            assigned_role=role_mktg,
+            skills="Team Management, IT Coordination, Digital Media",
+        )
+        ashley.set_password("intern123")
+        ashley.save()
+        ashley.assigned_roles.set([role_mktg])
+        print("[+] Created Employee: Ashley Lobo (ashley.lobo@wisbees.com / intern123)")
+    else:
+        ashley.department = "IT"
+        ashley.emp_type = "Intern"
+        ashley.is_active = True
+        ashley.status = "Active"
+        if "IT" not in ashley.assigned_departments:
+            ashley.assigned_departments.append("IT")
+        ashley.set_password("intern123")
+        ashley.save()
+
+    for dname in ["IT", "Digital Marketing", "HR", "Equity"]:
         if dname in dept_objs:
-            OPUserDepartmentAccess.objects.get_or_create(user=admin_user, department=dept_objs[dname], defaults={'is_active': True})
+            OPUserDepartmentAccess.objects.get_or_create(user=ashley, department=dept_objs[dname], defaults={'is_active': True})
 
-    # 5. Create / Update Employee Users with Department Access
-    # 5.1 Chhayakanta Maharana (IT + Research + Equity + Compliance)
+    # 6. Chhayakanta Maharana (IT Employee / Intern)
     emp_user = OperationUser.objects.filter(email='chhayakanta@wisbees.com').first()
     if not emp_user:
         emp_user = OperationUser(
@@ -194,6 +237,7 @@ def seed():
             full_name="Chhayakanta Maharana",
             email="chhayakanta@wisbees.com",
             role="employee",
+            emp_type="Intern",
             phone="+91 8260770510",
             emp_code="OPS-INT025",
             designation="IT Intern – Web & Automation Developer",
@@ -207,63 +251,21 @@ def seed():
         )
         emp_user.set_password("employee123")
         emp_user.save()
-        emp_user.assigned_roles.set([role_it, role_research])
-        print("Created Employee: chhayakanta@wisbees.com / employee123")
+        emp_user.assigned_roles.set([role_it])
+        print("[+] Created Employee: Chhayakanta Maharana (chhayakanta@wisbees.com / employee123)")
     else:
-        emp_user.full_name = "Chhayakanta Maharana"
-        emp_user.set_password("employee123")
+        emp_user.department = "IT"
+        emp_user.emp_type = "Intern"
         emp_user.is_active = True
         emp_user.status = "Active"
-        emp_user.department = "IT"
-        emp_user.assigned_departments = ["IT", "IA - Research", "Equity", "Compliance"]
-        emp_user.assigned_modules = ["Task Management", "Report Generation", "portfolio tracking dashboard"]
-        emp_user.assigned_role = role_it
+        emp_user.set_password("employee123")
         emp_user.save()
-        emp_user.assigned_roles.set([role_it, role_research])
 
     for dname in ["IT", "IA - Research", "Equity", "Compliance"]:
         if dname in dept_objs:
             OPUserDepartmentAccess.objects.get_or_create(user=emp_user, department=dept_objs[dname], defaults={'is_active': True})
 
-    # 5.2 Ashley Lobo (from reference screenshots - Digital Marketing, HR, HR Authorities, Equity)
-    ashley = OperationUser.objects.filter(email__in=["ashley.lobo@wisbees.com", "ashleyianlobo@gmail.com"]).first()
-    if not ashley:
-        ashley = OperationUser.objects.create(
-            name="Ashley Lobo",
-            full_name="Ashley Lobo",
-            email="ashley.lobo@wisbees.com",
-            role="employee",
-            phone="+91 9820011223",
-            emp_code="OPS-INT011",
-            designation="Digital Marketing Intern",
-            department="Digital Marketing",
-            assigned_departments=["Digital Marketing", "HR", "HR Authorities", "Equity"],
-            assigned_modules=["Bulk email", "Campaign Analytics"],
-            status="Active",
-            is_active=True,
-            assigned_role=role_mktg,
-            skills="Social Media, Content Strategy, Brand Marketing, Email Newsletters",
-        )
-        ashley.set_password("intern123")
-        ashley.save()
-        ashley.assigned_roles.set([role_mktg])
-    else:
-        ashley.full_name = "Ashley Lobo"
-        ashley.department = "Digital Marketing"
-        ashley.is_active = True
-        ashley.status = "Active"
-        ashley.assigned_departments = ["Digital Marketing", "HR", "HR Authorities", "Equity"]
-        ashley.assigned_modules = ["Bulk email", "Campaign Analytics"]
-        ashley.assigned_role = role_mktg
-        ashley.set_password("intern123")
-        ashley.save()
-        ashley.assigned_roles.set([role_mktg])
-
-    for dname in ["Digital Marketing", "HR", "HR Authorities", "Equity"]:
-        if dname in dept_objs:
-            OPUserDepartmentAccess.objects.get_or_create(user=ashley, department=dept_objs[dname], defaults={'is_active': True})
-
-    # 5.3 Additional Sample Employees with specific Department Accesses
+    # 7. Aditya Jain
     aditya = OperationUser.objects.filter(email__in=["aditya.jain@wisbees.com", "aadityajain5789@gmail.com"]).first()
     if not aditya:
         aditya = OperationUser.objects.create(
@@ -271,51 +273,63 @@ def seed():
             full_name="Aditya Jain",
             email="aditya.jain@wisbees.com",
             role="employee",
+            emp_type="Intern",
             phone="+91 8984468248",
             emp_code="OPS-INT021",
             designation="Digital Marketing Intern",
             department="Digital Marketing",
             assigned_departments=["Digital Marketing", "Distribution"],
-            assigned_modules=["Bulk email", "Social Media Strategy"],
             status="Active",
             is_active=True,
             assigned_role=role_mktg,
-            skills="SEO/SEM, Meta Ads, Campaign Tracking, Copywriting",
         )
         aditya.set_password("intern123")
         aditya.save()
-    for dname in ["Digital Marketing", "Distribution"]:
-        if dname in dept_objs:
-            OPUserDepartmentAccess.objects.get_or_create(user=aditya, department=dept_objs[dname], defaults={'is_active': True})
 
-    # 6. Sample Work Tasks
-    today = timezone.now().date()
-    if not WorkTask.objects.filter(assigned_to=emp_user).exists():
-        WorkTask.objects.create(
-            title="Deploy OP Access Matrix & Department Management",
-            description="Implement OP Access, department access mappings, and employee login creation matching enterprise admin specifications.",
-            assigned_to=emp_user,
-            created_by=admin_user,
-            priority="Urgent",
-            status="In Progress",
-            deadline=today + timedelta(days=2),
-            estimated_hours=8.0,
-            tags="OP Access, Department Matrix, UAM",
+    # 8. Daily Tracker Config
+    config = DailyTrackerConfig.objects.first()
+    if not config:
+        DailyTrackerConfig.objects.create(
+            cutoff_hours=24,
+            task_types_json='["Major", "Minor", "Research", "Documentation", "Meeting", "Support"]',
+            custom_fields_json='[]',
+            auto_lock_enabled=True
         )
+        print("[+] Initialized DailyTrackerConfig (24h cutoff threshold)")
 
-    # 7. Create Session
-    OPSession.objects.get_or_create(
-        user=admin_user,
-        session_token="ops-session-admin-token-001",
-        defaults={
-            "ip_address": "127.0.0.1",
-            "user_agent": "Operations Portal Admin Browser",
-            "is_active": True,
-            "expires_at": timezone.now() + timedelta(days=30),
-        }
-    )
+    # 9. Sample Daily Assigned Tasks
+    today = timezone.now().date()
+    if not DailyAssignedTask.objects.filter(assigned_to=emp_user).exists():
+        DailyAssignedTask.objects.create(
+            title="Deploy Unified Operations Portal & Daily Tracker",
+            description="Implement single user login, superadmin manager appointment dropdown, and full daily work tracker integration.",
+            department="IT",
+            assigned_by=jnana_user,
+            assigned_to=emp_user,
+            task_type="Major",
+            priority="Urgent",
+            due_date=today + timedelta(days=2),
+            status="In Progress"
+        )
+        DailyAssignedTask.objects.create(
+            title="Optimize IT Department Work Tracker & Heatmap",
+            description="Ensure 52-week contribution heatmap, streak milestone badges, and review ratings work seamlessly across all screens.",
+            department="IT",
+            assigned_by=ashley,
+            assigned_to=emp_user,
+            task_type="Major",
+            priority="High",
+            due_date=today + timedelta(days=3),
+            status="Pending"
+        )
+        print("[+] Created Sample Daily Assigned Tasks for Chhayakanta (IT)")
 
-    print("Successfully seeded all OP Access departments, superuser, and employee credentials!")
+    print("\n--------------------------------------------------")
+    print("Seed Complete! All models and initial users ready.")
+    print("Superadmin: jnana@wisbees.com (superadmin123)")
+    print("Manager: ashley.lobo@wisbees.com (intern123)")
+    print("Employee: chhayakanta@wisbees.com (employee123)")
+    print("--------------------------------------------------")
 
 if __name__ == '__main__':
     seed()
