@@ -5,16 +5,18 @@ export const getBaseUrl = () => {
     return process.env.NEXT_PUBLIC_API_URL;
   }
   if (typeof window !== 'undefined') {
-    if (window.location.hostname.includes('onrender.com')) {
+    const host = window.location.hostname;
+    if (host.includes('wisbees.com') || host.includes('vercel.app') || host.includes('onrender.com')) {
       return 'https://beta-fret.onrender.com';
     }
   }
-  return 'http://localhost:8000';
+  return 'https://beta-fret.onrender.com';
 };
 
 export const api = axios.create({
   baseURL: getBaseUrl(),
   withCredentials: true,
+  timeout: 30000,
   headers: {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
