@@ -25,7 +25,20 @@ import { AttendanceTimerWidget } from '@/components/AttendanceTimerWidget';
 
 export default function EmployeeDashboardPage() {
   const [data, setData] = useState<any>(null);
+  const [storedUser, setStoredUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('ops_user');
+        if (cached) {
+          setStoredUser(JSON.parse(cached));
+        }
+      } catch (e) {}
+    }
+    fetchDashboard();
+  }, []);
 
   const fetchDashboard = async () => {
     try {
@@ -33,6 +46,12 @@ export default function EmployeeDashboardPage() {
       const res = await api.get('/employee/dashboard');
       if (res.data) {
         setData(res.data);
+        if (res.data.employee && typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('ops_user', JSON.stringify(res.data.employee));
+            setStoredUser(res.data.employee);
+          } catch (e) {}
+        }
       }
     } catch (err) {
       console.error('Failed to load employee dashboard:', err);
@@ -41,21 +60,22 @@ export default function EmployeeDashboardPage() {
     }
   };
 
-  useEffect(() => {
-    fetchDashboard();
-  }, []);
-
-  const employee = data?.employee || {};
+  const employee = data?.employee || storedUser || {};
   const stats = data?.stats || {};
   const activeTasks = data?.active_tasks || [];
   const recentCompleted = data?.recent_completed || [];
 
-  const assignedRoles = employee.assigned_roles && employee.assigned_roles.length > 0
-    ? employee.assigned_roles
-    : (employee.assigned_role ? [employee.assigned_role] : []);
+  const employeeName = employee.full_name || employee.name || storedUser?.full_name || storedUser?.name || 'Operations Team Member';
+  const designation = employee.designation || storedUser?.designation || employee.emp_type || 'Operations Specialist';
 
-  const assignedDepts = employee.assigned_departments || (employee.department ? [employee.department] : []);
-  const assignedModules = employee.assigned_modules || [];
+  const assignedRoles = (employee.assigned_roles && employee.assigned_roles.length > 0)
+    ? employee.assigned_roles
+    : (employee.assigned_role ? [employee.assigned_role] : (storedUser?.assigned_roles || (storedUser?.assigned_role ? [storedUser.assigned_role] : [])));
+
+  const rawDepts = employee.assigned_departments || (employee.department ? [employee.department] : (storedUser?.assigned_departments || (storedUser?.department ? [storedUser.department] : [])));
+  const assignedDepts = Array.isArray(rawDepts) ? rawDepts.filter(Boolean) : (rawDepts ? [rawDepts] : ['Operations']);
+  const displayDepts = assignedDepts.length > 0 ? assignedDepts.join(' & ') : (employee.department || storedUser?.department || 'Operations');
+  const assignedModules = employee.assigned_modules || storedUser?.assigned_modules || [];
 
   const hour = new Date().getHours();
   let greeting = 'Good Morning';
@@ -82,11 +102,11 @@ export default function EmployeeDashboardPage() {
           </div>
 
           <h2 className="text-lg sm:text-2xl font-black tracking-tight break-words">
-            {greeting}, {employee.name || 'Team Member'} 👋
+            {greeting}, {employeeName} 👋
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
-            {employee.designation || 'Operations Staff'} • <span className="text-sky-300 font-semibold">{assignedDepts.join(' & ')}</span>
+            {designation} • <span className="text-sky-300 font-semibold">{displayDepts}</span>
           </p>
         </div>
 

@@ -5,7 +5,7 @@ import {
   ClipboardCheck, Plus, Trash2, Star, Save, Send, Lock, Unlock, 
   ChevronLeft, ChevronRight, Calendar, Info, Clock, CheckCircle2, 
   AlertCircle, Building2, User, Hash, X, Sparkles, Flame, Trophy,
-  Award, Zap, Shield, Flag, Check, ArrowRight
+  Award, Zap, Shield, Flag, Check, ArrowRight, Crown, Medal, Target, TrendingUp
 } from 'lucide-react';
 import Link from 'next/link';
 import { api, getOpsBaseUrl } from '@/lib/api';
@@ -183,10 +183,10 @@ export default function EmployeeDailyTrackerPage() {
     setTasks(tasks.filter((_, i) => i !== index));
   };
 
-  const totalHours = tasks.reduce((acc, t) => acc + (Number(t.hours_worked) || 0), 0);
-  const achievementsCount = tasks.filter(t => t.is_achievement).length;
-  const isLocked = status === 'Locked';
-  const isSubmitted = status === 'Submitted';
+  const totalHours = (tasks || []).reduce((acc, t) => acc + (Number(t.hours_worked) || 0), 0);
+  const achievementsCount = (tasks || []).filter(t => t.is_achievement).length;
+  const isLocked = status === 'Locked' || (trackerDay && trackerDay.status === 'Locked');
+  const isSubmitted = status === 'Submitted' || (trackerDay && trackerDay.status === 'Submitted');
 
   const handleSave = async (actionType: 'draft' | 'submit') => {
     setSaving(true);
@@ -445,63 +445,163 @@ export default function EmployeeDailyTrackerPage() {
         </div>
       </div>
 
-      {/* GitHub Activity Heatmap (if provided by backend) */}
-      {heatmap && heatmap.weeks && (
-        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-5 shadow-sm relative">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-[var(--text-primary)]">
-              {heatmap.total_submissions || 0} tracker submissions in the last year
-            </span>
-            <div className="flex items-center gap-3 text-[11px] text-[var(--text-muted)]">
-              <span>🕒 {heatmap.total_hours || 0}h Logged</span>
-              <span>⭐ {heatmap.total_achievements || 0} Achievements</span>
-            </div>
-          </div>
+      {/* GitHub-style Activity Heatmap */}
+      {(() => {
+        // Fallback default months if heatmap not loaded yet
+        const monthsList = heatmap?.months_labels && heatmap.months_labels.length > 0
+          ? heatmap.months_labels
+          : [
+              { name: 'Oct', week_col: 0 },
+              { name: 'Nov', week_col: 4 },
+              { name: 'Dec', week_col: 8 },
+              { name: 'Jan', week_col: 13 },
+              { name: 'Feb', week_col: 17 },
+              { name: 'Mar', week_col: 21 },
+              { name: 'Apr', week_col: 26 },
+              { name: 'May', week_col: 30 },
+              { name: 'Jun', week_col: 35 },
+              { name: 'Jul', week_col: 39 },
+              { name: 'Aug', week_col: 43 },
+              { name: 'Sep', week_col: 48 },
+            ];
 
-          <div className="overflow-x-auto pb-2">
-            <div className="flex gap-1 min-w-[600px]">
-              {heatmap.weeks.map((week: any, wIdx: number) => (
-                <div key={wIdx} className="flex flex-col gap-1">
-                  {week.days.map((day: any, dIdx: number) => {
-                    const isSelected = day.date === currentDate;
-                    let bgClass = 'bg-slate-100 dark:bg-slate-800';
-                    if (day.hours > 0) {
-                      if (day.hours < 4) bgClass = 'bg-emerald-200 dark:bg-emerald-950 text-emerald-800';
-                      else if (day.hours < 8) bgClass = 'bg-emerald-400 dark:bg-emerald-800 text-white';
-                      else bgClass = 'bg-emerald-600 dark:bg-emerald-600 text-white';
-                    }
-                    return (
-                      <div
-                        key={dIdx}
-                        onClick={() => setCurrentDate(day.date)}
-                        onMouseEnter={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
-                          setHoveredDay(day);
-                        }}
-                        onMouseLeave={() => setHoveredDay(null)}
-                        className={`w-3 h-3 rounded-xs cursor-pointer transition ${bgClass} ${
-                          isSelected ? 'ring-2 ring-emerald-500 scale-125 z-10' : 'hover:scale-110'
-                        }`}
-                      />
-                    );
-                  })}
+        // Ensure 52 weeks fallback if loading
+        const rawWeeks = heatmap?.weeks || [];
+        const weeksData: any[][] = Array.isArray(rawWeeks) && rawWeeks.length > 0
+          ? rawWeeks.map((w: any) => (Array.isArray(w) ? w : (w?.days || [])))
+          : Array.from({ length: 52 }, () =>
+              Array.from({ length: 7 }, () => ({
+                date: '',
+                hours: 0,
+                level: 0,
+                status: 'None'
+              }))
+            );
+
+        return (
+          <div className="bg-white dark:bg-[#0d1117] border border-slate-200 dark:border-[#30363d] rounded-2xl p-5 shadow-sm dark:shadow-md relative overflow-hidden text-slate-700 dark:text-slate-300">
+            {/* Header info */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-[#30363d]/60">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                  {heatmap?.total_submitted_days || heatmap?.total_submissions || 0} tracker contributions in the last year
+                </span>
+                {heatmap?.current_streak > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                    <Flame className="w-3 h-3" /> {heatmap.current_streak} Day Streak
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400">
+                <span>🕒 {heatmap?.total_hours_year || heatmap?.total_hours || 0}h Logged</span>
+                <span>⭐ {heatmap?.total_achievements_year || heatmap?.total_achievements || 0} Achievements</span>
+              </div>
+            </div>
+
+            {/* Heatmap Grid with Day and Month Labels */}
+            <div className="overflow-x-auto pb-2">
+              <div className="inline-flex flex-col min-w-[720px]">
+                {/* Month Labels Header */}
+                <div className="flex text-[11px] text-slate-500 dark:text-slate-400 mb-2 pl-9">
+                  {monthsList.map((m: any, idx: number) => (
+                    <div
+                      key={idx}
+                      style={{ width: `${(100 / 12)}%`, minWidth: '52px' }}
+                      className="text-left font-medium"
+                    >
+                      {m.name}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Floating Tooltip */}
-          {hoveredDay && (
-            <div
-              style={{ top: tooltipPos.y, left: tooltipPos.x, transform: 'translate(-50%, -100%)' }}
-              className="fixed z-50 pointer-events-none px-2.5 py-1 bg-slate-900 text-white text-[10px] rounded shadow-lg font-medium whitespace-nowrap"
-            >
-              {hoveredDay.date}: {hoveredDay.hours || 0}h • {hoveredDay.status || 'No entry'}
+                {/* Day Labels & 7-Row Grid */}
+                <div className="flex gap-2">
+                  {/* Day of Week Labels (Mon, Wed, Fri) */}
+                  <div className="flex flex-col justify-between text-[10px] text-slate-500 dark:text-slate-400 py-0.5 pr-1 font-medium select-none h-[96px]">
+                    <span className="leading-none">Mon</span>
+                    <span className="leading-none">Wed</span>
+                    <span className="leading-none">Fri</span>
+                  </div>
+
+                  {/* 52 Weeks Grid Columns */}
+                  <div className="flex gap-[3.5px]">
+                    {weeksData.map((weekList: any[], wIdx: number) => {
+                      const daysInWeek = Array.isArray(weekList) ? weekList : [];
+                      return (
+                        <div key={wIdx} className="flex flex-col gap-[3.5px]">
+                          {daysInWeek.map((day: any, dIdx: number) => {
+                            const isSelected = day?.date && day.date === currentDate;
+                            let bgStyle = 'bg-slate-100 dark:bg-[#161b22] border-slate-200/80 dark:border-[#30363d]/50';
+
+                            if (day?.hours > 0 || day?.level > 0) {
+                              if (day.hours >= 9 || day.level === 4) bgStyle = 'bg-[#216e39] dark:bg-[#39d353] border-[#216e39] dark:border-[#39d353]';
+                              else if (day.hours >= 7 || day.level === 3) bgStyle = 'bg-[#30a14e] dark:bg-[#26a641] border-[#30a14e] dark:border-[#26a641]';
+                              else if (day.hours >= 4 || day.level === 2) bgStyle = 'bg-[#40c463] dark:bg-[#006d32] border-[#40c463] dark:border-[#006d32]';
+                              else bgStyle = 'bg-[#9be9a8] dark:bg-[#0e4429] border-[#9be9a8] dark:border-[#0e4429]';
+                            }
+
+                            return (
+                              <div
+                                key={dIdx}
+                                onClick={() => {
+                                  if (day?.date) setCurrentDate(day.date);
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (day?.date) {
+                                    const rect = e.currentTarget.getBoundingClientRect();
+                                    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top - 8 });
+                                    setHoveredDay(day);
+                                  }
+                                }}
+                                onMouseLeave={() => setHoveredDay(null)}
+                                className={`w-[11px] h-[11px] rounded-[2px] border cursor-pointer transition-all ${bgStyle} ${
+                                  isSelected ? 'ring-2 ring-emerald-500 ring-offset-1 ring-offset-white dark:ring-offset-[#0d1117] scale-125 z-10' : 'hover:scale-125 hover:border-slate-400 dark:hover:border-white/40'
+                                }`}
+                              />
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Footer Legend matching GitHub exactly */}
+                <div className="flex items-center justify-between mt-3 pt-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <a
+                    href="#guidelines"
+                    onClick={(e) => { e.preventDefault(); setShowInfoModal(true); }}
+                    className="hover:text-emerald-600 dark:hover:text-emerald-400 transition underline underline-offset-2"
+                  >
+                    Learn how we count contributions
+                  </a>
+
+                  <div className="flex items-center gap-1.5">
+                    <span>Less</span>
+                    <div className="w-[10px] h-[10px] rounded-[2px] bg-slate-100 dark:bg-[#161b22] border border-slate-300 dark:border-[#30363d]/50" />
+                    <div className="w-[10px] h-[10px] rounded-[2px] bg-[#9be9a8] dark:bg-[#0e4429] border border-[#9be9a8] dark:border-[#0e4429]" />
+                    <div className="w-[10px] h-[10px] rounded-[2px] bg-[#40c463] dark:bg-[#006d32] border border-[#40c463] dark:border-[#006d32]" />
+                    <div className="w-[10px] h-[10px] rounded-[2px] bg-[#30a14e] dark:bg-[#26a641] border border-[#30a14e] dark:border-[#26a641]" />
+                    <div className="w-[10px] h-[10px] rounded-[2px] bg-[#216e39] dark:bg-[#39d353] border border-[#216e39] dark:border-[#39d353]" />
+                    <span>More</span>
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      )}
+
+            {/* Floating Tooltip */}
+            {hoveredDay && (
+              <div
+                style={{ top: tooltipPos.y, left: tooltipPos.x, transform: 'translate(-50%, -100%)' }}
+                className="fixed z-50 pointer-events-none px-3 py-1.5 bg-slate-900 dark:bg-[#1f242c] text-white border border-slate-700 dark:border-[#30363d] text-[11px] rounded-lg shadow-xl font-medium whitespace-nowrap animate-fadeIn"
+              >
+                <div className="font-bold text-emerald-400">{hoveredDay.date_display || hoveredDay.date}</div>
+                <div className="text-slate-300 text-[10px]">{hoveredDay.hours || 0}h logged • {hoveredDay.status || 'No submission'}</div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Notifications / Feedback Message */}
       {message && (
@@ -781,6 +881,209 @@ export default function EmployeeDailyTrackerPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ─── STREAK & OPERATIONAL ACHIEVEMENT BADGES SECTION ─── */}
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-5 sm:p-6 shadow-sm space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--card-border)]">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-500 dark:text-amber-400 flex items-center justify-center font-bold shadow-inner">
+              <Trophy className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-black text-[var(--text-primary)]">
+                  Streak Milestones & Achievement Badges
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-amber-500/20 to-rose-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 flex items-center gap-1">
+                  <Flame className="w-3 h-3 text-rose-500" />
+                  {heatmap?.current_streak || 0} Day Active Streak
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Maintain daily tracker submissions to unlock operational recognition tiers and executive badges.
+              </p>
+            </div>
+          </div>
+
+          {/* Quick Metrics */}
+          <div className="flex items-center gap-2 sm:gap-4 bg-[var(--sidebar-bg)] p-2 rounded-xl border border-[var(--card-border)]">
+            <div className="text-center px-2">
+              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)] block">Current</span>
+              <span className="text-sm font-black text-amber-500 flex items-center justify-center gap-0.5">
+                <Flame className="w-3.5 h-3.5 fill-amber-500 text-amber-500" /> {heatmap?.current_streak || 0}d
+              </span>
+            </div>
+            <div className="h-7 w-px bg-[var(--card-border)]" />
+            <div className="text-center px-2">
+              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)] block">Best Streak</span>
+              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                {heatmap?.longest_streak || heatmap?.current_streak || 0}d
+              </span>
+            </div>
+            <div className="h-7 w-px bg-[var(--card-border)]" />
+            <div className="text-center px-2">
+              <span className="text-[10px] font-bold uppercase text-[var(--text-muted)] block">Unlocked</span>
+              <span className="text-sm font-black text-purple-600 dark:text-purple-400">
+                {[21, 30, 60, 120, 256, 360].filter(d => (heatmap?.current_streak || 0) >= d).length} / 6
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 6 Milestone Badges Grid */}
+        {(() => {
+          const userStreak = heatmap?.current_streak || 0;
+          const milestones = [
+            {
+              days: 21,
+              title: "Habit Builder",
+              badgeCode: "BRONZE-21",
+              tagline: "Forming foundational daily consistency",
+              icon: Sparkles,
+              color: "amber",
+              lightBg: "bg-amber-50/70 border-amber-200 text-amber-950",
+              darkBg: "dark:bg-amber-950/30 dark:border-amber-900/60 dark:text-amber-200",
+              iconBg: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+            },
+            {
+              days: 30,
+              title: "Monthly Master",
+              badgeCode: "SILVER-30",
+              tagline: "1 Full month of uninterrupted logging",
+              icon: Medal,
+              color: "slate",
+              lightBg: "bg-slate-50/80 border-slate-200 text-slate-950",
+              darkBg: "dark:bg-slate-900/40 dark:border-slate-700 dark:text-slate-200",
+              iconBg: "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
+            },
+            {
+              days: 60,
+              title: "Relentless Operator",
+              badgeCode: "GOLD-60",
+              tagline: "60 Days deep operational momentum",
+              icon: Zap,
+              color: "yellow",
+              lightBg: "bg-yellow-50/70 border-yellow-200 text-yellow-950",
+              darkBg: "dark:bg-yellow-950/30 dark:border-yellow-900/60 dark:text-yellow-200",
+              iconBg: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300",
+            },
+            {
+              days: 120,
+              title: "Centurion Legend",
+              badgeCode: "DIAMOND-120",
+              tagline: "120 Days elite execution discipline",
+              icon: Shield,
+              color: "sky",
+              lightBg: "bg-sky-50/70 border-sky-200 text-sky-950",
+              darkBg: "dark:bg-sky-950/30 dark:border-sky-900/60 dark:text-sky-200",
+              iconBg: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300",
+            },
+            {
+              days: 256,
+              title: "Byte Champion (2⁸)",
+              badgeCode: "CYBER-256",
+              tagline: "256 Days power-of-two operational tier",
+              icon: Target,
+              color: "purple",
+              lightBg: "bg-purple-50/70 border-purple-200 text-purple-950",
+              darkBg: "dark:bg-purple-950/30 dark:border-purple-900/60 dark:text-purple-200",
+              iconBg: "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300",
+            },
+            {
+              days: 360,
+              title: "Annual Titan",
+              badgeCode: "TITAN-360",
+              tagline: "Full year 360° operational dedication",
+              icon: Crown,
+              color: "rose",
+              lightBg: "bg-rose-50/70 border-rose-200 text-rose-950",
+              darkBg: "dark:bg-rose-950/30 dark:border-rose-900/60 dark:text-rose-200",
+              iconBg: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
+            },
+          ];
+
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {milestones.map((m) => {
+                const IconComponent = m.icon;
+                const isUnlocked = userStreak >= m.days;
+                const progressPct = Math.min(100, Math.round((userStreak / m.days) * 100));
+                const daysRemaining = Math.max(0, m.days - userStreak);
+
+                return (
+                  <div
+                    key={m.days}
+                    className={`relative rounded-2xl border p-4.5 transition-all duration-300 overflow-hidden flex flex-col justify-between ${
+                      isUnlocked
+                        ? `${m.lightBg} ${m.darkBg} shadow-sm ring-1 ring-amber-400/30`
+                        : 'bg-[var(--card-bg)] border-[var(--card-border)] opacity-85 hover:opacity-100'
+                    }`}
+                  >
+                    {/* Top Row: Icon & Status */}
+                    <div>
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold shadow-xs ${
+                          isUnlocked
+                            ? m.iconBg
+                            : 'bg-[var(--sidebar-bg)] text-[var(--text-muted)] border border-[var(--card-border)]'
+                        }`}>
+                          <IconComponent className={`w-6 h-6 ${isUnlocked ? 'animate-pulse' : ''}`} />
+                        </div>
+
+                        <div>
+                          {isUnlocked ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500 text-white shadow-xs">
+                              <CheckCircle2 className="w-3 h-3" /> Unlocked
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-[var(--sidebar-bg)] text-[var(--text-muted)] border border-[var(--card-border)]">
+                              <Lock className="w-3 h-3" /> {daysRemaining}d to go
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Badge Details */}
+                      <div>
+                        <div className="flex items-baseline justify-between gap-2">
+                          <h4 className="text-sm font-black text-[var(--text-primary)]">
+                            {m.title}
+                          </h4>
+                          <span className="text-[11px] font-black text-amber-600 dark:text-amber-400">
+                            {m.days} Days
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-[var(--text-muted)] mt-1 line-clamp-2 leading-relaxed">
+                          {m.tagline}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Bottom Progress Bar */}
+                    <div className="mt-4 pt-3 border-t border-[var(--card-border)]/60">
+                      <div className="flex items-center justify-between text-[10px] font-bold text-[var(--text-muted)] mb-1.5">
+                        <span>Progress ({userStreak}/{m.days} days)</span>
+                        <span className="font-extrabold text-[var(--text-primary)]">{progressPct}%</span>
+                      </div>
+                      <div className="w-full h-2 rounded-full bg-[var(--sidebar-bg)] border border-[var(--card-border)] overflow-hidden">
+                        <div
+                          style={{ width: `${progressPct}%` }}
+                          className={`h-full transition-all duration-500 rounded-full ${
+                            isUnlocked
+                              ? 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-xs'
+                              : 'bg-gradient-to-r from-amber-500 to-sky-500'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Guidelines Modal */}

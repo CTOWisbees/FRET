@@ -173,10 +173,17 @@ def serialize_user(user):
     is_mgr = bool(user.is_manager or len(managed_depts) > 0)
     is_super = bool(user.is_superadmin or user.role == 'admin')
 
+    user_name = user.name or user.full_name or ''
+    if not user_name and user.email:
+        user_name = user.email.split('@')[0].replace('.', ' ').title()
+    if not user_name:
+        user_name = 'Team Member'
+    full_name_val = user.full_name or user.name or user_name
+
     return {
         'id': user.id,
-        'name': user.name,
-        'full_name': user.full_name or user.name,
+        'name': user_name,
+        'full_name': full_name_val,
         'email': user.email,
         'role': user.role,
         'is_superadmin': is_super,
@@ -186,7 +193,7 @@ def serialize_user(user):
         'emp_type': user.emp_type or ('Intern' if 'intern' in (user.designation or '').lower() else 'Normal'),
         'phone': user.phone,
         'emp_code': user.emp_code or f"OPS-{user.id:04d}",
-        'designation': user.designation,
+        'designation': user.designation or ('Operations Manager' if is_mgr else 'Operations Specialist'),
         'department': user.department or (depts[0] if depts else 'Operations'),
         'assigned_departments': depts,
         'assigned_modules': modules,
@@ -747,8 +754,8 @@ def api_admin_dashboard(request):
     if not user or user.role != 'admin':
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
-    total_employees = OperationUser.objects.filter(role='employee').count()
-    active_employees = OperationUser.objects.filter(role='employee', is_active=True, status='Active').count()
+    total_employees = OperationUser.objects.count()
+    active_employees = OperationUser.objects.filter(is_active=True).count()
     total_tasks = WorkTask.objects.count()
     completed_tasks = WorkTask.objects.filter(status='Completed').count()
     in_progress_tasks = WorkTask.objects.filter(status='In Progress').count()
@@ -1052,29 +1059,28 @@ def api_admin_tasks(request):
         target_assignees = []
 
         if assign_mode == 'everyone':
-            target_assignees = list(OperationUser.objects.filter(role='employee', status='Active'))
+            target_assignees = list(OperationUser.objects.filter(is_active=True))
             if not target_assignees:
-                return JsonResponse({'error': 'No active employees found to assign.'}, status=400)
+                return JsonResponse({'error': 'No active team members found to assign.'}, status=400)
 
         elif assign_mode == 'department':
             target_dept = data.get('target_department', '').strip()
             if not target_dept:
                 return JsonResponse({'error': 'Please select a target department.'}, status=400)
             
-            # Match employees in this department or having it in assigned_departments
-            all_emps = OperationUser.objects.filter(role='employee', status='Active')
+            all_emps = OperationUser.objects.filter(is_active=True)
             target_assignees = [
                 emp for emp in all_emps
                 if emp.department == target_dept or (isinstance(emp.assigned_departments, list) and target_dept in emp.assigned_departments)
             ]
             if not target_assignees:
-                return JsonResponse({'error': f'No active employees found in department "{target_dept}".'}, status=400)
+                return JsonResponse({'error': f'No active team members found in department "{target_dept}".'}, status=400)
 
         elif assign_mode == 'multiple':
             assigned_to_ids = data.get('assigned_to_ids', [])
             if not assigned_to_ids:
                 return JsonResponse({'error': 'Please select at least one assignee.'}, status=400)
-            target_assignees = list(OperationUser.objects.filter(id__in=assigned_to_ids, role='employee'))
+            target_assignees = list(OperationUser.objects.filter(id__in=assigned_to_ids, is_active=True))
             if not target_assignees:
                 return JsonResponse({'error': 'Selected assignees not found.'}, status=400)
 
@@ -1101,11 +1107,27 @@ def api_admin_tasks(request):
             )
             created_tasks.append(task)
 
+            # Also create corresponding DailyAssignedTask for seamless tracker sync
+            try:
+                DailyAssignedTask.objects.create(
+                    title=title,
+                    description=description,
+                    department=assignee.department or 'Operations',
+                    assigned_by=user,
+                    assigned_to=assignee,
+                    task_type='Major' if priority in ['Urgent', 'High'] else 'Minor',
+                    priority=priority,
+                    due_date=deadline,
+                    status='Pending'
+                )
+            except Exception:
+                pass
+
         if len(target_assignees) == 1:
             ActivityLog.objects.create(user=user, action=f"Assigned task '{title}' to {target_assignees[0].name}")
             return JsonResponse({'success': True, 'message': f"Task assigned to {target_assignees[0].name} successfully", 'task': serialize_task(created_tasks[0])})
         else:
-            ActivityLog.objects.create(user=user, action=f"Assigned task '{title}' to {len(target_assignees)} employees ({assign_mode})")
+            ActivityLog.objects.create(user=user, action=f"Assigned task '{title}' to {len(target_assignees)} team members ({assign_mode})")
             return JsonResponse({'success': True, 'message': f"Task broadcasted to {len(target_assignees)} team members successfully!", 'tasks': [serialize_task(t) for t in created_tasks]})
 
 
@@ -1183,19 +1205,30 @@ def api_employee_dashboard(request):
     completed_count = my_tasks.filter(status='Completed').count()
     urgent_count = my_tasks.filter(priority='Urgent', status__in=['Todo', 'In Progress']).count()
 
-    active_tasks = my_tasks.exclude(status='Completed').order_by('deadline', '-created_at')[:5]
-    recent_completed = my_tasks.filter(status='Completed').order_by('-completed_at')[:4]
+    today_dt = timezone.now().date()
+    today_tracker = DailyTrackerDay.objects.filter(user=emp, date=today_dt).first()
+
+    assigned_dept_tasks = DailyAssignedTask.objects.filter(
+        Q(assigned_to=emp) |
+        (Q(department__in=emp.assigned_departments or [emp.department or 'Operations']) & Q(assigned_to__isnull=True))
+    )
+    assigned_dept_active_count = assigned_dept_tasks.filter(status__in=['Pending', 'In Progress']).count()
+
+    active_tasks = my_tasks.filter(status__in=['Todo', 'In Progress', 'Under Review']).order_by('-created_at')[:10]
+    recent_completed = my_tasks.filter(status='Completed').order_by('-updated_at')[:5]
 
     return JsonResponse({
         'employee': serialize_user(emp),
         'stats': {
-            'total_tasks': total_tasks,
-            'todo_count': todo_count,
+            'total_tasks': total_tasks + assigned_dept_tasks.count(),
+            'todo_count': todo_count + assigned_dept_active_count,
             'in_progress_count': in_progress_count,
             'under_review_count': under_review_count,
-            'completed_count': completed_count,
+            'completed_count': completed_count + assigned_dept_tasks.filter(status='Completed').count(),
             'urgent_count': urgent_count,
             'completion_rate': round((completed_count / total_tasks * 100), 1) if total_tasks else 0,
+            'today_logged_hours': round(today_tracker.total_hours, 1) if today_tracker else 0.0,
+            'today_tracker_status': today_tracker.status if today_tracker else 'Draft',
         },
         'active_tasks': [serialize_task(t) for t in active_tasks],
         'recent_completed': [serialize_task(t) for t in recent_completed],
@@ -2269,13 +2302,21 @@ def api_assigned_tasks(request):
         for t in qs[:150]
     ]
 
+    all_active_depts = list(Department.objects.filter(is_active=True).order_by('name').values_list('name', flat=True))
+    if not all_active_depts:
+        all_active_depts = managed_depts or [user.department or 'Operations']
+
+    active_employees = OperationUser.objects.filter(is_active=True).order_by('name')
+
     return JsonResponse({
         'success': True,
         'count': len(tasks_data),
         'tasks': tasks_data,
         'user_is_manager': user.is_manager,
         'user_is_superadmin': is_superadmin,
-        'managed_departments': managed_depts,
+        'managed_departments': managed_depts or all_active_depts,
+        'departments': all_active_depts,
+        'team_members': [serialize_user(emp) for emp in active_employees],
     })
 
 
@@ -2283,9 +2324,10 @@ def api_assigned_tasks(request):
 @require_POST
 def api_create_assigned_task(request):
     """
-    Superadmin or Department Manager creates a task:
-    - Superadmin can assign to any department and any employee.
-    - Department Manager can assign to their managed department(s) and any employee in that department.
+    Superadmin or Department Manager creates tasks:
+    - Single Person: 1 task assigned to specific employee
+    - Multiple Persons: Clones task to all selected employees
+    - By Department / Broadcast: 1 task assigned to whole department
     """
     user = get_current_user(request)
     if not user:
@@ -2300,7 +2342,9 @@ def api_create_assigned_task(request):
     title = (data.get('title') or '').strip()
     description = (data.get('description') or '').strip()
     department = (data.get('department') or '').strip()
+    assign_mode = data.get('assign_mode', 'single')
     assigned_to_id = data.get('assigned_to_id')
+    assigned_to_ids = data.get('assigned_to_ids', [])
     task_type = data.get('task_type') or 'Major'
     priority = data.get('priority') or 'Normal'
     due_date_str = data.get('due_date')
@@ -2318,10 +2362,6 @@ def api_create_assigned_task(request):
         if managed_depts and department not in managed_depts:
             return JsonResponse({'success': False, 'error': f'You are only authorized to assign tasks in: {", ".join(managed_depts)}'}, status=403)
 
-    assigned_to_user = None
-    if assigned_to_id:
-        assigned_to_user = OperationUser.objects.filter(id=assigned_to_id).first()
-
     due_date = None
     if due_date_str:
         try:
@@ -2329,28 +2369,84 @@ def api_create_assigned_task(request):
         except Exception:
             pass
 
-    task = DailyAssignedTask.objects.create(
-        title=title,
-        description=description,
-        department=department,
-        assigned_by=user,
-        assigned_to=assigned_to_user,
-        task_type=task_type,
-        priority=priority,
-        due_date=due_date,
-        status='Pending'
-    )
+    created_tasks = []
 
-    ActivityLog.objects.create(
-        user=user,
-        action=f"Created task '{title}' for {assigned_to_user.name if assigned_to_user else department} ({department})"
-    )
+    if assign_mode == 'multiple' and assigned_to_ids:
+        target_users = OperationUser.objects.filter(id__in=assigned_to_ids, is_active=True)
+        for emp in target_users:
+            t = DailyAssignedTask.objects.create(
+                title=title,
+                description=description,
+                department=department,
+                assigned_by=user,
+                assigned_to=emp,
+                task_type=task_type,
+                priority=priority,
+                due_date=due_date,
+                status='Pending'
+            )
+            created_tasks.append(t)
 
-    return JsonResponse({
-        'success': True,
-        'message': f"Task '{title}' assigned successfully!",
-        'task_id': task.id,
-    })
+        ActivityLog.objects.create(
+            user=user,
+            action=f"Assigned task '{title}' to {len(created_tasks)} team members in ({department})"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f"Task assigned to {len(created_tasks)} team members successfully!",
+            'task_ids': [t.id for t in created_tasks],
+        })
+
+    elif assign_mode == 'single' and assigned_to_id:
+        assigned_to_user = OperationUser.objects.filter(id=assigned_to_id).first()
+        task = DailyAssignedTask.objects.create(
+            title=title,
+            description=description,
+            department=department,
+            assigned_by=user,
+            assigned_to=assigned_to_user,
+            task_type=task_type,
+            priority=priority,
+            due_date=due_date,
+            status='Pending'
+        )
+
+        ActivityLog.objects.create(
+            user=user,
+            action=f"Created task '{title}' for {assigned_to_user.name if assigned_to_user else department} ({department})"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f"Task assigned to {assigned_to_user.name if assigned_to_user else 'team member'} successfully!",
+            'task_id': task.id,
+        })
+
+    else:
+        # Department broadcast mode
+        task = DailyAssignedTask.objects.create(
+            title=title,
+            description=description,
+            department=department,
+            assigned_by=user,
+            assigned_to=None,
+            task_type=task_type,
+            priority=priority,
+            due_date=due_date,
+            status='Pending'
+        )
+
+        ActivityLog.objects.create(
+            user=user,
+            action=f"Created broadcast task '{title}' for department ({department})"
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': f"Broadcast task assigned to department {department} successfully!",
+            'task_id': task.id,
+        })
 
 
 @csrf_exempt
@@ -3112,49 +3208,67 @@ def api_admin_tracker_unlock_requests(request):
     """
     Lists pending unlock requests for managers and admins.
     """
-    current_user = get_current_user(request)
-    if not current_user:
-        return JsonResponse({'error': 'Unauthorized'}, status=401)
+    try:
+        current_user = get_current_user(request)
+        if not current_user:
+            return JsonResponse({'error': 'Unauthorized'}, status=401)
 
-    is_superadmin = bool(current_user.is_superadmin or current_user.role == 'admin')
-    is_manager = bool(current_user.is_manager)
-    managed_depts = list(current_user.managed_departments or [])
+        is_superadmin = bool(current_user.is_superadmin or current_user.role == 'admin')
+        is_manager = bool(current_user.is_manager)
+        managed_depts = current_user.managed_departments if isinstance(current_user.managed_departments, list) else []
 
-    if not is_superadmin and not is_manager:
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
+        if not is_superadmin and not is_manager:
+            return JsonResponse({'error': 'Unauthorized', 'requests': []}, status=403)
 
-    qs = DailyTrackerUnlockRequest.objects.all().select_related('user', 'tracker_day')
-    if not is_superadmin:
-        qs = qs.filter(user__department__in=managed_depts)
+        qs = DailyTrackerUnlockRequest.objects.all().select_related('user', 'tracker_day')
+        if not is_superadmin:
+            qs = qs.filter(user__department__in=managed_depts)
 
-    status_filter = request.GET.get('status', 'Pending')
-    if status_filter != 'all':
-        qs = qs.filter(status=status_filter)
+        status_filter = request.GET.get('status', 'Pending')
+        if status_filter and status_filter.lower() != 'all':
+            qs = qs.filter(status__iexact=status_filter)
 
-    data = [
-        {
-            'id': req.id,
-            'tracker_day_id': req.tracker_day.id,
-            'date': req.tracker_day.date.strftime('%Y-%m-%d'),
-            'user_id': req.user.id,
-            'user_name': req.user.name,
-            'user_email': req.user.email,
-            'department': req.user.department,
-            'reason': req.reason,
-            'status': req.status,
-            'requested_at': req.requested_at.isoformat(),
-            'reviewed_by': req.reviewed_by or '',
-            'reviewed_at': req.reviewed_at.isoformat() if req.reviewed_at else None,
-            'review_notes': req.review_notes or '',
-        }
-        for req in qs.order_by('-requested_at')
-    ]
+        data = []
+        for req in qs.order_by('-requested_at'):
+            t_id = req.tracker_day.id if req.tracker_day else None
+            t_date = req.tracker_day.date.strftime('%Y-%m-%d') if (req.tracker_day and req.tracker_day.date) else ''
+            u_id = req.user.id if req.user else None
+            u_name = req.user.name if req.user else 'Unknown User'
+            u_email = req.user.email if req.user else ''
+            u_dept = req.user.department if req.user else ''
+            req_at = req.requested_at.isoformat() if req.requested_at else None
+            rev_at = req.reviewed_at.isoformat() if req.reviewed_at else None
 
-    return JsonResponse({
-        'success': True,
-        'requests': data,
-        'count': len(data),
-    })
+            data.append({
+                'id': req.id,
+                'tracker_day_id': t_id,
+                'date': t_date,
+                'user_id': u_id,
+                'user_name': u_name,
+                'user_email': u_email,
+                'department': u_dept,
+                'reason': req.reason or '',
+                'status': req.status or 'Pending',
+                'requested_at': req_at,
+                'reviewed_by': req.reviewed_by or '',
+                'reviewed_at': rev_at,
+                'review_notes': req.review_notes or '',
+            })
+
+        return JsonResponse({
+            'success': True,
+            'requests': data,
+            'count': len(data),
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'success': False,
+            'error': str(e),
+            'requests': [],
+            'count': 0
+        }, status=200)
 
 
 @csrf_exempt

@@ -65,6 +65,12 @@ class Employee(models.Model):
     is_manager = models.BooleanField(default=False)
     managed_department = models.CharField(max_length=100, null=True, blank=True)
     reporting_manager = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='direct_reports')
+    is_superadmin = models.BooleanField(default=False)
+    nda_submitted = models.BooleanField(default=False)
+    nda_submitted_at = models.DateTimeField(null=True, blank=True)
+    nda_signature = models.CharField(max_length=255, null=True, blank=True)
+    nda_doc_data = models.BinaryField(null=True, blank=True)
+    nda_doc_name = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         db_table = 'employee'
@@ -121,9 +127,30 @@ class LeaveRequest(models.Model):
     reason = models.TextField(null=True, blank=True)
     status = models.CharField(max_length=20, default='Pending')
     applied_on = models.DateTimeField(default=timezone.now)
+    approved_by = models.CharField(max_length=100, null=True, blank=True)
+    approved_by_role = models.CharField(max_length=50, null=True, blank=True)  # Manager | SuperAdmin | HR
+    rejection_reason = models.TextField(null=True, blank=True)
 
     class Meta:
         db_table = 'leave_request'
+
+
+class KRAItem(models.Model):
+    id = models.AutoField(primary_key=True)
+    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='kras', db_column='employee_id')
+    title = models.CharField(max_length=255)
+    description = models.TextField(null=True, blank=True)
+    kpi_metrics = models.TextField(null=True, blank=True)
+    weightage = models.IntegerField(default=25)
+    target_timeline = models.CharField(max_length=100, default='Quarterly')
+    status = models.CharField(max_length=50, default='Active')  # Active | In Progress | Completed | Needs Review
+    assigned_by = models.CharField(max_length=100, null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'employee_kra'
+        ordering = ['-weightage', 'id']
 
 
 class EmailConfig(models.Model):

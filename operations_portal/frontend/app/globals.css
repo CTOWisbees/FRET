@@ -23,22 +23,22 @@
 }
 
 html.dark, body.dark, [data-theme="dark"] {
-  --bg-main: #070B14;
-  --bg-subtle: #0F172A;
-  --card-bg: #0F172A;
-  --card-border: #1E293B;
-  --card-hover: #172238;
-  --header-bg: rgba(15, 23, 42, 0.9);
+  --bg-main: #06080D;
+  --bg-subtle: #0B0E17;
+  --card-bg: #0C0F1A;
+  --card-border: #171D2D;
+  --card-hover: #131929;
+  --header-bg: rgba(6, 8, 13, 0.92);
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --input-bg: #0A0F1D;
-  --input-border: #1E293B;
-  --hover-bg: #1E293B;
+  --input-bg: #080A12;
+  --input-border: #1C2337;
+  --hover-bg: #151D2F;
   --accent: #38BDF8;
   --accent-light: rgba(56, 189, 248, 0.15);
   --accent-glow: rgba(56, 189, 248, 0.25);
-  --hero-bg: linear-gradient(135deg, #070B14 0%, #0B1120 50%, #111827 100%);
+  --hero-bg: linear-gradient(135deg, #06080D 0%, #0A0E1A 50%, #0F1424 100%);
   color-scheme: dark;
 }
 

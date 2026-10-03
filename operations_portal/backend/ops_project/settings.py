@@ -5,11 +5,18 @@ from dotenv import load_dotenv
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / '.env')
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-ops-portal-secret-key-replace-in-prod-xyz123')
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', os.environ.get('SECRET_KEY', 'django-insecure-ops-portal-secret-key-replace-in-prod-xyz123'))
 
-DEBUG = os.environ.get('DEBUG', '1') == '1'
+DEBUG = os.environ.get('DEBUG', 'True').lower() in ('true', '1', 't')
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = [
+    '*',
+    'ops.backend.wisbees.com',
+    'ops.wisbees.com',
+    '.onrender.com',
+    'localhost',
+    '127.0.0.1',
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -139,6 +146,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8001',
     'https://operation-r9e5.onrender.com',
     'https://*.onrender.com',
+    'https://ops.wisbees.com',
+    'https://ops.backend.wisbees.com',
 ]
 
 # ─────────────────────────────────────────────────────────────

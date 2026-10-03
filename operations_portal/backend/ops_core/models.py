@@ -115,6 +115,7 @@ class OperationUser(models.Model):
         # 3. Plaintext fallback if needed
         return self.password == raw_password
 
+
     def __str__(self):
         display_name = self.full_name or self.name or self.email
         return f"{display_name} ({self.email})"

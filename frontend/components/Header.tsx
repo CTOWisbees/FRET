@@ -5,10 +5,14 @@ import { Sun, Moon, Menu } from 'lucide-react';
 
 export default function Header({ 
   title = 'Dashboard',
-  onMenuClick
+  subtitle,
+  onMenuClick,
+  setMobileOpen,
 }: { 
   title?: string;
+  subtitle?: string;
   onMenuClick?: () => void;
+  setMobileOpen?: React.Dispatch<React.SetStateAction<boolean>> | ((open: boolean) => void);
 }) {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
@@ -27,7 +31,9 @@ export default function Header({
   };
 
   const handleMenu = () => {
-    if (onMenuClick) {
+    if (setMobileOpen) {
+      setMobileOpen(true);
+    } else if (onMenuClick) {
       onMenuClick();
     } else {
       window.dispatchEvent(new Event('toggle-sidebar'));
@@ -45,7 +51,10 @@ export default function Header({
         >
           <Menu className="w-5 h-5 text-[var(--accent)]" />
         </button>
-        <h1 className="text-lg sm:text-xl font-bold text-[var(--text)] tracking-tight font-['Plus_Jakarta_Sans']">{title}</h1>
+        <div>
+          <h1 className="text-lg sm:text-xl font-bold text-[var(--text)] tracking-tight font-['Plus_Jakarta_Sans']">{title}</h1>
+          {subtitle && <p className="text-xs text-[var(--text2)] -mt-0.5">{subtitle}</p>}
+        </div>
       </div>
 
       <div className="flex items-center space-x-3">

@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
   BarChart3, Users, UserPlus, CalendarCheck, CalendarMinus, 
-  Megaphone, Settings, User, LogOut, Briefcase, X, ClipboardCheck
+  Megaphone, Settings, User, LogOut, Briefcase, X, ClipboardCheck,
+  Target, ShieldCheck, Crown, CheckSquare
 } from 'lucide-react';
 
 import { api } from '@/lib/api';
@@ -268,6 +269,18 @@ export default function Sidebar({
                       <span>Attendance</span>
                     </Link>
 
+                    <Link
+                      href="/kra"
+                      onClick={closeMobile}
+                      className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                        pathname === '/kra'
+                          ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                          : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                      }`}
+                    >
+                      <Target className="w-4 h-4 text-emerald-500" />
+                      <span>KRA (Responsibility)</span>
+                    </Link>
 
                     <Link
                       href="/work"
@@ -296,6 +309,80 @@ export default function Sidebar({
                     </Link>
                   </div>
                 </div>
+
+                {/* Manager Workspace (Visible to Managers) */}
+                {currentUser?.is_manager && (
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1.5 px-3 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Manager Workspace ({currentUser?.managed_department || currentUser?.department || 'Dept'})</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <Link
+                        href="/leave-management"
+                        onClick={closeMobile}
+                        className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                          pathname === '/leave-management'
+                            ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                            : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                        }`}
+                      >
+                        <CheckSquare className="w-4 h-4 text-amber-500" />
+                        <span>Team Leaves ({currentUser?.managed_department || 'Dept'})</span>
+                      </Link>
+
+                      <Link
+                        href="/kra?view=team"
+                        onClick={closeMobile}
+                        className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                          pathname === '/kra' && typeof window !== 'undefined' && window.location.search.includes('view=team')
+                            ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                            : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                        }`}
+                      >
+                        <Target className="w-4 h-4 text-amber-500" />
+                        <span>Department KRAs</span>
+                      </Link>
+                    </div>
+                  </div>
+                )}
+
+                {/* SuperAdmin Workspace (Visible to SuperAdmins) */}
+                {currentUser?.is_superadmin && (
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-purple-500 mb-1.5 px-3 flex items-center gap-1.5">
+                      <Crown className="w-3.5 h-3.5" />
+                      <span>SuperAdmin Workspace</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      <Link
+                        href="/leave-management?filter=manager_leaves"
+                        onClick={closeMobile}
+                        className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                          pathname === '/leave-management'
+                            ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                            : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                        }`}
+                      >
+                        <CheckSquare className="w-4 h-4 text-purple-500" />
+                        <span>Manager Leaves Approval</span>
+                      </Link>
+
+                      <Link
+                        href="/kra?view=team"
+                        onClick={closeMobile}
+                        className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                          pathname === '/kra'
+                            ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                            : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                        }`}
+                      >
+                        <Target className="w-4 h-4 text-purple-500" />
+                        <span>Organization KRAs</span>
+                      </Link>
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text3)] mb-1.5 px-3">Communication</div>

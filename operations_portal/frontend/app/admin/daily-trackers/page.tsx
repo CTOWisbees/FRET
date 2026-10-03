@@ -54,11 +54,13 @@ export default function AdminDailyTrackersPage() {
   const fetchUnlockRequests = async () => {
     try {
       const res = await api.get('/tracker/admin/unlock-requests?status=all');
-      if (res.data?.success) {
-        setUnlockRequests(res.data.requests || []);
+      if (res.data?.success && Array.isArray(res.data.requests)) {
+        setUnlockRequests(res.data.requests);
+      } else {
+        setUnlockRequests([]);
       }
     } catch (err) {
-      console.error('Failed to load unlock requests:', err);
+      setUnlockRequests([]);
     }
   };
 

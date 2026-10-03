@@ -30,6 +30,10 @@ export default function ProfilePage() {
   const [showIdCardModal, setShowIdCardModal] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [ndaSignature, setNdaSignature] = useState('');
+  const [ndaAgreed, setNdaAgreed] = useState(false);
+  const [submittingNda, setSubmittingNda] = useState(false);
+  const [ndaSubmitted, setNdaSubmitted] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modalCardRef = useRef<HTMLDivElement>(null);
   const modalBarcodeRef = useRef<SVGSVGElement>(null);
@@ -191,6 +195,44 @@ export default function ProfilePage() {
       showAlert('Failed to upload profile photo.', 'error');
     } finally {
       setUploadingPhoto(false);
+    }
+  };
+
+  // Employee: Submit NDA
+  const handleSubmitNda = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ndaAgreed) {
+      showAlert('Please check the box to confirm you agree with the NDA terms.', 'error');
+      return;
+    }
+    const sig = ndaSignature.trim() || employee?.name || 'Employee Signature';
+    setSubmittingNda(true);
+    try {
+      const res = await api.post('/api/nda/submit', {
+        signature_name: sig,
+        agreed: true
+      });
+      if (res.data?.success) {
+        showAlert('Non-Disclosure Agreement (NDA) successfully submitted and signed!');
+        setNdaSubmitted(true);
+        if (employee) {
+          const updated = {
+            ...employee,
+            nda_submitted: true,
+            nda_signature: sig,
+            nda_submitted_at: new Date().toLocaleDateString('en-GB')
+          };
+          setEmployee(updated);
+          localStorage.setItem('fret_user', JSON.stringify(updated));
+        }
+      } else {
+        showAlert(res.data?.message || 'Failed to submit NDA.', 'error');
+      }
+    } catch (err: any) {
+      console.error('NDA submit error:', err);
+      showAlert(err.response?.data?.message || 'Failed to submit NDA agreement.', 'error');
+    } finally {
+      setSubmittingNda(false);
     }
   };
 
@@ -616,6 +658,101 @@ export default function ProfilePage() {
                   </Link>
                 </div>
               </div>
+
+              {/* NDA Submission Section (Only shown if NOT submitted yet) */}
+              {(!employee?.nda_submitted && ndaSubmitted !== true) && (
+                <div className="bg-gradient-to-br from-[var(--surface)] to-[var(--surface2)] border-2 border-indigo-500/30 rounded-2xl p-6 sm:p-7 shadow-lg space-y-5 animate-fadeIn relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border)] pb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-[#4F46E5] flex items-center justify-center font-bold">
+                        <FileSignature className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-extrabold text-[var(--text)] font-['Plus_Jakarta_Sans']">
+                          Non-Disclosure Agreement (NDA) Submission
+                        </h3>
+                        <p className="text-xs text-[var(--text3)]">
+                          Action Required: Complete your digital NDA signature for organizational compliance
+                        </p>
+                      </div>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 self-start sm:self-auto">
+                      <AlertCircle className="w-3.5 h-3.5" />
+                      <span>Pending Submission</span>
+                    </span>
+                  </div>
+
+                  {/* Summary Terms Box */}
+                  <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] text-xs text-[var(--text2)] space-y-2.5 max-h-48 overflow-y-auto leading-relaxed">
+                    <div className="font-bold text-[var(--text)] text-xs uppercase tracking-wider">
+                      NDA Agreement Terms Summary — TimeArrow Pvt. Ltd. (WisBees)
+                    </div>
+                    <p>
+                      1. <strong>Confidentiality & Non-Disclosure:</strong> You agree to maintain strict confidentiality regarding all proprietary software, algorithms, client databases, research insights, and internal operations.
+                    </p>
+                    <p>
+                      2. <strong>Intellectual Property:</strong> All software codebases, data models, and documentation created during your engagement are the sole property of the organization.
+                    </p>
+                    <p>
+                      3. <strong>Data Security:</strong> No proprietary assets or code may be transferred or disclosed to external unauthorized parties or personal repositories.
+                    </p>
+                    <p>
+                      4. <strong>Legal Validity:</strong> This electronic confirmation constitutes a legally binding agreement under the Information Technology Act.
+                    </p>
+                  </div>
+
+                  {/* Form */}
+                  <form onSubmit={handleSubmitNda} className="space-y-4 pt-1">
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-1.5">
+                        Full Legal Name (Electronic Signature) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        value={ndaSignature}
+                        onChange={(e) => setNdaSignature(e.target.value)}
+                        placeholder={employee?.name || 'Enter your full legal name'}
+                        className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-semibold text-[var(--text)] focus:outline-none focus:border-[#4F46E5] transition"
+                      />
+                    </div>
+
+                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={ndaAgreed}
+                        onChange={(e) => setNdaAgreed(e.target.checked)}
+                        className="mt-1 w-4 h-4 rounded text-[#4F46E5] focus:ring-[#4F46E5] cursor-pointer"
+                      />
+                      <span className="text-xs text-[var(--text2)] leading-relaxed font-medium">
+                        I hereby confirm that I have read, understood, and voluntarily agree to be legally bound by the terms and conditions of the Non-Disclosure Agreement (NDA).
+                      </span>
+                    </label>
+
+                    <div className="pt-2">
+                      <button
+                        type="submit"
+                        disabled={submittingNda || !ndaAgreed}
+                        className="px-6 py-3 bg-[#4F46E5] hover:bg-[#4338CA] text-white font-bold text-xs rounded-xl shadow-md transition flex items-center gap-2 disabled:opacity-50 active:scale-95 cursor-pointer"
+                      >
+                        {submittingNda ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Submitting NDA...</span>
+                          </>
+                        ) : (
+                          <>
+                            <FileSignature className="w-4 h-4" />
+                            <span>Submit NDA Agreement</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
             </div>
           ) : (
             /* ═══════════════════════════════════════════════════════════════ */
