@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { 
   BarChart3, Users, UserPlus, CalendarCheck, CalendarMinus, 
   Megaphone, Settings, User, LogOut, Briefcase, X, ClipboardCheck,
@@ -21,8 +21,12 @@ export default function Sidebar({
   setMobileOpen?: (open: boolean) => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const [internalOpen, setInternalOpen] = React.useState(false);
+
+  const viewParam = searchParams ? searchParams.get('view') : null;
+  const filterParam = searchParams ? searchParams.get('filter') : null;
   const [currentUser, setCurrentUser] = React.useState<any>(user);
 
   React.useEffect(() => {
@@ -294,7 +298,7 @@ export default function Sidebar({
                       href="/kra"
                       onClick={closeMobile}
                       className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                        pathname === '/kra'
+                        pathname === '/kra' && viewParam !== 'team'
                           ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
                           : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
                       }`}
@@ -343,7 +347,7 @@ export default function Sidebar({
                         href="/leave-management"
                         onClick={closeMobile}
                         className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/leave-management'
+                          pathname === '/leave-management' && filterParam !== 'manager_leaves'
                             ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
                             : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
                         }`}
@@ -356,7 +360,7 @@ export default function Sidebar({
                         href="/kra?view=team"
                         onClick={closeMobile}
                         className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/kra' && typeof window !== 'undefined' && window.location.search.includes('view=team')
+                          pathname === '/kra' && viewParam === 'team'
                             ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
                             : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
                         }`}
@@ -380,7 +384,7 @@ export default function Sidebar({
                         href="/leave-management?filter=manager_leaves"
                         onClick={closeMobile}
                         className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/leave-management'
+                          pathname === '/leave-management' && filterParam === 'manager_leaves'
                             ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
                             : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
                         }`}
@@ -393,7 +397,7 @@ export default function Sidebar({
                         href="/kra?view=team"
                         onClick={closeMobile}
                         className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/kra'
+                          pathname === '/kra' && viewParam === 'team' && !currentUser?.is_manager
                             ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
                             : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
                         }`}
