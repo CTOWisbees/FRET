@@ -36,6 +36,27 @@ export default function Sidebar({
         } catch (e) {}
       }
     }
+
+    if (typeof window !== 'undefined') {
+      const t = localStorage.getItem('fret_token');
+      if (t && t.startsWith('emp:')) {
+        api.get('/api/employee/me')
+          .then((res) => {
+            if (res.data && res.data.success && res.data.employee) {
+              const updatedEmp = {
+                ...res.data.employee,
+                role: 'employee',
+                is_manager: res.data.is_manager,
+                managed_department: res.data.managed_department,
+                is_superadmin: res.data.is_superadmin,
+              };
+              setCurrentUser(updatedEmp);
+              localStorage.setItem('fret_user', JSON.stringify(updatedEmp));
+            }
+          })
+          .catch(() => {});
+      }
+    }
   }, [user]);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('fret_token') : null;
