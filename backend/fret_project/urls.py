@@ -154,6 +154,16 @@ urlpatterns = [
     path('api/daily-tracker/assigned-tasks', tracker_views.api_daily_tracker_assigned_tasks_list, name='api_daily_tracker_assigned_tasks_list'),
     path('api/daily-tracker/flag-task', tracker_views.api_daily_tracker_flag_task, name='api_daily_tracker_flag_task'),
     path('api/daily-tracker/department-team', tracker_views.api_get_department_team, name='api_get_department_team'),
+
+    # KRA (Key Responsibility Area) & NDA APIs
+    path('api/kra', views.api_kra_get, name='api_kra_get'),
+    path('api/kra/save', views.api_kra_save, name='api_kra_save'),
+    path('api/kra/<int:kra_id>/delete', views.api_kra_delete, name='api_kra_delete'),
+    path('api/kra/<int:kra_id>/status', views.api_kra_status, name='api_kra_status'),
+    path('api/nda/template', views.api_nda_template, name='api_nda_template'),
+    path('api/nda/submit', views.api_nda_submit, name='api_nda_submit'),
+    path('api/nda/status', views.api_nda_status, name='api_nda_status'),
+    path('api/employee/<int:emp_id>/role-access', views.api_update_employee_role_access, name='api_update_employee_role_access'),
 ]
 
 from django.conf import settings

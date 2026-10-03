@@ -59,21 +59,27 @@ export default function AdminDashboardPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3 relative z-10">
+        <div className="flex flex-wrap items-center gap-2.5 relative z-10">
           <Link
-            href="/admin/tasks"
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-600 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 active:scale-95"
+            href="/admin/managers"
+            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 active:scale-95"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span>Create & Assign Task</span>
+            <span>👑 Department Managers</span>
           </Link>
 
           <Link
-            href="/admin/employees"
+            href="/admin/daily-trackers"
+            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 active:scale-95"
+          >
+            <span>📅 Daily Trackers Review</span>
+          </Link>
+
+          <Link
+            href="/admin/tasks"
             className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl text-xs font-bold transition flex items-center gap-2 active:scale-95"
           >
-            <Users className="w-4 h-4" />
-            <span>Manage Employees</span>
+            <PlusCircle className="w-4 h-4" />
+            <span>Assign Task</span>
           </Link>
         </div>
       </div>

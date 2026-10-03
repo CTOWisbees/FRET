@@ -1526,12 +1526,6 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
       <div class="nav-section-label">My Work</div>
 
-      <a href="{{ url_for('daily_tracker') }}"
-         class="nav-link {% if request.endpoint == 'daily_tracker' %}active{% endif %}">
-        <i class="fas fa-clipboard-check"></i>
-        Daily Work Tracker
-      </a>
-
       <a href="{{ url_for('attendance') }}"
          class="nav-link">
         <i class="fas fa-calendar-check"></i>

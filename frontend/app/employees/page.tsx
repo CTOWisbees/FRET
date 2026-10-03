@@ -50,10 +50,11 @@ export default function EmployeesPage() {
   const [hoverRating, setHoverRating] = useState<number>(0);
   const [savingRemark, setSavingRemark] = useState(false);
 
-  // Manager Role Assignment Modal State
+  // Manager & SuperAdmin Role Assignment Modal State
   const [showManagerModal, setShowManagerModal] = useState(false);
   const [isManagerChecked, setIsManagerChecked] = useState(false);
   const [managedDept, setManagedDept] = useState('');
+  const [isSuperadminChecked, setIsSuperadminChecked] = useState(false);
   const [savingManagerRole, setSavingManagerRole] = useState(false);
 
   // 1. Instantly hydrate cached employees for 0ms initial render
@@ -403,6 +404,7 @@ export default function EmployeesPage() {
   const openManagerModal = (emp: any) => {
     setSelectedEmp(emp);
     setIsManagerChecked(Boolean(emp.is_manager));
+    setIsSuperadminChecked(Boolean(emp.is_superadmin));
     setManagedDept(emp.managed_department || emp.department || (departments.length > 0 ? departments[0] : 'IT'));
     setShowManagerModal(true);
   };
@@ -414,23 +416,29 @@ export default function EmployeesPage() {
       const res = await api.post('/api/daily-tracker/assign-manager', {
         employee_id: selectedEmp.id,
         is_manager: isManagerChecked,
-        managed_department: managedDept,
+        managed_department: isManagerChecked ? managedDept : '',
+        is_superadmin: isSuperadminChecked,
       });
       if (res.data?.success) {
-        alert(res.data.message || 'Manager assignment updated successfully!');
+        alert(res.data.message || 'Access roles updated successfully!');
         setEmployees((prev) =>
           prev.map((e) =>
             e.id === selectedEmp.id
-              ? { ...e, is_manager: isManagerChecked, managed_department: isManagerChecked ? managedDept : '' }
+              ? { 
+                  ...e, 
+                  is_manager: isManagerChecked, 
+                  managed_department: isManagerChecked ? managedDept : '',
+                  is_superadmin: isSuperadminChecked 
+                }
               : e
           )
         );
         setShowManagerModal(false);
       } else {
-        alert(res.data?.message || 'Failed to update manager assignment');
+        alert(res.data?.message || 'Failed to update access roles');
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to update manager assignment');
+      alert(err.response?.data?.message || 'Failed to update access roles');
     } finally {
       setSavingManagerRole(false);
     }
@@ -1348,8 +1356,8 @@ export default function EmployeesPage() {
                 </div>
               )}
 
-              <div className="form-group" style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem', color: 'var(--text)' }}>
+              <div className="form-group" style={{ marginBottom: '16px', padding: '12px', background: 'var(--surface2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem', color: 'var(--text)' }}>
                   <input
                     type="checkbox"
                     checked={isManagerChecked}
@@ -1359,40 +1367,54 @@ export default function EmployeesPage() {
                   <span>Designate as Department Manager</span>
                 </label>
                 <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: '4px', marginLeft: '26px' }}>
-                  When enabled, this employee will gain access to the Daily Tracker Manager portal and can assign daily tasks to their department team.
+                  When enabled, this manager can approve and reject leave requests for employees within their assigned department (e.g. IT, Operations).
                 </div>
+
+                {isManagerChecked && (
+                  <div style={{ marginTop: '12px', marginLeft: '26px' }}>
+                    <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '4px', display: 'block' }}>
+                      Managed Department / Domain *
+                    </label>
+                    <select
+                      className="form-control"
+                      value={managedDept}
+                      onChange={(e) => setManagedDept(e.target.value)}
+                      style={{ width: '100%', fontSize: '0.85rem' }}
+                    >
+                      {departments.map((dept) => (
+                        <option key={dept} value={dept}>{dept}</option>
+                      ))}
+                      {!departments.includes(selectedEmp?.department) && selectedEmp?.department && (
+                        <option value={selectedEmp.department}>{selectedEmp.department}</option>
+                      )}
+                      <option value="IT">IT</option>
+                      <option value="Engineering">Engineering</option>
+                      <option value="Data & Analytics">Data & Analytics</option>
+                      <option value="Design">Design</option>
+                      <option value="Marketing">Marketing</option>
+                      <option value="Sales">Sales</option>
+                      <option value="HR">HR</option>
+                      <option value="Operations">Operations</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
-              {isManagerChecked && (
-                <div className="form-group" style={{ marginBottom: '16px' }}>
-                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-                    Managed Department / Domain *
-                  </label>
-                  <select
-                    className="form-control"
-                    value={managedDept}
-                    onChange={(e) => setManagedDept(e.target.value)}
-                    style={{ width: '100%' }}
-                  >
-                    {departments.map((dept) => (
-                      <option key={dept} value={dept}>{dept}</option>
-                    ))}
-                    {!departments.includes(selectedEmp?.department) && selectedEmp?.department && (
-                      <option value={selectedEmp.department}>{selectedEmp.department}</option>
-                    )}
-                    <option value="IT">IT</option>
-                    <option value="Engineering">Engineering</option>
-                    <option value="Design">Design</option>
-                    <option value="Marketing">Marketing</option>
-                    <option value="Sales">Sales</option>
-                    <option value="HR">HR</option>
-                    <option value="Operations">Operations</option>
-                  </select>
-                  <div style={{ fontSize: '0.76rem', color: 'var(--text3)', marginTop: '4px' }}>
-                    This manager will manage and assign tasks to employees and interns within this department.
-                  </div>
+              {/* SuperAdmin Access Option */}
+              <div className="form-group" style={{ marginBottom: '16px', padding: '12px', background: 'rgba(147, 51, 234, 0.05)', borderRadius: '12px', border: '1px solid rgba(147, 51, 234, 0.2)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.9rem', color: '#9333ea' }}>
+                  <input
+                    type="checkbox"
+                    checked={isSuperadminChecked}
+                    onChange={(e) => setIsSuperadminChecked(e.target.checked)}
+                    style={{ width: '18px', height: '18px', accentColor: '#9333ea' }}
+                  />
+                  <span>Grant SuperAdmin Access</span>
+                </label>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text3)', marginTop: '4px', marginLeft: '26px' }}>
+                  SuperAdmins have executive authority to approve or reject leave requests submitted by Department Managers, and oversee organizational governance.
                 </div>
-              )}
+              </div>
 
               <div className="modal-actions" style={{ marginTop: '20px' }}>
                 <button className="btn btn-secondary" onClick={() => setShowManagerModal(false)}>
@@ -1402,7 +1424,7 @@ export default function EmployeesPage() {
                   className="btn btn-primary"
                   disabled={savingManagerRole}
                   onClick={saveManagerRole}
-                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', borderColor: '#d97706', color: '#fff' }}
+                  style={{ background: 'linear-gradient(135deg, #4f46e5, #6366f1)', borderColor: '#4f46e5', color: '#fff' }}
                 >
                   {savingManagerRole ? (
                     <>
@@ -1410,7 +1432,7 @@ export default function EmployeesPage() {
                     </>
                   ) : (
                     <>
-                      <i className="fas fa-check-circle"></i> Save Manager Role
+                      <i className="fas fa-shield-alt"></i> Save Access Roles
                     </>
                   )}
                 </button>

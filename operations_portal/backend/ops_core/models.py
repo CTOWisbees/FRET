@@ -50,6 +50,13 @@ class OperationUser(models.Model):
     password = models.CharField(max_length=255, verbose_name="Password")
     is_active = models.BooleanField(default=True, verbose_name="Is active")
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee', verbose_name="Role")
+    is_superadmin = models.BooleanField(default=False, verbose_name="Is Superadmin")
+    is_manager = models.BooleanField(default=False, verbose_name="Is Manager")
+    managed_department = models.CharField(max_length=100, blank=True, null=True, verbose_name="Managed Department")
+    managed_departments = models.JSONField(default=list, blank=True, verbose_name="Managed Departments List")
+    emp_type = models.CharField(max_length=50, default='Normal', verbose_name="Employee Type")  # 'Intern' or 'Normal' or 'Employee'
+    reporting_manager = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='direct_reports')
+
     phone = models.CharField(max_length=30, blank=True, default='', verbose_name="Phone")
     emp_code = models.CharField(max_length=50, blank=True, default='', verbose_name="Employee Code")
     designation = models.CharField(max_length=150, blank=True, default='', verbose_name="Designation")
@@ -273,3 +280,210 @@ class AttendanceRecord(models.Model):
 
     def __str__(self):
         return f"Attendance: {self.user.name} on {self.date} ({self.status}) - {self.total_hours:.1f}h"
+
+
+# ─────────────────────────────────────────────────────────────
+# DEPARTMENT MANAGER APPOINTMENT MODULE
+# ─────────────────────────────────────────────────────────────
+
+class DepartmentManagerAssignment(models.Model):
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='manager_assignments')
+    manager = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='department_managements')
+    assigned_by = models.ForeignKey(OperationUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='managers_appointed')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Department Manager Assignment"
+        verbose_name_plural = "Department Manager Assignments"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.manager.name} -> Manager of {self.department.name} (Active: {self.is_active})"
+
+
+# ─────────────────────────────────────────────────────────────
+# DAILY WORK TRACKER MODULE (Operations Portal BRD Implementation)
+# ─────────────────────────────────────────────────────────────
+
+class DailyTrackerConfig(models.Model):
+    cutoff_hours = models.IntegerField(default=24)  # Hours past cutoff threshold
+    task_types_json = models.TextField(default='["Major", "Minor", "Research", "Documentation", "Meeting", "Support"]')
+    custom_fields_json = models.TextField(default='[]')  # List of {id, name, type, required}
+    auto_lock_enabled = models.BooleanField(default=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Daily Tracker Config"
+        verbose_name_plural = "Daily Tracker Configs"
+
+    def __str__(self):
+        return f"Daily Tracker Config (Cutoff: {self.cutoff_hours}h, Auto-Lock: {self.auto_lock_enabled})"
+
+
+class DailyAssignedTask(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, default='')
+    department = models.CharField(max_length=100, db_index=True)
+    assigned_by = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='ops_assigned_tasks_created')
+    assigned_to = models.ForeignKey(OperationUser, on_delete=models.CASCADE, null=True, blank=True, related_name='ops_assigned_tasks_received')
+    task_type = models.CharField(max_length=50, default='Major')
+    priority = models.CharField(max_length=20, default='Normal')  # Low | Normal | High | Urgent
+    due_date = models.DateField(null=True, blank=True)
+    status = models.CharField(max_length=30, default='Pending')  # Pending | In Progress | Completed | Flagged
+    is_flagged = models.BooleanField(default=False)
+    flag_reason = models.TextField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Daily Assigned Task"
+        verbose_name_plural = "Daily Assigned Tasks"
+        ordering = ['-created_at']
+
+    def __str__(self):
+        assignee = self.assigned_to.name if self.assigned_to else f"All {self.department}"
+        return f"[{self.priority}] {self.title} -> {assignee} ({self.status})"
+
+
+class DailyTrackerDay(models.Model):
+    user = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='daily_trackers')
+    date = models.DateField(db_index=True)
+    day_number = models.IntegerField(default=1)  # Sequence / Day number (e.g. Day 1, Day 2)
+    day_status = models.CharField(max_length=30, default='Working Day')  # Working Day | Weekly Off | Holiday | Leave | Other
+    status = models.CharField(max_length=20, default='Draft')  # Draft | Submitted | Locked
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    locked_at = models.DateTimeField(null=True, blank=True)
+    manager_rating = models.IntegerField(default=0)  # 1 to 5 stars
+    manager_remarks = models.TextField(null=True, blank=True)
+    reviewed_by = models.CharField(max_length=150, null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Daily Tracker Day"
+        verbose_name_plural = "Daily Tracker Days"
+        unique_together = ('user', 'date')
+        ordering = ['-date']
+
+    @property
+    def total_hours(self):
+        return sum((task.hours_worked or 0) for task in self.tasks.all())
+
+    @property
+    def achievements_count(self):
+        return self.tasks.filter(is_achievement=True).count()
+
+    @property
+    def tasks_count(self):
+        return self.tasks.count()
+
+    def __str__(self):
+        return f"{self.user.name} - {self.date} ({self.status}) [{self.total_hours:.1f}h]"
+
+
+class DailyTaskRow(models.Model):
+    tracker_day = models.ForeignKey(DailyTrackerDay, on_delete=models.CASCADE, related_name='tasks')
+    assigned_task = models.ForeignKey(DailyAssignedTask, on_delete=models.SET_NULL, null=True, blank=True, related_name='daily_log_rows')
+    task_description = models.TextField()
+    task_type = models.CharField(max_length=50, default='Major')  # Major, Minor, Research, Documentation, Meeting, Support
+    hours_worked = models.FloatField(default=0.0)  # 0 to 24 hours
+    is_achievement = models.BooleanField(default=False)
+    is_flagged = models.BooleanField(default=False)
+    flag_reason = models.TextField(null=True, blank=True)
+    remarks = models.TextField(null=True, blank=True)  # Blockers, dependencies, support required, delays, observations
+    order = models.IntegerField(default=0)
+    custom_data = models.TextField(null=True, blank=True, default='{}')  # JSON for dynamic custom fields
+
+    class Meta:
+        verbose_name = "Daily Task Row"
+        verbose_name_plural = "Daily Task Rows"
+        ordering = ['order', 'id']
+
+    def __str__(self):
+        return f"Row {self.order + 1}: {self.task_description[:40]} ({self.hours_worked}h)"
+
+
+class DailyTrackerUnlockRequest(models.Model):
+    tracker_day = models.ForeignKey(DailyTrackerDay, on_delete=models.CASCADE, related_name='unlock_requests')
+    user = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='tracker_unlock_requests')
+    reason = models.TextField()
+    status = models.CharField(max_length=20, default='Pending')  # Pending | Approved | Rejected
+    requested_at = models.DateTimeField(default=timezone.now)
+    reviewed_by = models.CharField(max_length=150, null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_notes = models.TextField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Daily Tracker Unlock Request"
+        verbose_name_plural = "Daily Tracker Unlock Requests"
+        ordering = ['-requested_at']
+
+    def __str__(self):
+        return f"Unlock Request by {self.user.name} for {self.tracker_day.date} ({self.status})"
+
+
+class DailyTrackerAuditLog(models.Model):
+    tracker_day = models.ForeignKey(DailyTrackerDay, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs')
+    user = models.ForeignKey(OperationUser, on_delete=models.SET_NULL, null=True, blank=True)
+    action = models.CharField(max_length=50)  # CREATED, DRAFT_SAVED, SUBMITTED, LOCKED, UNLOCK_REQUESTED, UNLOCKED, EDITED_AFTER_UNLOCK, MANAGER_REVIEW
+    performed_by_name = models.CharField(max_length=150)
+    performed_by_role = models.CharField(max_length=50)  # Employee | Intern | Reporting Manager | Operations Admin | Superadmin
+    details = models.TextField(null=True, blank=True)
+    ip_address = models.CharField(max_length=50, null=True, blank=True)
+    timestamp = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "Daily Tracker Audit Log"
+        verbose_name_plural = "Daily Tracker Audit Logs"
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M')}] {self.performed_by_name} ({self.performed_by_role}): {self.action}"
+
+
+class StockRecommendation(models.Model):
+    RECOMMENDATION_CHOICES = [
+        ('Buy', 'Buy'),
+        ('Strong Buy', 'Strong Buy'),
+        ('Accumulate', 'Accumulate'),
+        ('Hold', 'Hold'),
+        ('Sell', 'Sell'),
+    ]
+    STATUS_CHOICES = [
+        ('Active', 'Active'),
+        ('Target Hit', 'Target Hit'),
+        ('Stop Loss Hit', 'Stop Loss Hit'),
+        ('Closed', 'Closed'),
+    ]
+    created_by = models.ForeignKey(OperationUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='stock_recommendations')
+    symbol = models.CharField(max_length=50, verbose_name="Stock Symbol / Ticker")
+    company_name = models.CharField(max_length=150, verbose_name="Company Name")
+    sector = models.CharField(max_length=100, blank=True, default='Equities')
+    client_name = models.CharField(max_length=150, blank=True, default='', verbose_name="Client / Portfolio Name")
+    recommendation_type = models.CharField(max_length=30, choices=RECOMMENDATION_CHOICES, default='Buy')
+    recommendation_date = models.DateField(default=timezone.now, verbose_name="Recommended Date")
+    recommended_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Recommended Buying Price (₹)")
+    target_price = models.DecimalField(max_digits=12, decimal_places=2, verbose_name="Target Price (₹)")
+    stop_loss = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Stop Loss (₹)")
+    time_horizon = models.CharField(max_length=50, default='3 Months', verbose_name="Time Horizon")
+    current_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True, verbose_name="Last Tracked Market Price")
+    last_price_update = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Active')
+    exit_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    exit_date = models.DateField(null=True, blank=True)
+    notes = models.TextField(blank=True, default='', verbose_name="Investment Rationale")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Stock Recommendation"
+        verbose_name_plural = "Stock Recommendations"
+        ordering = ['-recommendation_date', '-created_at']
+
+    def __str__(self):
+        return f"{self.symbol} ({self.recommendation_type} @ ₹{self.recommended_price}) on {self.recommendation_date}"
+

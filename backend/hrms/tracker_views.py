@@ -1610,6 +1610,7 @@ def api_assign_manager_role(request):
     emp_id = data.get('employee_id')
     is_manager = bool(data.get('is_manager', False))
     managed_dept = (data.get('managed_department') or '').strip()
+    is_superadmin = bool(data.get('is_superadmin', False))
 
     if not emp_id:
         return JsonResponse({'error': 'employee_id is required'}, status=400)
@@ -1620,14 +1621,17 @@ def api_assign_manager_role(request):
 
     emp.is_manager = is_manager
     emp.managed_department = managed_dept if is_manager else ''
+    if 'is_superadmin' in data:
+        emp.is_superadmin = is_superadmin
     emp.save()
 
     return JsonResponse({
         'success': True,
-        'message': f"Manager role {'assigned to' if is_manager else 'removed from'} {emp.name}.",
+        'message': f"Access roles updated for {emp.name}.",
         'employee_id': emp.id,
         'is_manager': emp.is_manager,
-        'managed_department': emp.managed_department
+        'managed_department': emp.managed_department,
+        'is_superadmin': emp.is_superadmin
     })
 
 

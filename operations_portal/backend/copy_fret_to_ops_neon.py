@@ -21,8 +21,9 @@ from ops_core.models import (
     AttendanceRecord,
 )
 
-FRET_DB_URL = os.environ.get('FRET_DATABASE_URL', '')
-OPS_DB_URL = os.environ.get('DATABASE_URL', os.environ.get('OPS_DATABASE_URL', ''))
+FRET_DB_URL = os.environ.get('FRET_DATABASE_URL', 'postgresql://neondb_owner:npg_Sa5jxR7LGHZB@ep-dawn-darkness-aoghl85o-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require')
+OPS_DB_URL = os.environ.get('DATABASE_URL', os.environ.get('OPS_DATABASE_URL', 'postgresql://neondb_owner:npg_zGjkfO4E2xTN@ep-hidden-wind-b4fncj1m-pooler.c-6.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require'))
+
 
 def run_migration():
     print("==================================================")

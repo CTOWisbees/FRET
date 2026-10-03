@@ -64,6 +64,28 @@ export default function AdminLayout({
     };
 
     checkAuth();
+
+    // Listen for live user/avatar updates
+    const handleUserUpdate = (e: any) => {
+      if (e?.detail) {
+        setUser(e.detail);
+      } else {
+        const currentSaved = localStorage.getItem('ops_user');
+        if (currentSaved) {
+          try {
+            setUser(JSON.parse(currentSaved));
+          } catch (_) {}
+        }
+      }
+    };
+
+    window.addEventListener('ops_user_updated', handleUserUpdate);
+    window.addEventListener('storage', handleUserUpdate);
+
+    return () => {
+      window.removeEventListener('ops_user_updated', handleUserUpdate);
+      window.removeEventListener('storage', handleUserUpdate);
+    };
   }, [router]);
 
   if (loading && !user) {

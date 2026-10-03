@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   History,
   Edit3,
+  FileBarChart2,
 } from 'lucide-react';
 
 interface PeerCol {
@@ -75,29 +76,29 @@ export default function EquityResearchReportPage() {
     );
   }
 
-  // Fallback defaults if accessed directly
-  const data = reportData || {
-    stockQuery: '',
-    currentPrice: '',
-    priceAsOn: new Date().toISOString().split('T')[0],
-    targetPrice: '',
-    recommendation: 'Buy',
-    compMode: 'Peer Comparison (Target Co. vs Peers)',
-    industrySector: '',
-    timeHorizon: '',
-    peers: [
-      { id: 1, label: 'Target Company' },
-      { id: 2, label: 'Peer 1' },
-      { id: 3, label: 'Peer 2' },
-    ],
-    peerNames: {},
-    metricsData: {},
-    businessOverview: '',
-    valuationThesis: '',
-    technicalAnalysis: '',
-    consensusRows: [],
-    chartImageData: null,
-  };
+  if (!reportData || !reportData.stockQuery) {
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center text-center p-6 space-y-4">
+        <div className="w-16 h-16 rounded-2xl bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400 flex items-center justify-center border border-violet-200 dark:border-violet-800 shadow-sm">
+          <FileBarChart2 className="w-8 h-8" />
+        </div>
+        <div>
+          <h2 className="text-lg font-black text-slate-900 dark:text-white">No Research Dossier Compiled Yet</h2>
+          <p className="text-xs text-slate-500 max-w-sm mt-1">
+            Please enter your target stock details in the Research Work Hub and click "Compile & Preview Dossier".
+          </p>
+        </div>
+        <button
+          onClick={handleBackToEdit}
+          className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold shadow-md transition flex items-center gap-2 cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4" /> Go to Research Work Hub
+        </button>
+      </div>
+    );
+  }
+
+  const data = reportData;
 
   const stockQuery = data.stockQuery || 'TARGET';
   const currentPrice = data.currentPrice || '0';

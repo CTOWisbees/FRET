@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Menu, Shield, User, Moon, Sun } from 'lucide-react';
 import { useTheme } from '@/lib/theme';
 import { AttendanceTimerWidget } from './AttendanceTimerWidget';
+import { WisBeesLogo } from './WisBeesLogo';
 
 interface NavbarProps {
   title: string;
@@ -33,11 +34,7 @@ export function Navbar({ title, subtitle, user, onMenuClick }: NavbarProps) {
 
         {/* Mobile Mini Logo */}
         <div className="lg:hidden flex items-center shrink-0">
-          <img
-            src="/logo.png"
-            alt="WisBees Logo"
-            className="h-6 w-auto object-contain dark:drop-shadow-[0_0_1px_rgba(255,255,255,0.9)]"
-          />
+          <WisBeesLogo imgClassName="h-6 w-auto object-contain" />
         </div>
 
         <div className="min-w-0">
@@ -95,13 +92,22 @@ export function Navbar({ title, subtitle, user, onMenuClick }: NavbarProps) {
           </div>
 
           {/* User Profile Avatar Bubble */}
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-xs shrink-0 border border-sky-500/20">
-            {user?.avatar_url ? (
-              <img src={user.avatar_url} alt={user?.name || 'User'} className="w-full h-full object-cover" />
-            ) : (
-              <span>{user?.name ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : 'OP'}</span>
-            )}
-          </div>
+          {(() => {
+            const avatarSrc = user?.avatar_url || user?.avatar || user?.profile_photo || user?.photo;
+            return (
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-xs shrink-0 border border-sky-500/20">
+                {avatarSrc ? (
+                  <img
+                    src={avatarSrc}
+                    alt={user?.name || 'User'}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span>{user?.name ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2) : 'OP'}</span>
+                )}
+              </div>
+            );
+          })()}
         </Link>
       </div>
 

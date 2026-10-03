@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   TrendingUp,
   RefreshCw,
@@ -93,13 +94,11 @@ export default function EquityResearchWorkPage() {
 
   // ── Comparison & Recommendation ──
   const [compMode, setCompMode] = useState(COMPARISON_MODES[0]);
-  const [recommendation, setRecommendation] = useState('Buy');
+  const [recommendation, setRecommendation] = useState('');
 
-  // ── Peer columns (max 6) ──
+  // ── Peer columns (clean single target column by default, user can add peers with + button) ──
   const [peers, setPeers] = useState<PeerCol[]>([
     { id: 1, label: 'Target Company' },
-    { id: 2, label: 'Peer 1' },
-    { id: 3, label: 'Peer 2' },
   ]);
   const [peerNames, setPeerNames] = useState<Record<number, string>>({});
 
@@ -119,7 +118,7 @@ export default function EquityResearchWorkPage() {
 
   // ── Street Coverage ──
   const [consensusRows, setConsensusRows] = useState<ConsensusRow[]>([
-    { id: 1, callDate: '', brokerageHouse: '', rating: 'Buy', targetPrice: '' },
+    { id: 1, callDate: '', brokerageHouse: '', rating: '', targetPrice: '' },
   ]);
 
   const [compiling, setCompiling] = useState(false);
@@ -129,34 +128,35 @@ export default function EquityResearchWorkPage() {
     if (savedUser) {
       try { setUser(JSON.parse(savedUser)); } catch {}
     }
-
-    // Load existing report form cache if available
-    try {
-      const cached = sessionStorage.getItem('equity_research_report_data') || localStorage.getItem('equity_research_report_data');
-      if (cached) {
-        const d = JSON.parse(cached);
-        if (d.stockQuery) setStockQuery(d.stockQuery);
-        if (d.currentPrice) setCurrentPrice(d.currentPrice);
-        if (d.priceAsOn) setPriceAsOn(d.priceAsOn);
-        if (d.targetPrice) setTargetPrice(d.targetPrice);
-        if (d.recommendation) setRecommendation(d.recommendation);
-        if (d.compMode) setCompMode(d.compMode);
-        if (d.industrySector) setIndustrySector(d.industrySector);
-        if (d.timeHorizon) setTimeHorizon(d.timeHorizon);
-        if (d.peers && Array.isArray(d.peers) && d.peers.length > 0) setPeers(d.peers);
-        if (d.peerNames) setPeerNames(d.peerNames);
-        if (d.metricsData) setMetricsData(d.metricsData);
-        if (d.businessOverview) setBusinessOverview(d.businessOverview);
-        if (d.valuationThesis) setValuationThesis(d.valuationThesis);
-        if (d.technicalAnalysis) setTechnicalAnalysis(d.technicalAnalysis);
-        if (d.consensusRows && Array.isArray(d.consensusRows) && d.consensusRows.length > 0) {
-          setConsensusRows(d.consensusRows);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load cached form data:', err);
-    }
   }, []);
+
+  const handleResetForm = () => {
+    setStockQuery('');
+    setCurrentPrice('');
+    setPriceAsOn(new Date().toISOString().split('T')[0]);
+    setTargetPrice('');
+    setRecommendation('');
+    setCompMode(COMPARISON_MODES[0]);
+    setIndustrySector('');
+    setTimeHorizon('');
+    setChartFile(null);
+    if (chartInputRef.current) chartInputRef.current.value = '';
+    setPeers([
+      { id: 1, label: 'Target Company' },
+    ]);
+    setPeerNames({});
+    setMetricsData({});
+    setBusinessOverview('');
+    setValuationThesis('');
+    setTechnicalAnalysis('');
+    setConsensusRows([
+      { id: 1, callDate: '', brokerageHouse: '', rating: '', targetPrice: '' },
+    ]);
+    sessionStorage.removeItem('equity_research_report_data');
+    localStorage.removeItem('equity_research_report_data');
+    setSuccessToast('Form reset to clean blank state.');
+    setTimeout(() => setSuccessToast(''), 3000);
+  };
 
   // ── Autocomplete search ──
   useEffect(() => {
@@ -180,7 +180,7 @@ export default function EquityResearchWorkPage() {
     return () => clearTimeout(timer);
   }, [stockQuery]);
 
-  // ── Fetch live stock fundamentals & AI intelligence ──
+  // ── Fetch live stock fundamentals & update live price / target metrics only ──
   const handleFetchStockData = async (queryOverride?: string) => {
     const q = (queryOverride || stockQuery).trim();
     if (!q) return;
@@ -204,25 +204,67 @@ export default function EquityResearchWorkPage() {
       if (data.stockQuery) setStockQuery(data.stockQuery);
       if (data.currentPrice) setCurrentPrice(data.currentPrice);
       if (data.priceAsOn) setPriceAsOn(data.priceAsOn);
-      if (data.targetPrice) setTargetPrice(data.targetPrice);
-      if (data.recommendation) setRecommendation(data.recommendation);
-      if (data.compMode) setCompMode(data.compMode);
-      if (data.industrySector) setIndustrySector(data.industrySector);
-      if (data.timeHorizon) setTimeHorizon(data.timeHorizon);
-      if (data.peers && Array.isArray(data.peers)) setPeers(data.peers);
-      if (data.peerNames) setPeerNames(data.peerNames);
-      if (data.metricsData) setMetricsData(data.metricsData);
-      if (data.businessOverview) setBusinessOverview(data.businessOverview);
-      if (data.valuationThesis) setValuationThesis(data.valuationThesis);
-      if (data.technicalAnalysis) setTechnicalAnalysis(data.technicalAnalysis);
-      if (data.consensusRows && Array.isArray(data.consensusRows)) setConsensusRows(data.consensusRows);
 
-      setSuccessToast(`Auto-filled live fundamentals for ${data.companyName || q}!`);
+      // Set target company name in peer column 1 without overwriting other peer columns
+      const targetName = data.companyName ? `${data.companyName} (TARGET)` : `${data.stockQuery || q} (TARGET)`;
+      setPeerNames(prev => ({
+        ...prev,
+        1: targetName,
+      }));
+
+      // Update only target company metric values (Column 1)
+      if (data.metricsData) {
+        setMetricsData(prev => {
+          const next = { ...prev };
+          Object.keys(data.metricsData).forEach(mKey => {
+            const targetVal = data.metricsData[mKey]?.[1] || data.metricsData[mKey]?.['1'] || '';
+            next[mKey] = {
+              ...(next[mKey] || {}),
+              1: targetVal,
+            };
+          });
+          return next;
+        });
+      }
+
+      setSuccessToast(`Loaded live price and metrics for ${data.companyName || q}!`);
       setTimeout(() => setSuccessToast(''), 4000);
     } catch (err: any) {
       setFetchError(err.message || 'Could not fetch stock data. Enter manually.');
     } finally {
       setFetchingPrice(false);
+    }
+  };
+
+  // ── Optional: Fill AI Institutional Thesis on Demand ──
+  const [fetchingAiThesis, setFetchingAiThesis] = useState(false);
+  const handleGenerateAiThesis = async () => {
+    const q = stockQuery.trim();
+    if (!q) {
+      setFetchError('Please select or enter a stock first.');
+      return;
+    }
+    setFetchingAiThesis(true);
+    try {
+      const baseUrl = getOpsBaseUrl().replace(/\/$/, '');
+      const token = localStorage.getItem('ops_token');
+      const res = await fetch(`${baseUrl}/ia/fetch-stock-data?query=${encodeURIComponent(q)}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'X-User-Auth': token || '',
+        },
+      });
+      const data = await res.json();
+      if (data.businessOverview) setBusinessOverview(data.businessOverview);
+      if (data.valuationThesis) setValuationThesis(data.valuationThesis);
+      if (data.technicalAnalysis) setTechnicalAnalysis(data.technicalAnalysis);
+      if (data.industrySector && !industrySector) setIndustrySector(data.industrySector);
+      setSuccessToast('AI Research commentary generated successfully.');
+      setTimeout(() => setSuccessToast(''), 3000);
+    } catch (err: any) {
+      setFetchError('Failed to generate AI commentary.');
+    } finally {
+      setFetchingAiThesis(false);
     }
   };
 
@@ -235,7 +277,7 @@ export default function EquityResearchWorkPage() {
   };
 
   const removePeer = (id: number) => {
-    if (peers.length <= 2) return;
+    if (peers.length <= 1) return;
     setPeers(p => p.filter(c => c.id !== id));
     setPeerNames(prev => { const n = { ...prev }; delete n[id]; return n; });
     setMetricsData(prev => {
@@ -321,6 +363,36 @@ export default function EquityResearchWorkPage() {
   return (
     <div className="space-y-5 max-w-4xl mx-auto animate-fadeIn pb-16">
 
+      {/* ── Top Workspace Navigation Tabs ── */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-2 bg-slate-100/80 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center gap-1.5 overflow-x-auto py-1">
+          <Link
+            href="/employee/equity-research-work/performance"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-700/60 transition"
+          >
+            <TrendingUp className="w-4 h-4 text-emerald-500" />
+            <span>Stock Returns & Performance Tracker</span>
+            <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/80 text-[10px] text-emerald-700 dark:text-emerald-300 font-extrabold">
+              NEW
+            </span>
+          </Link>
+          <Link
+            href="/employee/equity-research-work"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-700 text-violet-600 dark:text-violet-400 shadow-sm border border-violet-500/20"
+          >
+            <FileBarChart2 className="w-4 h-4" />
+            <span>Research Dossier Compiler</span>
+          </Link>
+          <Link
+            href="/employee/equity-research-work/report"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-700/60 transition"
+          >
+            <FileText className="w-4 h-4" />
+            <span>Institutional Report View</span>
+          </Link>
+        </div>
+      </div>
+
       {/* ── Page Header ─────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -348,13 +420,21 @@ export default function EquityResearchWorkPage() {
           <div className="flex items-center gap-2">
             <button 
               type="button"
+              onClick={handleResetForm}
+              title="Clear all fields and start fresh"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/50 dark:bg-red-950/20 text-[11px] font-bold text-red-600 dark:text-red-400 hover:bg-red-100/50 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Clear Form
+            </button>
+            <button 
+              type="button"
               onClick={() => router.push('/employee/equity-research-work/report')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--card-border)] text-[11px] font-bold text-[var(--text-muted)] hover:bg-[var(--hover-bg)] transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--card-border)] text-[11px] font-bold text-[var(--text-muted)] hover:bg-[var(--hover-bg)] transition-colors cursor-pointer"
             >
               <FileText className="w-3.5 h-3.5" /> View Current Report
             </button>
             <span className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 text-[11px] font-bold text-amber-700 dark:text-amber-400">
-              <Zap className="w-3 h-3" /> Auto-Fill Enabled
+              <Zap className="w-3 h-3" /> Live Fetch Available
             </span>
           </div>
         </div>
@@ -501,6 +581,7 @@ export default function EquityResearchWorkPage() {
                     onChange={e => setRecommendation(e.target.value)}
                     className={`${inputCls} appearance-none pr-8 font-bold border-2 ${recColor}`}
                   >
+                    <option value="">Select Recommendation...</option>
                     {RECOMMENDATIONS.map(r => (
                       <option key={r} value={r}>{r}</option>
                     ))}
@@ -538,11 +619,12 @@ export default function EquityResearchWorkPage() {
                       placeholder={idx === 0 ? 'Target Co. Name (e.g. WIPRO)' : `Peer ${idx} Name (e.g. INFY)`}
                       className={inputCls}
                     />
-                    {idx > 1 && (
+                    {idx > 0 && (
                       <button
                         type="button"
                         onClick={() => removePeer(col.id)}
                         className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-colors shrink-0 cursor-pointer"
+                        title="Remove peer column"
                       >
                         <X className="w-3.5 h-3.5" />
                       </button>
@@ -563,7 +645,7 @@ export default function EquityResearchWorkPage() {
                   type="text"
                   value={industrySector}
                   onChange={e => setIndustrySector(e.target.value)}
-                  placeholder="e.g. Software IT"
+                  placeholder="e.g. Infrastructure, Water, IT"
                   className={inputCls}
                 />
               </div>
@@ -574,7 +656,7 @@ export default function EquityResearchWorkPage() {
                   type="text"
                   value={timeHorizon}
                   onChange={e => setTimeHorizon(e.target.value)}
-                  placeholder="e.g. 2-3 yrs"
+                  placeholder="e.g. 12 - 24 Months"
                   className={inputCls}
                 />
               </div>
@@ -643,6 +725,18 @@ export default function EquityResearchWorkPage() {
 
           {/* ── 6. Analyst Narrative ─────────────────────── */}
           <Card>
+            <div className="flex items-center justify-between mb-3">
+              <FieldLabel>Analyst Narrative & Research Thesis</FieldLabel>
+              <button
+                type="button"
+                onClick={handleGenerateAiThesis}
+                disabled={fetchingAiThesis || !stockQuery}
+                className="flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-950/40 border border-violet-200 dark:border-violet-800/60 rounded-lg hover:bg-violet-100 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                {fetchingAiThesis ? 'Generating Draft...' : 'AI Assist (Draft Thesis)'}
+              </button>
+            </div>
             <div className="space-y-4">
               <div>
                 <FieldLabel>Business Overview (Moat)</FieldLabel>
@@ -651,7 +745,7 @@ export default function EquityResearchWorkPage() {
                   rows={3}
                   value={businessOverview}
                   onChange={e => setBusinessOverview(e.target.value)}
-                  placeholder="e.g. business will grow through digital IT and cloud expansion..."
+                  placeholder="Enter business model, key clients, and structural moat..."
                   className={`${inputCls} resize-y`}
                 />
               </div>
@@ -663,7 +757,7 @@ export default function EquityResearchWorkPage() {
                     rows={3}
                     value={valuationThesis}
                     onChange={e => setValuationThesis(e.target.value)}
-                    placeholder="e.g. more scope than peer companies..."
+                    placeholder="Enter valuation rationale, P/E multiple discount, target upside..."
                     className={`${inputCls} resize-y`}
                   />
                 </div>
@@ -674,7 +768,7 @@ export default function EquityResearchWorkPage() {
                     rows={3}
                     value={technicalAnalysis}
                     onChange={e => setTechnicalAnalysis(e.target.value)}
-                    placeholder="e.g. Gap between buy and hold with pattern breakout..."
+                    placeholder="Enter support/resistance levels, moving averages, breakout notes..."
                     className={`${inputCls} resize-y`}
                   />
                 </div>

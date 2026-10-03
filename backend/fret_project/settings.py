@@ -82,6 +82,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
     'https://fret.wisbees.com',
+    'https://*.wisbees.com',
+    'https://*.vercel.app',
     'https://*.onrender.com',
     'https://beta-fret-frontend.onrender.com',
     'https://beta-fret.onrender.com',

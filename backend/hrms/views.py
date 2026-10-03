@@ -23,7 +23,8 @@ from django.utils.datastructures import MultiValueDict
 
 from hrms.models import (
     HR, Employee, EmployeeAccount, Attendance, LeaveRequest,
-    EmailConfig, CompanySettings, OfferLetterDraft, Announcement, ResearchReport
+    EmailConfig, CompanySettings, OfferLetterDraft, Announcement, ResearchReport,
+    KRAItem
 )
 from hrms.utils import (
     UPLOAD_DIR, RESEARCH_UPLOAD_DIR, ALLOWED_EXTENSIONS, allowed_file,
@@ -221,6 +222,10 @@ def login_view(request):
                             'designation': employee.designation if employee else 'Team Member',
                             'department': employee.department if employee else 'General',
                             'emp_type': employee.emp_type if employee else 'Normal',
+                            'is_manager': bool(employee.is_manager) if employee else False,
+                            'managed_department': (employee.managed_department or '') if employee else '',
+                            'is_superadmin': bool(employee.is_superadmin) if employee else False,
+                            'nda_submitted': bool(employee.nda_submitted) if employee else False,
                             'role': 'employee'
                         }
                     })
@@ -1032,6 +1037,12 @@ def api_employee_me(request):
         'emp_type': employee.emp_type or 'Intern',
         'status': employee.status or 'Active',
         'blood_group': employee.blood_group or '',
+        'is_manager': bool(employee.is_manager),
+        'managed_department': employee.managed_department or '',
+        'is_superadmin': bool(employee.is_superadmin),
+        'nda_submitted': bool(employee.nda_submitted),
+        'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p') if employee.nda_submitted_at else None,
+        'nda_signature': employee.nda_signature or '',
         'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
         'has_photo': bool(employee.profile_pic_data),
         'avatar_url': get_employee_avatar_base64(employee) or f"/employee/{employee.id}/avatar",
@@ -1645,6 +1656,12 @@ def employee_profile_view(request):
                 'emp_type': employee.emp_type or 'Intern',
                 'status': employee.status or 'Active',
                 'blood_group': employee.blood_group or '',
+                'is_manager': bool(employee.is_manager),
+                'managed_department': employee.managed_department or '',
+                'is_superadmin': bool(employee.is_superadmin),
+                'nda_submitted': bool(employee.nda_submitted),
+                'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p') if employee.nda_submitted_at else None,
+                'nda_signature': employee.nda_signature or '',
                 'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
                 'has_photo': bool(employee.profile_pic_data),
                 'avatar_url': get_employee_avatar_base64(employee) or f"/employee/{employee.id}/avatar",
@@ -2410,6 +2427,9 @@ def api_employees_list(request):
         'rating': int(getattr(e, 'rating', 0) or 0),
         'is_manager': bool(e.is_manager),
         'managed_department': e.managed_department or '',
+        'is_superadmin': bool(e.is_superadmin),
+        'nda_submitted': bool(e.nda_submitted),
+        'nda_submitted_at': e.nda_submitted_at.isoformat() if e.nda_submitted_at else None,
         'reporting_manager_id': e.reporting_manager_id,
         'reporting_manager_name': e.reporting_manager.name if e.reporting_manager else '',
         'joining_date': e.joining_date.isoformat() if e.joining_date else None,
@@ -2432,6 +2452,9 @@ def api_employee(request, emp_id):
         'emp_type': emp.emp_type or 'Normal',
         'is_manager': bool(emp.is_manager),
         'managed_department': emp.managed_department or '',
+        'is_superadmin': bool(emp.is_superadmin),
+        'nda_submitted': bool(emp.nda_submitted),
+        'nda_submitted_at': emp.nda_submitted_at.isoformat() if emp.nda_submitted_at else None,
         'reporting_manager_id': emp.reporting_manager_id,
         'reporting_manager_name': emp.reporting_manager.name if emp.reporting_manager else '',
         'salary': float(emp.salary or 0),
@@ -2586,7 +2609,60 @@ def _send_leave_notification_email(leave_request, action='approved', pdf_bytes=N
 
 @csrf_exempt
 def leave_management(request):
-    leaves = LeaveRequest.objects.select_related('employee').order_by('-applied_on')
+    user = getattr(request, 'current_user', None)
+    is_hr = False
+    caller_emp = None
+    caller_role = 'employee'
+    managed_dept = ''
+
+    # Check if HR
+    if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
+        is_hr = True
+        caller_role = 'hr'
+    else:
+        auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
+        if auth_header and 'hr:' in auth_header:
+            is_hr = True
+            caller_role = 'hr'
+
+    if not is_hr:
+        emp_id = resolve_employee_id(request)
+        if emp_id:
+            caller_emp = Employee.objects.filter(id=emp_id).first()
+            if caller_emp:
+                if caller_emp.is_superadmin:
+                    caller_role = 'superadmin'
+                elif caller_emp.is_manager:
+                    caller_role = 'manager'
+                    managed_dept = caller_emp.managed_department or caller_emp.department or ''
+                else:
+                    caller_role = 'employee'
+
+    scope = request.GET.get('scope', '').strip()
+    filter_type = request.GET.get('filter', '').strip()
+
+    # Query logic according to hierarchy
+    if caller_role == 'hr':
+        leaves_qs = LeaveRequest.objects.select_related('employee').order_by('-applied_on')
+    elif caller_role == 'superadmin':
+        if filter_type == 'manager_leaves' or scope == 'manager_leaves':
+            leaves_qs = LeaveRequest.objects.filter(employee__is_manager=True).select_related('employee').order_by('-applied_on')
+        else:
+            leaves_qs = LeaveRequest.objects.select_related('employee').order_by('-applied_on')
+    elif caller_role == 'manager':
+        if scope == 'my':
+            leaves_qs = LeaveRequest.objects.filter(employee=caller_emp).select_related('employee').order_by('-applied_on')
+        else:
+            # Manager sees leave requests from employees of their managed department (excluding themselves)
+            dept = managed_dept or (caller_emp.department if caller_emp else '')
+            leaves_qs = LeaveRequest.objects.filter(
+                employee__department__iexact=dept
+            ).exclude(
+                employee_id=caller_emp.id if caller_emp else 0
+            ).select_related('employee').order_by('-applied_on')
+    else:
+        # Regular employee sees own leaves
+        leaves_qs = LeaveRequest.objects.filter(employee=caller_emp).select_related('employee').order_by('-applied_on') if caller_emp else LeaveRequest.objects.none()
 
     is_json = (
         request.headers.get('Accept') == 'application/json' or
@@ -2597,11 +2673,23 @@ def leave_management(request):
 
     if is_json:
         data = []
-        for lr in leaves:
+        for lr in leaves_qs:
             emp = lr.employee
             from_str = lr.from_date.strftime('%Y-%m-%d') if lr.from_date else ''
             to_str = lr.to_date.strftime('%Y-%m-%d') if lr.to_date else ''
             days = ((lr.to_date - lr.from_date).days + 1) if (lr.from_date and lr.to_date) else 1
+
+            # Determine whether caller can approve this specific request
+            can_approve = False
+            if caller_role == 'hr':
+                can_approve = True
+            elif caller_role == 'superadmin':
+                can_approve = True
+            elif caller_role == 'manager' and emp and emp.id != (caller_emp.id if caller_emp else 0):
+                dept_match = (emp.department or '').strip().lower() == managed_dept.strip().lower()
+                if dept_match:
+                    can_approve = True
+
             data.append({
                 'id': lr.id,
                 'employee_id': emp.id if emp else None,
@@ -2609,7 +2697,11 @@ def leave_management(request):
                 'emp_id': emp.emp_id if emp else 'N/A',
                 'emp_type': emp.emp_type if emp else 'Normal',
                 'department': emp.department if emp else '',
+                'designation': emp.designation if emp else '',
                 'email': emp.email if emp else '',
+                'is_manager': bool(emp.is_manager) if emp else False,
+                'is_superadmin': bool(emp.is_superadmin) if emp else False,
+                'is_manager_leave': bool(emp.is_manager) if emp else False,
                 'leave_type': lr.leave_type or 'Casual Leave',
                 'from_date': from_str,
                 'to_date': to_str,
@@ -2619,21 +2711,61 @@ def leave_management(request):
                 'reason': lr.reason or '',
                 'status': lr.status or 'Pending',
                 'applied_on': lr.applied_on.strftime('%d %b %Y') if lr.applied_on else '',
+                'approved_by': lr.approved_by or '',
+                'approved_by_role': lr.approved_by_role or '',
+                'rejection_reason': lr.rejection_reason or '',
+                'can_approve': can_approve,
             })
-        return JsonResponse({'success': True, 'leaves': data})
+        return JsonResponse({
+            'success': True,
+            'role': caller_role,
+            'is_hr': is_hr,
+            'is_manager': caller_role == 'manager',
+            'is_superadmin': caller_role == 'superadmin',
+            'managed_department': managed_dept,
+            'leaves': data
+        })
 
-    return render(request, 'leave_management.html', {'leaves': leaves, 'active_page': 'leave'})
+    return render(request, 'leave_management.html', {'leaves': leaves_qs, 'active_page': 'leave'})
 
 
 @csrf_exempt
 def approve_leave(request, leave_id):
     leave = get_object_or_404(LeaveRequest, id=leave_id)
+    
+    # Determine approver identity & title
+    approver_name = 'HR Admin'
+    approver_role = 'HR Admin'
+    hr_user = None
+
+    user = getattr(request, 'current_user', None)
+    if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
+        approver_name = user.name or 'HR Admin'
+        approver_role = 'HR Admin'
+        hr_user = user
+    else:
+        emp_id = resolve_employee_id(request)
+        if emp_id:
+            caller_emp = Employee.objects.filter(id=emp_id).first()
+            if caller_emp:
+                approver_name = caller_emp.name
+                if caller_emp.is_superadmin:
+                    approver_role = 'SuperAdmin'
+                elif caller_emp.is_manager:
+                    dept = caller_emp.managed_department or caller_emp.department or 'Department'
+                    approver_role = f"Manager ({dept})"
+                else:
+                    approver_role = 'Authorized Lead'
+        if not hr_user:
+            hr_user = HR.objects.first()
+
     leave.status = "Approved"
+    leave.approved_by = approver_name
+    leave.approved_by_role = approver_role
     leave.save()
 
     settings = CompanySettings.objects.first() or CompanySettings()
     hydrate_company_files(settings)
-    hr_user = getattr(request, 'current_user', None)
     if hr_user and hasattr(hr_user, 'id'):
         hydrate_hr_signature(hr_user)
 
@@ -2657,23 +2789,62 @@ def approve_leave(request, leave_id):
     if is_json:
         return JsonResponse({
             'success': True,
-            'message': f'Leave approved! {"Approval email with PDF attached sent to " + leave.employee.email if leave.employee and leave.employee.email else ""}',
+            'message': f'Leave approved by {approver_name} ({approver_role})! {"Approval email with PDF attached sent to " + leave.employee.email if leave.employee and leave.employee.email else ""}',
             'email_status': email_msg,
             'leave_id': leave.id,
-            'status': 'Approved'
+            'status': 'Approved',
+            'approved_by': approver_name,
+            'approved_by_role': approver_role
         })
 
-    messages.success(request, 'Leave approved and email dispatched.')
+    messages.success(request, f'Leave approved by {approver_name} ({approver_role}) and email dispatched.')
     return redirect('leave_management')
 
 
 @csrf_exempt
 def reject_leave(request, leave_id):
     leave = get_object_or_404(LeaveRequest, id=leave_id)
+    
+    approver_name = 'HR Admin'
+    approver_role = 'HR Admin'
+    rejection_reason = ''
+
+    if request.content_type == 'application/json' and request.body:
+        try:
+            body = json.loads(request.body.decode('utf-8'))
+            rejection_reason = body.get('reason', '').strip()
+        except Exception:
+            pass
+    elif request.POST.get('reason'):
+        rejection_reason = request.POST.get('reason', '').strip()
+
+    user = getattr(request, 'current_user', None)
+    if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
+        approver_name = user.name or 'HR Admin'
+        approver_role = 'HR Admin'
+        hr_user = user
+    else:
+        emp_id = resolve_employee_id(request)
+        if emp_id:
+            caller_emp = Employee.objects.filter(id=emp_id).first()
+            if caller_emp:
+                approver_name = caller_emp.name
+                if caller_emp.is_superadmin:
+                    approver_role = 'SuperAdmin'
+                elif caller_emp.is_manager:
+                    dept = caller_emp.managed_department or caller_emp.department or 'Department'
+                    approver_role = f"Manager ({dept})"
+                else:
+                    approver_role = 'Authorized Lead'
+        hr_user = HR.objects.first()
+
     leave.status = "Rejected"
+    leave.approved_by = approver_name
+    leave.approved_by_role = approver_role
+    if rejection_reason:
+        leave.rejection_reason = rejection_reason
     leave.save()
 
-    hr_user = getattr(request, 'current_user', None)
     email_sent, email_msg = _send_leave_notification_email(leave, action='rejected', hr_user=hr_user)
 
     is_json = (
@@ -2687,13 +2858,15 @@ def reject_leave(request, leave_id):
     if is_json:
         return JsonResponse({
             'success': True,
-            'message': f'Leave rejected. {"Notification email sent to " + leave.employee.email if leave.employee and leave.employee.email else ""}',
+            'message': f'Leave rejected by {approver_name} ({approver_role}). {"Notification email sent to " + leave.employee.email if leave.employee and leave.employee.email else ""}',
             'email_status': email_msg,
             'leave_id': leave.id,
-            'status': 'Rejected'
+            'status': 'Rejected',
+            'approved_by': approver_name,
+            'approved_by_role': approver_role
         })
 
-    messages.info(request, 'Leave rejected and notification email sent.')
+    messages.info(request, f'Leave rejected by {approver_name} and notification email sent.')
     return redirect('leave_management')
 
 
@@ -3714,3 +3887,553 @@ Warm regards,
 TimeArrow Pvt. Ltd. (WisBees)"""
 
     return JsonResponse({'preview': preview})
+
+
+# ============================================================================
+# KRA (KEY RESPONSIBILITY AREA) & NDA MODULE
+# ============================================================================
+
+DEFAULT_KRAS = {
+    'it': [
+        {
+            'title': 'Core Application Development & Architecture',
+            'description': 'Deliver robust, scalable full-stack features and API integrations across FRET web platforms with high code quality and test coverage.',
+            'kpi_metrics': 'Timely feature delivery, zero regression bugs, adhering to modern UI/UX design standards and responsive performance.',
+            'weightage': 30,
+            'target_timeline': 'Ongoing / Quarterly'
+        },
+        {
+            'title': 'System Reliability, Security & Performance',
+            'description': 'Ensure maximum uptime, secure data handling, rapid page load speeds, and proactive database query optimization.',
+            'kpi_metrics': '< 200ms API response time, 99.9% uptime, zero unresolved security vulnerabilities.',
+            'weightage': 25,
+            'target_timeline': 'Continuous'
+        },
+        {
+            'title': 'Automation, Tooling & DevOps Workflows',
+            'description': 'Automate manual operations, maintain streamlined CI/CD pipelines, and author thorough technical documentation.',
+            'kpi_metrics': 'Deployment automation, script efficiency, 100% updated workflow documentation.',
+            'weightage': 25,
+            'target_timeline': 'Quarterly'
+        },
+        {
+            'title': 'Cross-Functional Collaboration & Innovation',
+            'description': 'Collaborate proactively with Product, Design, Operations, and Business stakeholders to implement high-impact enhancements.',
+            'kpi_metrics': 'Peer review feedback, proactive problem-solving, innovative solution proposals.',
+            'weightage': 20,
+            'target_timeline': 'Quarterly'
+        },
+    ],
+    'data': [
+        {
+            'title': 'Data Modeling, ETL Pipelines & Architecture',
+            'description': 'Design, construct, and maintain scalable data pipelines and warehousing models to ingest, clean, and structure raw business data.',
+            'kpi_metrics': 'Pipeline reliability, data accuracy > 99%, zero pipeline failure delays.',
+            'weightage': 35,
+            'target_timeline': 'Ongoing'
+        },
+        {
+            'title': 'Analytical Dashboards & Business Intelligence',
+            'description': 'Create interactive BI dashboards, KPI monitors, and operational reporting models for management decision-making.',
+            'kpi_metrics': 'Daily updated metrics, high user adoption, clear visualization standards.',
+            'weightage': 30,
+            'target_timeline': 'Quarterly'
+        },
+        {
+            'title': 'Data Quality, Governance & Security',
+            'description': 'Enforce data hygiene, schema validation, access control policies, and compliance with data governance protocols.',
+            'kpi_metrics': 'Zero unauthorized data leaks, strict audit compliance, weekly quality audits.',
+            'weightage': 20,
+            'target_timeline': 'Continuous'
+        },
+        {
+            'title': 'Insights Delivery & Stakeholder Collaboration',
+            'description': 'Deliver actionable statistical insights, trend forecasts, and ad-hoc analytical deep-dives to business teams.',
+            'kpi_metrics': 'Timely turnaround on analytical queries, documented insight reports.',
+            'weightage': 15,
+            'target_timeline': 'Quarterly'
+        },
+    ],
+    'hr': [
+        {
+            'title': 'Talent Acquisition, Screening & Onboarding',
+            'description': 'Manage end-to-end recruitment lifecycle: job postings, candidate screening, interview scheduling, offer generation, and smooth onboarding.',
+            'kpi_metrics': 'Time-to-hire < 21 days, offer acceptance rate > 85%, 100% onboarding completion on Day 1.',
+            'weightage': 35,
+            'target_timeline': 'Quarterly'
+        },
+        {
+            'title': 'Employee Engagement, Relations & Welfare',
+            'description': 'Drive positive workplace culture, facilitate transparent communication, conduct 1-on-1 check-ins, and address employee grievances.',
+            'kpi_metrics': 'Employee satisfaction score > 4.2/5, quick resolution of HR queries within 24h.',
+            'weightage': 25,
+            'target_timeline': 'Ongoing'
+        },
+        {
+            'title': 'HR Compliance, Records & Policy Administration',
+            'description': 'Ensure complete compliance with labor laws, company policies, NDAs, employee verification records, and attendance tracking.',
+            'kpi_metrics': '100% NDA & documentation compliance, zero audit non-conformities.',
+            'weightage': 20,
+            'target_timeline': 'Continuous'
+        },
+        {
+            'title': 'Performance Management & Capability Development',
+            'description': 'Administer appraisal cycles, KRA goal alignments, manager reviews, and coordinate employee skill-building workshops.',
+            'kpi_metrics': '100% on-time appraisal reviews, training feedback rating > 4.0/5.',
+            'weightage': 20,
+            'target_timeline': 'Bi-Annual'
+        },
+    ],
+    'operations': [
+        {
+            'title': 'Operational Execution & SLA Adherence',
+            'description': 'Oversee daily operational deliverables, task delegations, process flows, and ensure all customer and internal SLAs are consistently met.',
+            'kpi_metrics': '98%+ on-time SLA fulfillment, minimal operational bottlenecks.',
+            'weightage': 35,
+            'target_timeline': 'Ongoing'
+        },
+        {
+            'title': 'Quality Assurance & Process Improvement',
+            'description': 'Audit process deliverables, implement continuous improvement (Kaizen) methodologies, and eliminate workflow redundancies.',
+            'kpi_metrics': 'Error rate < 1%, measurable process cycle time reduction.',
+            'weightage': 30,
+            'target_timeline': 'Quarterly'
+        },
+        {
+            'title': 'Resource Planning & Cross-Team Coordination',
+            'description': 'Coordinate resource allocation, team scheduling, operational tool maintenance, and cross-department collaboration.',
+            'kpi_metrics': 'Optimized capacity utilization, zero unassigned backlogs.',
+            'weightage': 20,
+            'target_timeline': 'Monthly'
+        },
+        {
+            'title': 'Operations Reporting & Documentation',
+            'description': 'Maintain up-to-date Standard Operating Procedures (SOPs), weekly output logs, and executive summary reports.',
+            'kpi_metrics': 'Accurate weekly operations logs, 100% documented SOPs.',
+            'weightage': 15,
+            'target_timeline': 'Monthly'
+        },
+    ],
+    'general': [
+        {
+            'title': 'Core Deliverables & Quality Execution',
+            'description': 'Execute core role responsibilities diligently, ensuring all assigned tasks and project milestones are completed to the highest standards.',
+            'kpi_metrics': 'On-time project delivery, minimal rework required, high quality of output.',
+            'weightage': 35,
+            'target_timeline': 'Ongoing'
+        },
+        {
+            'title': 'Productivity & Time Management',
+            'description': 'Maintain structured daily task logging, prioritize major deliverables, and meet target sprint commitments.',
+            'kpi_metrics': 'Consistent daily tracker submissions, high productivity score.',
+            'weightage': 25,
+            'target_timeline': 'Monthly'
+        },
+        {
+            'title': 'Professional Growth & Skill Mastery',
+            'description': 'Actively acquire new technical and functional skills relevant to organizational goals and participate in team learning sessions.',
+            'kpi_metrics': 'Demonstrated application of new tools and techniques, training participation.',
+            'weightage': 20,
+            'target_timeline': 'Quarterly'
+        },
+        {
+            'title': 'Team Collaboration & Organizational Values',
+            'description': 'Communicate effectively across teams, uphold company values, confidentiality, and support colleagues in critical initiatives.',
+            'kpi_metrics': 'Positive peer feedback, adherence to code of conduct and confidentiality policies.',
+            'weightage': 20,
+            'target_timeline': 'Quarterly'
+        },
+    ]
+}
+
+
+def _seed_default_kras_for_employee(employee):
+    if not employee or KRAItem.objects.filter(employee=employee).exists():
+        return
+    dept = (employee.department or '').lower()
+    desig = (employee.designation or '').lower()
+    
+    key = 'general'
+    if any(k in dept or k in desig for k in ['it', 'tech', 'software', 'developer', 'web', 'engineer', 'frontend', 'backend', 'fullstack']):
+        key = 'it'
+    elif any(k in dept or k in desig for k in ['data', 'analytic', 'research', 'quant']):
+        key = 'data'
+    elif any(k in dept or k in desig for k in ['hr', 'human', 'talent', 'people', 'recruit']):
+        key = 'hr'
+    elif any(k in dept or k in desig for k in ['operat', 'ops', 'admin']):
+        key = 'operations'
+
+    items = DEFAULT_KRAS.get(key, DEFAULT_KRAS['general'])
+    for item in items:
+        KRAItem.objects.create(
+            employee=employee,
+            title=item['title'],
+            description=item['description'],
+            kpi_metrics=item['kpi_metrics'],
+            weightage=item['weightage'],
+            target_timeline=item['target_timeline'],
+            status='Active',
+            assigned_by='Organization Standard'
+        )
+
+
+@csrf_exempt
+def api_kra_get(request):
+    user = getattr(request, 'current_user', None)
+    is_hr = isinstance(user, HR)
+    caller_emp = None
+    caller_role = 'employee'
+    managed_dept = ''
+
+    if not is_hr:
+        emp_id = resolve_employee_id(request)
+        if emp_id:
+            caller_emp = Employee.objects.filter(id=emp_id).first()
+            if caller_emp:
+                if caller_emp.is_superadmin:
+                    caller_role = 'superadmin'
+                elif caller_emp.is_manager:
+                    caller_role = 'manager'
+                    managed_dept = caller_emp.managed_department or caller_emp.department or ''
+                else:
+                    caller_role = 'employee'
+
+    requested_emp_id = request.GET.get('employee_id')
+    view_type = request.GET.get('view', 'my').strip()
+
+    target_emp = None
+    if requested_emp_id:
+        try:
+            target_emp = Employee.objects.filter(id=int(requested_emp_id)).first()
+        except Exception:
+            pass
+    elif caller_emp:
+        target_emp = caller_emp
+
+    if target_emp:
+        _seed_default_kras_for_employee(target_emp)
+
+    # Fetch user's own/target KRAs
+    kras_list = []
+    if target_emp:
+        qs = KRAItem.objects.filter(employee=target_emp).order_by('-weightage', 'id')
+        for item in qs:
+            kras_list.append({
+                'id': item.id,
+                'employee_id': target_emp.id,
+                'employee_name': target_emp.name,
+                'department': target_emp.department or '',
+                'designation': target_emp.designation or '',
+                'title': item.title,
+                'description': item.description or '',
+                'kpi_metrics': item.kpi_metrics or '',
+                'weightage': item.weightage,
+                'target_timeline': item.target_timeline,
+                'status': item.status,
+                'assigned_by': item.assigned_by or 'Manager',
+                'updated_at': item.updated_at.strftime('%d %b %Y') if item.updated_at else ''
+            })
+
+    # If manager/superadmin/HR, fetch team overview
+    team_members = []
+    team_kras = []
+    if is_hr or caller_role in ('manager', 'superadmin'):
+        if is_hr or caller_role == 'superadmin':
+            team_qs = Employee.objects.filter(status='Active').order_by('name')
+        else:
+            dept = managed_dept or (caller_emp.department if caller_emp else '')
+            team_qs = Employee.objects.filter(status='Active', department__iexact=dept).order_by('name')
+
+        for m in team_qs:
+            _seed_default_kras_for_employee(m)
+            m_kras = list(KRAItem.objects.filter(employee=m).order_by('-weightage'))
+            total_weight = sum(k.weightage for k in m_kras)
+            completed = sum(1 for k in m_kras if k.status == 'Completed')
+            
+            team_members.append({
+                'id': m.id,
+                'name': m.name,
+                'emp_id': m.emp_id or f"INT{m.id:04d}",
+                'department': m.department or '',
+                'designation': m.designation or '',
+                'is_manager': bool(m.is_manager),
+                'kras_count': len(m_kras),
+                'total_weightage': total_weight,
+                'completed_kras': completed
+            })
+
+            for k in m_kras:
+                team_kras.append({
+                    'id': k.id,
+                    'employee_id': m.id,
+                    'employee_name': m.name,
+                    'department': m.department or '',
+                    'designation': m.designation or '',
+                    'title': k.title,
+                    'description': k.description or '',
+                    'kpi_metrics': k.kpi_metrics or '',
+                    'weightage': k.weightage,
+                    'target_timeline': k.target_timeline,
+                    'status': k.status,
+                    'assigned_by': k.assigned_by or 'Manager',
+                    'updated_at': k.updated_at.strftime('%d %b %Y') if k.updated_at else ''
+                })
+
+    total_weight = sum(k['weightage'] for k in kras_list)
+    completed_count = sum(1 for k in kras_list if k['status'] == 'Completed')
+    in_progress_count = sum(1 for k in kras_list if k['status'] in ('Active', 'In Progress'))
+
+    return JsonResponse({
+        'success': True,
+        'role': caller_role,
+        'is_hr': is_hr,
+        'is_manager': caller_role == 'manager',
+        'is_superadmin': caller_role == 'superadmin',
+        'managed_department': managed_dept,
+        'employee': {
+            'id': target_emp.id if target_emp else None,
+            'name': target_emp.name if target_emp else '',
+            'department': target_emp.department if target_emp else '',
+            'designation': target_emp.designation if target_emp else '',
+            'emp_type': target_emp.emp_type if target_emp else 'Normal'
+        } if target_emp else None,
+        'summary': {
+            'total_kras': len(kras_list),
+            'total_weightage': total_weight,
+            'completed_count': completed_count,
+            'in_progress_count': in_progress_count
+        },
+        'kras': kras_list,
+        'team_members': team_members,
+        'team_kras': team_kras
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_kra_save(request):
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON'}, status=400)
+
+    kra_id = data.get('id')
+    emp_id = data.get('employee_id')
+    title = (data.get('title') or '').strip()
+    description = (data.get('description') or '').strip()
+    kpi_metrics = (data.get('kpi_metrics') or '').strip()
+    weightage = int(data.get('weightage') or 25)
+    target_timeline = (data.get('target_timeline') or 'Quarterly').strip()
+    status = (data.get('status') or 'Active').strip()
+
+    if not title:
+        return JsonResponse({'success': False, 'message': 'KRA title is required'}, status=400)
+
+    # Resolve target employee
+    if kra_id:
+        kra = get_object_or_404(KRAItem, id=kra_id)
+        target_emp = kra.employee
+    else:
+        if not emp_id:
+            emp_id = resolve_employee_id(request)
+        if not emp_id:
+            return JsonResponse({'success': False, 'message': 'Employee ID is required'}, status=400)
+        target_emp = get_object_or_404(Employee, id=emp_id)
+        kra = KRAItem(employee=target_emp)
+
+    kra.title = title
+    kra.description = description
+    kra.kpi_metrics = kpi_metrics
+    kra.weightage = weightage
+    kra.target_timeline = target_timeline
+    kra.status = status
+    kra.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'KRA saved successfully!',
+        'kra': {
+            'id': kra.id,
+            'employee_id': target_emp.id,
+            'employee_name': target_emp.name,
+            'title': kra.title,
+            'description': kra.description,
+            'kpi_metrics': kra.kpi_metrics,
+            'weightage': kra.weightage,
+            'target_timeline': kra.target_timeline,
+            'status': kra.status,
+            'assigned_by': kra.assigned_by or 'Manager'
+        }
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_kra_delete(request, kra_id):
+    kra = get_object_or_404(KRAItem, id=kra_id)
+    kra.delete()
+    return JsonResponse({'success': True, 'message': 'KRA item deleted successfully!'})
+
+
+@csrf_exempt
+@require_POST
+def api_kra_status(request, kra_id):
+    kra = get_object_or_404(KRAItem, id=kra_id)
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+        new_status = data.get('status', 'Active')
+    except Exception:
+        new_status = request.POST.get('status', 'Active')
+
+    kra.status = new_status
+    kra.save()
+    return JsonResponse({'success': True, 'status': kra.status, 'message': f'KRA status updated to {kra.status}'})
+
+
+# ─────────────── NDA (NON-DISCLOSURE AGREEMENT) SUBMISSION ───────────────
+
+@csrf_exempt
+def api_nda_template(request):
+    settings = CompanySettings.objects.first()
+    company_name = settings.company_name if settings else 'TimeArrow Pvt. Ltd. (WisBees)'
+    company_addr = settings.company_address if settings else 'Mumbai, Maharashtra 400001'
+    
+    terms = f"""NON-DISCLOSURE & PROPRIETARY INFORMATION AGREEMENT (NDA)
+
+This Non-Disclosure Agreement (the "Agreement") is entered into by and between {company_name} ("Company"), having its principal address at {company_addr}, and the undersigned Employee / Intern ("Recipient").
+
+1. PURPOSE & SCOPE
+The Recipient agrees that during employment and at all times thereafter, they will hold in strict confidence and not disclose, reproduce, or distribute to any unauthorized third party any Proprietary Information, source code, client databases, research reports, trading intelligence, or business strategies belonging to the Company.
+
+2. DEFINITIONS OF CONFIDENTIAL INFORMATION
+"Proprietary Information" includes, without limitation:
+- Software codebases, algorithms, architectural designs, internal APIs, and credentials.
+- Financial data, business projections, client information, and strategic documents.
+- Any technical, operations, HR, or commercial information marked or reasonably understood to be confidential.
+
+3. OBLIGATIONS OF THE RECIPIENT
+- To safeguard all Confidential Information with the highest standard of care.
+- Not to export, download, or copy proprietary code or company data onto unauthorized external devices.
+- To immediately notify the Management / HR of any potential breach or unauthorized access.
+
+4. INTELLECTUAL PROPERTY OWNERSHIP
+All inventions, source code, data models, research reports, and deliverables created by the Recipient during their tenure are the sole and exclusive property of the Company (Work Made For Hire).
+
+5. GOVERNING LAW & REMEDIES
+This Agreement is governed by the laws of India. Any breach of this Agreement may result in immediate termination of employment, disciplinary action, and legal proceedings for injunctive relief and damages.
+
+By digitally signing below, the Recipient acknowledges that they have read, understood, and voluntarily agree to be bound by all terms and conditions of this Agreement."""
+
+    return JsonResponse({
+        'success': True,
+        'company_name': company_name,
+        'terms': terms,
+        'title': 'Non-Disclosure & Confidentiality Agreement'
+    })
+
+
+@csrf_exempt
+@require_POST
+def api_nda_submit(request):
+    emp_id = resolve_employee_id(request)
+    if not emp_id:
+        return JsonResponse({'success': False, 'message': 'Unauthorized. Please login to submit NDA.'}, status=401)
+
+    employee = get_object_or_404(Employee, id=emp_id)
+
+    signature_name = ''
+    if request.content_type == 'application/json' and request.body:
+        try:
+            data = json.loads(request.body.decode('utf-8'))
+            signature_name = (data.get('signature_name') or '').strip()
+            agreed = bool(data.get('agreed', False))
+        except Exception:
+            agreed = False
+    else:
+        signature_name = request.POST.get('signature_name', '').strip()
+        agreed = bool(request.POST.get('agreed') in ('true', '1', 'on', True))
+
+    if not agreed:
+        return JsonResponse({'success': False, 'message': 'You must accept the terms of the Non-Disclosure Agreement.'}, status=400)
+
+    if not signature_name:
+        signature_name = employee.name
+
+    employee.nda_submitted = True
+    employee.nda_submitted_at = timezone.now()
+    employee.nda_signature = signature_name
+    employee.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Non-Disclosure Agreement (NDA) successfully submitted and digitally signed!',
+        'nda_submitted': True,
+        'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p'),
+        'nda_signature': employee.nda_signature
+    })
+
+
+@csrf_exempt
+def api_nda_status(request):
+    emp_id = resolve_employee_id(request)
+    if not emp_id:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    employee = get_object_or_404(Employee, id=emp_id)
+    return JsonResponse({
+        'success': True,
+        'nda_submitted': bool(employee.nda_submitted),
+        'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p') if employee.nda_submitted_at else None,
+        'nda_signature': employee.nda_signature or ''
+    })
+
+
+# ─────────────── ROLE & ACCESS MANAGEMENT (HR ADMIN) ───────────────
+
+@csrf_exempt
+@require_POST
+def api_update_employee_role_access(request, emp_id):
+    """
+    HR Admin endpoint to assign or revoke Manager (with managed department)
+    and SuperAdmin access for an employee.
+    """
+    user = getattr(request, 'current_user', None)
+    is_hr = isinstance(user, HR)
+    auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
+    if auth_header and 'hr:' in auth_header:
+        is_hr = True
+
+    if not is_hr:
+        caller_id = resolve_employee_id(request)
+        caller_emp = Employee.objects.filter(id=caller_id).first() if caller_id else None
+        if not caller_emp or not caller_emp.is_superadmin:
+            return JsonResponse({'success': False, 'message': 'Unauthorized. HR Admin permissions required.'}, status=403)
+
+    emp = get_object_or_404(Employee, id=emp_id)
+
+    try:
+        data = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        data = request.POST
+
+    is_manager = bool(data.get('is_manager', False))
+    managed_dept = (data.get('managed_department') or '').strip()
+    is_superadmin = bool(data.get('is_superadmin', False))
+
+    emp.is_manager = is_manager
+    emp.managed_department = managed_dept if is_manager else ''
+    emp.is_superadmin = is_superadmin
+    emp.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': f"Access roles updated for {emp.name} successfully!",
+        'employee': {
+            'id': emp.id,
+            'name': emp.name,
+            'is_manager': emp.is_manager,
+            'managed_department': emp.managed_department,
+            'is_superadmin': emp.is_superadmin,
+            'department': emp.department
+        }
+    })
+

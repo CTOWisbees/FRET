@@ -94,7 +94,27 @@ export default function AdminEmployeesPage() {
     fetchData();
   }, []);
 
-  const openAddModal = () => {
+  const openAddModal = async () => {
+    let depts = allDepartments;
+    let rList = roles;
+
+    if (depts.length === 0 || rList.length === 0) {
+      try {
+        const [deptRes, roleRes] = await Promise.all([
+          api.get('/admin/departments').catch(() => ({ data: { departments: [] } })),
+          api.get('/admin/roles').catch(() => ({ data: { roles: [] } }))
+        ]);
+        if (deptRes.data?.departments && deptRes.data.departments.length > 0) {
+          depts = deptRes.data.departments;
+          setAllDepartments(depts);
+        }
+        if (roleRes.data?.roles && roleRes.data.roles.length > 0) {
+          rList = roleRes.data.roles;
+          setRoles(rList);
+        }
+      } catch (e) {}
+    }
+
     setFormName('');
     setFormEmail('');
     setFormPassword('employee123');
@@ -103,12 +123,12 @@ export default function AdminEmployeesPage() {
     setFormDesignation('Operations Associate');
     
     // Default initial department access row
-    const defaultDept = allDepartments.length > 0 ? allDepartments[0] : { id: 'IT', name: 'IT' };
+    const defaultDept = depts.length > 0 ? depts[0] : { id: 1, name: 'IT' };
     setFormDepartmentAccessRows([
       { departmentId: defaultDept.id, departmentName: defaultDept.name }
     ]);
 
-    setFormSelectedRoles(roles.length > 0 ? [roles[0].id] : []);
+    setFormSelectedRoles(rList.length > 0 ? [rList[0].id] : []);
     setFormSelectedModules(['Task Management']);
     setFormSkills('');
     setShowAddModal(true);
