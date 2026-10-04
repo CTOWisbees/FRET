@@ -628,7 +628,7 @@ def api_forgot_password_reset(request):
 @require_http_methods(['GET', 'POST'])
 def api_admin_departments(request):
     user = get_current_user(request)
-    if not user or user.role != 'admin':
+    if not user or not (user.role == 'admin' or user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     if request.method == 'GET':
@@ -688,7 +688,7 @@ def api_admin_departments(request):
 @require_http_methods(['GET', 'PUT', 'DELETE'])
 def api_admin_department_detail(request, pk):
     user = get_current_user(request)
-    if not user or user.role != 'admin':
+    if not user or not (user.role == 'admin' or user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     dept = get_object_or_404(Department, id=pk)
@@ -745,7 +745,7 @@ def api_admin_department_detail(request, pk):
 @require_GET
 def api_admin_department_matrix(request):
     user = get_current_user(request)
-    if not user or user.role != 'admin':
+    if not user or not (user.role == 'admin' or user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     return JsonResponse({
@@ -757,7 +757,7 @@ def api_admin_department_matrix(request):
 @require_GET
 def api_admin_dashboard(request):
     user = get_current_user(request)
-    if not user or user.role != 'admin':
+    if not user or not (user.role == 'admin' or user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     total_employees = OperationUser.objects.count()
@@ -768,7 +768,7 @@ def api_admin_dashboard(request):
     pending_review = WorkTask.objects.filter(status='Under Review').count()
     urgent_tasks = WorkTask.objects.filter(priority='Urgent', status__in=['Todo', 'In Progress']).count()
 
-    recent_tasks = WorkTask.objects.all().select_related('assigned_to', 'assigned_by', 'department').order_by('-created_at')[:8]
+    recent_tasks = WorkTask.objects.all().select_related('assigned_to', 'created_by').order_by('-created_at')[:8]
     recent_activities = ActivityLog.objects.all().select_related('user').order_by('-created_at')[:10]
     all_departments = Department.objects.filter(is_active=True).values('id', 'name', 'page_key')
 
@@ -892,7 +892,7 @@ def api_admin_employees(request):
 @require_http_methods(['GET', 'PUT', 'DELETE'])
 def api_admin_employee_detail(request, pk):
     admin_user = get_current_user(request)
-    if not admin_user or admin_user.role != 'admin':
+    if not admin_user or not (admin_user.role == 'admin' or admin_user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     target_emp = get_object_or_404(OperationUser, id=pk)
@@ -984,7 +984,7 @@ def api_admin_employee_detail(request, pk):
 @require_http_methods(['GET', 'POST'])
 def api_admin_roles(request):
     user = get_current_user(request)
-    if not user or user.role != 'admin':
+    if not user or not (user.role == 'admin' or user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     if request.method == 'GET':
@@ -1028,11 +1028,11 @@ def api_admin_roles(request):
 @require_http_methods(['GET', 'POST'])
 def api_admin_tasks(request):
     user = get_current_user(request)
-    if not user or user.role != 'admin':
+    if not user or not (user.role == 'admin' or user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     if request.method == 'GET':
-        tasks = WorkTask.objects.all().select_related('assigned_to', 'assigned_by', 'department').order_by('-created_at')
+        tasks = WorkTask.objects.all().select_related('assigned_to', 'created_by').order_by('-created_at')
         status_filter = request.GET.get('status')
         assignee_filter = request.GET.get('assigned_to')
         dept_filter = request.GET.get('department')
@@ -1144,7 +1144,7 @@ def api_admin_tasks(request):
 @require_http_methods(['GET', 'PUT', 'DELETE'])
 def api_admin_task_detail(request, pk):
     admin_user = get_current_user(request)
-    if not admin_user or admin_user.role != 'admin':
+    if not admin_user or not (admin_user.role == 'admin' or admin_user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     task = get_object_or_404(WorkTask, id=pk)
