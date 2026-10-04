@@ -84,10 +84,10 @@ export function Navbar({ title, subtitle, user, onMenuClick }: NavbarProps) {
           {/* Role Pill (Visible on Desktop / Tablet) */}
           <div className={`hidden md:flex px-2.5 py-1 rounded-full text-xs font-bold items-center gap-1.5 border shadow-2xs ${
             isAdmin
-              ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800'
-              : 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800'
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60'
+              : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60'
           }`}>
-            {isAdmin ? <Shield className="w-3.5 h-3.5" /> : <User className="w-3.5 h-3.5" />}
+            {isAdmin ? <Shield className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <User className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />}
             <span className="capitalize">{isAdmin ? 'Operations Admin' : 'Assigned Employee'}</span>
           </div>
 
@@ -95,7 +95,7 @@ export function Navbar({ title, subtitle, user, onMenuClick }: NavbarProps) {
           {(() => {
             const avatarSrc = user?.avatar_url || user?.avatar || user?.profile_photo || user?.photo;
             return (
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-xs shrink-0 border border-sky-500/20">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full overflow-hidden bg-gradient-to-tr from-emerald-600 via-teal-600 to-amber-600 text-white flex items-center justify-center text-[10px] sm:text-xs font-black shadow-xs shrink-0 border border-emerald-500/30">
                 {avatarSrc ? (
                   <img
                     src={avatarSrc}

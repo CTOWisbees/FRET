@@ -212,10 +212,10 @@ export default function LeaveManagementPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl sm:text-3xl font-black text-[var(--text)] tracking-tight font-['Plus_Jakarta_Sans']">
                   {isManager && !isSuperAdmin && !isHr
-                    ? `Department Leave Approvals — ${serverMeta.managed_department || currentUser?.managed_department || 'Department'}`
+                    ? `Branch Leave Approvals — ${serverMeta.managed_department || currentUser?.managed_department || 'Branch'}`
                     : isSuperAdmin
                     ? 'SuperAdmin Leave Governance'
-                    : 'Organization Leave Management'}
+                    : 'Organization Leave Overview & Audit'}
                 </h1>
                 {isSuperAdmin && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-500/10 text-purple-600 border border-purple-500/20">
@@ -224,16 +224,21 @@ export default function LeaveManagementPage() {
                 )}
                 {isManager && !isSuperAdmin && (
                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                    <ShieldCheck className="w-3.5 h-3.5" /> {serverMeta.managed_department || 'Dept'} Manager
+                    <ShieldCheck className="w-3.5 h-3.5" /> {serverMeta.managed_department || 'Branch'} Manager
+                  </span>
+                )}
+                {isHr && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                    <Building className="w-3.5 h-3.5" /> HR Audit Mode
                   </span>
                 )}
               </div>
               <p className="text-[var(--text3)] text-xs sm:text-sm mt-0.5">
                 {isManager && !isSuperAdmin && !isHr
-                  ? `Review and approve/reject leave applications submitted by team members in ${serverMeta.managed_department || 'your department'}.`
+                  ? `Review and approve/reject leave applications submitted by employees and interns in ${serverMeta.managed_department || 'your branch'}.`
                   : isSuperAdmin
                   ? 'Approve and reject leave applications from Department Managers and oversee organizational time-off.'
-                  : 'Review, sanction, and dispatch official leave approval letters with digital HR signature.'}
+                  : 'View organizational leave records and approval status. Employee leaves are sanctioned by their Branch Manager; Manager leaves are sanctioned by SuperAdmin.'}
               </p>
             </div>
 
@@ -245,6 +250,19 @@ export default function LeaveManagementPage() {
               <span>Refresh</span>
             </button>
           </div>
+
+          {/* HR Governance Policy Notice */}
+          {isHr && (
+            <div className="bg-blue-500/5 border border-blue-500/20 rounded-2xl p-4 flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="text-xs space-y-0.5 text-[var(--text2)]">
+                <span className="font-bold text-blue-600">Branch Approval Hierarchy Policy:</span>
+                <p>
+                  Employee & intern leaves are reviewed and approved directly by their respective Branch / Department Managers. Manager leaves are approved by the designated SuperAdmin. HR maintains read and audit oversight of all company sanction orders.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* SuperAdmin Priority Tab Switcher */}
           {isSuperAdmin && (
@@ -258,7 +276,7 @@ export default function LeaveManagementPage() {
                 }`}
               >
                 <Users className="w-4 h-4" />
-                <span>All Department Leaves ({leaveRequests.length})</span>
+                <span>All Leaves ({leaveRequests.length})</span>
               </button>
 
               <button
@@ -467,8 +485,13 @@ export default function LeaveManagementPage() {
                               {req.status}
                             </span>
                             {req.approved_by && (
+                              <div className="text-[10px] text-[var(--text3)] mt-0.5 font-medium">
+                                By {req.approved_by} {req.approved_by_role ? `(${req.approved_by_role})` : ''}
+                              </div>
+                            )}
+                            {req.status === 'Pending' && !req.approved_by && (
                               <div className="text-[10px] text-[var(--text3)] mt-0.5">
-                                By {req.approved_by} ({req.approved_by_role || 'Lead'})
+                                {req.is_manager ? 'Route: SuperAdmin' : `Route: ${req.department || 'Branch'} Manager`}
                               </div>
                             )}
                           </td>
@@ -477,27 +500,37 @@ export default function LeaveManagementPage() {
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5 flex-wrap">
                               {req.status === 'Pending' ? (
-                                <>
-                                  <button
-                                    onClick={() => handleApprove(req.id, req.employee)}
-                                    disabled={isActing}
-                                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm disabled:opacity-50 active:scale-95 cursor-pointer"
-                                    title={isSuperAdmin && req.is_manager ? "SuperAdmin: Approve Manager leave" : "Approve leave and dispatch official PDF letter"}
-                                  >
-                                    <CheckCircle className="w-3.5 h-3.5" />
-                                    <span>{isActing ? '...' : 'Approve'}</span>
-                                  </button>
+                                req.can_approve ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleApprove(req.id, req.employee)}
+                                      disabled={isActing}
+                                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm disabled:opacity-50 active:scale-95 cursor-pointer"
+                                      title={isSuperAdmin && req.is_manager ? "SuperAdmin: Approve Manager leave" : "Approve leave and dispatch official PDF letter"}
+                                    >
+                                      <CheckCircle className="w-3.5 h-3.5" />
+                                      <span>{isActing ? '...' : 'Approve'}</span>
+                                    </button>
 
-                                  <button
-                                    onClick={() => handleReject(req.id, req.employee)}
-                                    disabled={isActing}
-                                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm disabled:opacity-50 active:scale-95 cursor-pointer"
-                                    title={isSuperAdmin && req.is_manager ? "SuperAdmin: Reject Manager leave" : "Reject leave and send decline notification"}
-                                  >
-                                    <XCircle className="w-3.5 h-3.5" />
-                                    <span>{isActing ? '...' : 'Reject'}</span>
-                                  </button>
-                                </>
+                                    <button
+                                      onClick={() => handleReject(req.id, req.employee)}
+                                      disabled={isActing}
+                                      className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1 shadow-sm disabled:opacity-50 active:scale-95 cursor-pointer"
+                                      title={isSuperAdmin && req.is_manager ? "SuperAdmin: Reject Manager leave" : "Reject leave and send decline notification"}
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                      <span>{isActing ? '...' : 'Reject'}</span>
+                                    </button>
+                                  </>
+                                ) : (
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-semibold border ${
+                                    req.is_manager 
+                                      ? 'bg-purple-500/10 text-purple-600 border-purple-500/20' 
+                                      : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                                  }`}>
+                                    {req.is_manager ? 'Awaiting SuperAdmin' : `Awaiting ${req.department || 'Branch'} Manager`}
+                                  </span>
+                                )
                               ) : req.status === 'Approved' ? (
                                 <div className="flex items-center gap-1.5">
                                   <button
@@ -509,25 +542,29 @@ export default function LeaveManagementPage() {
                                     <span>PDF Letter</span>
                                   </button>
 
-                                  <button
-                                    onClick={() => handleReject(req.id, req.employee)}
-                                    disabled={isActing}
-                                    className="px-2 py-1.5 bg-[var(--surface2)] hover:bg-[var(--hover)] text-rose-500 border border-[var(--border)] rounded-xl text-[11px] font-semibold transition cursor-pointer"
-                                    title="Change to Reject"
-                                  >
-                                    Reject
-                                  </button>
+                                  {req.can_approve && (
+                                    <button
+                                      onClick={() => handleReject(req.id, req.employee)}
+                                      disabled={isActing}
+                                      className="px-2 py-1.5 bg-[var(--surface2)] hover:bg-[var(--hover)] text-rose-500 border border-[var(--border)] rounded-xl text-[11px] font-semibold transition cursor-pointer"
+                                      title="Change to Reject"
+                                    >
+                                      Reject
+                                    </button>
+                                  )}
                                 </div>
                               ) : (
-                                <button
-                                  onClick={() => handleApprove(req.id, req.employee)}
-                                  disabled={isActing}
-                                  className="px-2.5 py-1.5 bg-[var(--surface2)] hover:bg-[var(--hover)] text-emerald-600 border border-[var(--border)] rounded-xl text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
-                                  title="Change to Approve"
-                                >
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                  <span>Approve</span>
-                                </button>
+                                req.can_approve && (
+                                  <button
+                                    onClick={() => handleApprove(req.id, req.employee)}
+                                    disabled={isActing}
+                                    className="px-2.5 py-1.5 bg-[var(--surface2)] hover:bg-[var(--hover)] text-emerald-600 border border-[var(--border)] rounded-xl text-xs font-semibold transition flex items-center gap-1 cursor-pointer"
+                                    title="Change to Approve"
+                                  >
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                    <span>Approve</span>
+                                  </button>
+                                )
                               )}
                             </div>
                           </td>

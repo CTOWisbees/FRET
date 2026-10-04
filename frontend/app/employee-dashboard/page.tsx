@@ -169,12 +169,17 @@ export default function EmployeeDashboardPage() {
   const leaveRequests = data?.leave_request_list || [];
 
   // Leave chart data (Remaining vs Taken)
-  const remainingLeaves = stats.leave_balance ?? 12;
-  const takenLeaves = stats.leaves_taken ?? 0;
-  const leaveDonutData = [
-    { name: 'Remaining', value: remainingLeaves, color: '#6366f1' },
-    { name: 'Taken', value: takenLeaves, color: '#1e293b' }
-  ];
+  const remainingLeaves = Number(stats.leave_balance ?? 12);
+  const takenLeaves = Number(stats.leaves_taken ?? 0);
+  const totalQuota = remainingLeaves + takenLeaves;
+  const leaveDonutData = takenLeaves > 0
+    ? [
+        { name: 'Remaining', value: remainingLeaves, color: '#6366f1' },
+        { name: 'Taken', value: takenLeaves, color: '#f59e0b' }
+      ]
+    : [
+        { name: 'Available Quota', value: remainingLeaves, color: '#6366f1' }
+      ];
 
   if (!mounted) {
     return (
@@ -191,11 +196,7 @@ export default function EmployeeDashboardPage() {
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans antialiased">
       {/* Sidebar with exact company styling and dynamic employee name */}
       <Sidebar 
-        user={{
-          name: employee.name || 'Employee',
-          designation: employee.designation || 'Staff',
-          emp_type: employee.emp_type || 'Normal'
-        }}
+        user={employee}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
       />
@@ -223,7 +224,7 @@ export default function EmployeeDashboardPage() {
                 <span className="animate-wave select-none text-2xl">👋</span>
               </h1>
               <p className="text-sm font-medium text-[var(--text3)] mt-1">
-                {employee.designation || 'IT Intern – Web & Automation Developer'}
+                {employee.designation ? `${employee.designation} • ${employee.department || 'General'}` : 'Employee Workspace'}
               </p>
             </div>
 
@@ -271,8 +272,8 @@ export default function EmployeeDashboardPage() {
                         axisLine={false} 
                       />
                       <YAxis 
-                        domain={[90, 100]} 
-                        ticks={[92, 93, 94, 95, 96, 97, 98]} 
+                        domain={[0, 100]} 
+                        ticks={[0, 20, 40, 60, 80, 100]} 
                         stroke="var(--text3)" 
                         fontSize={11} 
                         tickLine={false} 
@@ -419,12 +420,22 @@ export default function EmployeeDashboardPage() {
                   Attendance This Month
                 </div>
                 <div className="text-2xl font-extrabold text-[var(--text)] my-1 font-['Plus_Jakarta_Sans']">
-                  {stats.attendance_percent ?? 100.0}%
+                  {stats.attendance_percent ?? 0}%
                 </div>
-                <div className="text-xs font-semibold text-[#16A34A] flex items-center gap-1">
-                  <ArrowUp className="w-3 h-3" />
-                  <span>On track</span>
-                </div>
+                {(stats.attendance_percent ?? 0) >= 80 ? (
+                  <div className="text-xs font-semibold text-[#16A34A] flex items-center gap-1">
+                    <ArrowUp className="w-3 h-3" />
+                    <span>On track</span>
+                  </div>
+                ) : (stats.attendance_percent ?? 0) >= 50 ? (
+                  <div className="text-xs font-semibold text-amber-500 flex items-center gap-1">
+                    <span>Moderate</span>
+                  </div>
+                ) : (
+                  <div className="text-xs font-semibold text-rose-500 flex items-center gap-1">
+                    <span>Below target</span>
+                  </div>
+                )}
               </div>
               <div className="w-11 h-11 rounded-xl bg-[#EEF2FF] text-[#6366F1] flex items-center justify-center">
                 <Calendar className="w-5 h-5" />
@@ -458,10 +469,17 @@ export default function EmployeeDashboardPage() {
                 <div className="text-2xl font-extrabold text-[var(--text)] my-1 font-['Plus_Jakarta_Sans']">
                   {stats.pending_leaves ?? 0}
                 </div>
-                <div className="text-xs font-semibold text-[#DC2626] flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626]"></span>
-                  <span>Needs attention</span>
-                </div>
+                {(stats.pending_leaves ?? 0) > 0 ? (
+                  <div className="text-xs font-semibold text-[#DC2626] flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626]"></span>
+                    <span>Pending review</span>
+                  </div>
+                ) : (
+                  <div className="text-xs font-semibold text-[#16A34A] flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>All clear</span>
+                  </div>
+                )}
               </div>
               <div className="w-11 h-11 rounded-xl bg-[#FEF3C7] text-[#F59E0B] flex items-center justify-center">
                 <ListChecks className="w-5 h-5" />
@@ -545,12 +563,17 @@ export default function EmployeeDashboardPage() {
 
             {/* Leave Balance Donut Chart (4 cols) */}
             <div className="lg:col-span-4 bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-              <div className="flex items-center space-x-2 font-bold text-sm text-[var(--text)] mb-2">
-                <Clock className="w-4 h-4 text-[#6366F1]" />
-                <span>Leave Balance</span>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center space-x-2 font-bold text-sm text-[var(--text)]">
+                  <Clock className="w-4 h-4 text-[#6366F1]" />
+                  <span>Leave Balance</span>
+                </div>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
+                  {remainingLeaves} / {totalQuota} Days
+                </span>
               </div>
 
-              <div className="h-[210px] w-full flex items-center justify-center">
+              <div className="h-[200px] w-full flex items-center justify-center">
                 {mounted ? (
                   <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                     <PieChart>
@@ -558,9 +581,9 @@ export default function EmployeeDashboardPage() {
                         data={leaveDonutData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={55}
-                        outerRadius={80}
-                        paddingAngle={0}
+                        innerRadius={52}
+                        outerRadius={75}
+                        paddingAngle={takenLeaves > 0 ? 3 : 0}
                         dataKey="value"
                       >
                         {leaveDonutData.map((entry: any, index: number) => (
@@ -576,17 +599,29 @@ export default function EmployeeDashboardPage() {
                           fontSize: '12px',
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                         }} 
+                        formatter={(val: any, name: any) => [`${val} Days`, name]}
                       />
                       <Legend 
                         verticalAlign="bottom" 
-                        iconType="square" 
-                        wrapperStyle={{ fontSize: '11px', paddingTop: '15px' }} 
+                        iconType="circle" 
+                        wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} 
                       />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (
                   <div className="h-full w-full rounded-xl bg-slate-100/50 dark:bg-slate-800/50 animate-pulse" />
                 )}
+              </div>
+
+              <div className="pt-2 border-t border-[var(--border)] grid grid-cols-2 text-center text-xs">
+                <div>
+                  <span className="text-[var(--text3)] block text-[10px] uppercase font-bold">Taken</span>
+                  <span className="font-extrabold text-[var(--text)]">{takenLeaves} Days</span>
+                </div>
+                <div>
+                  <span className="text-[var(--text3)] block text-[10px] uppercase font-bold">Remaining</span>
+                  <span className="font-extrabold text-[#6366F1]">{remainingLeaves} Days</span>
+                </div>
               </div>
             </div>
           </div>

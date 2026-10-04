@@ -2,10 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   BarChart3, Users, UserPlus, CalendarCheck, CalendarMinus, 
-  Megaphone, Settings, User, LogOut, Briefcase, X, ClipboardCheck,
+  Megaphone, Settings, User, LogOut, X,
   Target, ShieldCheck, Crown, CheckSquare
 } from 'lucide-react';
 
@@ -21,24 +21,34 @@ export default function Sidebar({
   setMobileOpen?: (open: boolean) => void;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
   const [internalOpen, setInternalOpen] = React.useState(false);
-
-  const viewParam = searchParams ? searchParams.get('view') : null;
-  const filterParam = searchParams ? searchParams.get('filter') : null;
+  const [viewParam, setViewParam] = React.useState<string | null>(null);
+  const [filterParam, setFilterParam] = React.useState<string | null>(null);
   const [currentUser, setCurrentUser] = React.useState<any>(user);
 
   React.useEffect(() => {
-    if (user && user.name) {
-      setCurrentUser(user);
-    } else if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      setViewParam(sp.get('view'));
+      setFilterParam(sp.get('filter'));
+    }
+  }, [pathname]);
+
+  React.useEffect(() => {
+    let baseUser: any = {};
+    if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('fret_user');
       if (stored) {
         try {
-          setCurrentUser(JSON.parse(stored));
+          baseUser = JSON.parse(stored);
         } catch (e) {}
       }
+    }
+    if (user && user.name) {
+      setCurrentUser({ ...baseUser, ...user });
+    } else if (Object.keys(baseUser).length > 0) {
+      setCurrentUser(baseUser);
     }
 
     if (typeof window !== 'undefined') {
@@ -46,15 +56,16 @@ export default function Sidebar({
       if (t && t.startsWith('emp:')) {
         api.get('/api/employee/me')
           .then((res) => {
-            if (res.data && res.data.success && res.data.employee) {
+            if (res.data && (res.data.authenticated || res.data.success)) {
+              const emp = res.data.employee || res.data;
               const updatedEmp = {
-                ...res.data.employee,
+                ...emp,
                 role: 'employee',
-                is_manager: res.data.is_manager,
-                managed_department: res.data.managed_department,
-                is_superadmin: res.data.is_superadmin,
+                is_manager: Boolean(res.data.is_manager ?? emp.is_manager),
+                managed_department: res.data.managed_department || emp.managed_department || '',
+                is_superadmin: Boolean(res.data.is_superadmin ?? emp.is_superadmin),
               };
-              setCurrentUser(updatedEmp);
+              setCurrentUser((prev: any) => ({ ...prev, ...updatedEmp }));
               localStorage.setItem('fret_user', JSON.stringify(updatedEmp));
             }
           })
@@ -63,11 +74,34 @@ export default function Sidebar({
     }
   }, [user]);
 
-  const token = typeof window !== 'undefined' ? localStorage.getItem('fret_token') : null;
-  const isHrToken = Boolean(token && token.startsWith('hr:'));
-  const isEmpToken = Boolean(token && token.startsWith('emp:'));
+  const [mounted, setMounted] = React.useState(false);
 
-  const isHr = isHrToken ? true : (isEmpToken ? false : (currentUser?.role === 'hr' || (!currentUser?.emp_type && currentUser?.role !== 'employee')));
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isHr = React.useMemo(() => {
+    if (user?.role === 'hr') return true;
+    if (user?.role === 'employee' || user?.emp_type) return false;
+
+    if (mounted && typeof window !== 'undefined') {
+      const token = localStorage.getItem('fret_token');
+      if (token && token.startsWith('hr:')) return true;
+      if (token && token.startsWith('emp:')) return false;
+      if (currentUser?.role === 'hr') return true;
+      if (currentUser?.role === 'employee' || currentUser?.emp_type) return false;
+    }
+
+    if (pathname.startsWith('/employee-dashboard') || pathname.startsWith('/attendance') || pathname.startsWith('/kra') || pathname.startsWith('/apply-leave')) {
+      return false;
+    }
+    if (pathname.startsWith('/dashboard') || pathname.startsWith('/employees') || pathname.startsWith('/attendance-management')) {
+      return true;
+    }
+
+    return Boolean(currentUser?.role === 'hr');
+  }, [user, currentUser, mounted, pathname]);
+
   const isCurrentlyOpen = mobileOpen !== undefined ? mobileOpen : internalOpen;
 
   React.useEffect(() => {
@@ -307,107 +341,94 @@ export default function Sidebar({
                       <span>KRA (Responsibility)</span>
                     </Link>
 
-                    <Link
-                      href="/work"
-                      onClick={closeMobile}
-                      className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                        pathname === '/work'
-                          ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
-                          : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
-                      }`}
-                    >
-                      <Briefcase className="w-4 h-4" />
-                      <span>Work</span>
-                    </Link>
-
-                    <Link
-                      href="/apply-leave"
-                      onClick={closeMobile}
-                      className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                        pathname === '/apply-leave'
-                          ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
-                          : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
-                      }`}
-                    >
-                      <CalendarMinus className="w-4 h-4" />
-                      <span>Leave Requests</span>
-                    </Link>
-                  </div>
-                </div>
-
-                {/* Manager Workspace (Visible to Managers) */}
-                {currentUser?.is_manager && (
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1.5 px-3 flex items-center gap-1.5">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>Manager Workspace ({currentUser?.managed_department || currentUser?.department || 'Dept'})</span>
-                    </div>
-                    <div className="space-y-0.5">
                       <Link
-                        href="/leave-management"
+                        href="/apply-leave"
                         onClick={closeMobile}
                         className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/leave-management' && filterParam !== 'manager_leaves'
+                          pathname === '/apply-leave'
                             ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
                             : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
                         }`}
                       >
-                        <CheckSquare className="w-4 h-4 text-amber-500" />
-                        <span>Team Leaves ({currentUser?.managed_department || 'Dept'})</span>
-                      </Link>
-
-                      <Link
-                        href="/kra?view=team"
-                        onClick={closeMobile}
-                        className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/kra' && viewParam === 'team'
-                            ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
-                            : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
-                        }`}
-                      >
-                        <Target className="w-4 h-4 text-amber-500" />
-                        <span>Department KRAs</span>
+                        <CalendarMinus className="w-4 h-4" />
+                        <span>Leave Requests</span>
                       </Link>
                     </div>
                   </div>
-                )}
 
-                {/* SuperAdmin Workspace (Visible to SuperAdmins) */}
-                {currentUser?.is_superadmin && (
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-purple-500 mb-1.5 px-3 flex items-center gap-1.5">
-                      <Crown className="w-3.5 h-3.5" />
-                      <span>SuperAdmin Workspace</span>
-                    </div>
-                    <div className="space-y-0.5">
-                      <Link
-                        href="/leave-management?filter=manager_leaves"
-                        onClick={closeMobile}
-                        className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/leave-management' && filterParam === 'manager_leaves'
-                            ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
-                            : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
-                        }`}
-                      >
-                        <CheckSquare className="w-4 h-4 text-purple-500" />
-                        <span>Manager Leaves Approval</span>
-                      </Link>
+                  {/* Manager Workspace (Visible to Managers) */}
+                  {Boolean(currentUser?.is_manager) && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1.5 px-3 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>Manager Workspace ({currentUser?.managed_department || currentUser?.department || 'Dept'})</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        <Link
+                          href="/leave-management"
+                          onClick={closeMobile}
+                          className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                            pathname === '/leave-management' && filterParam !== 'manager_leaves'
+                              ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                              : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                          }`}
+                        >
+                          <CheckSquare className="w-4 h-4 text-amber-500" />
+                          <span>Team Leaves ({currentUser?.managed_department || currentUser?.department || 'Dept'})</span>
+                        </Link>
 
-                      <Link
-                        href="/kra?view=team"
-                        onClick={closeMobile}
-                        className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
-                          pathname === '/kra' && viewParam === 'team' && !currentUser?.is_manager
-                            ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
-                            : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
-                        }`}
-                      >
-                        <Target className="w-4 h-4 text-purple-500" />
-                        <span>Organization KRAs</span>
-                      </Link>
+                        <Link
+                          href="/kra?view=team"
+                          onClick={closeMobile}
+                          className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                            pathname === '/kra' && viewParam === 'team'
+                              ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                              : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                          }`}
+                        >
+                          <Target className="w-4 h-4 text-amber-500" />
+                          <span>Department KRAs</span>
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+
+                  {/* SuperAdmin Workspace (Visible to SuperAdmins) */}
+                  {Boolean(currentUser?.is_superadmin) && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-purple-500 mb-1.5 px-3 flex items-center gap-1.5">
+                        <Crown className="w-3.5 h-3.5" />
+                        <span>SuperAdmin Workspace</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        <Link
+                          href="/leave-management?filter=manager_leaves"
+                          onClick={closeMobile}
+                          className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                            pathname === '/leave-management' && filterParam === 'manager_leaves'
+                              ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                              : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                          }`}
+                        >
+                          <CheckSquare className="w-4 h-4 text-purple-500" />
+                          <span>Manager Leaves Approval</span>
+                        </Link>
+
+                        <Link
+                          href="/kra?view=team"
+                          onClick={closeMobile}
+                          className={`flex items-center space-x-3 px-3 py-2 rounded-xl font-medium transition ${
+                            pathname === '/kra' && viewParam === 'team' && !currentUser?.is_manager
+                              ? 'bg-[var(--accent)] text-white font-semibold shadow-sm'
+                              : 'text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--text)]'
+                          }`}
+                        >
+                          <Target className="w-4 h-4 text-purple-500" />
+                          <span>Organization KRAs</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
 
                 <div>
                   <div className="text-[10px] font-bold uppercase tracking-wider text-[var(--text3)] mb-1.5 px-3">Communication</div>

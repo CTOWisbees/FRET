@@ -207,18 +207,18 @@ export default function AdminManagersPage() {
       )}
 
       {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-purple-700 via-indigo-700 to-sky-700 text-white p-6 sm:p-8 shadow-xl">
-        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-950 via-teal-900 to-amber-950 text-white p-6 sm:p-8 shadow-xl border border-emerald-500/20">
+        <div className="absolute top-0 right-0 -mt-10 -mr-10 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md border border-white/20 text-xs font-bold text-white mb-3">
-              <Crown className="w-3.5 h-3.5 text-amber-300" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 backdrop-blur-md border border-emerald-400/30 text-xs font-bold text-emerald-200 mb-3">
+              <Crown className="w-3.5 h-3.5 text-amber-400" />
               <span>Superadmin Leadership Hub</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
               Department Manager Appointments
             </h1>
-            <p className="mt-2 text-xs sm:text-sm text-purple-100/90 leading-relaxed">
+            <p className="mt-2 text-xs sm:text-sm text-emerald-100/90 leading-relaxed">
               Appoint department managers from active employees and interns, authorize team work allocation, and delegate daily tracker approval scopes.
             </p>
           </div>
@@ -227,16 +227,16 @@ export default function AdminManagersPage() {
             <button
               onClick={fetchManagersData}
               disabled={loading}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-xs font-bold text-white transition cursor-pointer disabled:opacity-50 shadow-xs"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-xs font-bold text-white transition cursor-pointer disabled:opacity-50 shadow-xs active:scale-95"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               <span>Refresh</span>
             </button>
             <button
               onClick={() => openAssignModal()}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white text-purple-900 hover:bg-purple-50 font-extrabold text-xs shadow-lg hover:shadow-xl transition transform active:scale-95 cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-white font-extrabold text-xs shadow-lg hover:shadow-xl transition transform active:scale-95 cursor-pointer border border-emerald-300/30"
             >
-              <Crown className="w-4 h-4 text-purple-700" />
+              <Crown className="w-4 h-4 text-amber-300" />
               <span>Appoint Department Manager</span>
             </button>
           </div>
@@ -250,7 +250,7 @@ export default function AdminManagersPage() {
             <span className="text-[11px] font-bold text-[var(--text-muted)] uppercase tracking-wider">
               Total Departments
             </span>
-            <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
               <Building2 className="w-4 h-4" />
             </div>
           </div>
@@ -298,14 +298,14 @@ export default function AdminManagersPage() {
 
         <div className="p-5 rounded-3xl bg-[var(--card-bg)] border border-[var(--card-border)] shadow-xs transition">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
+            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
               Eligible Candidates
             </span>
-            <div className="w-8 h-8 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-300 flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
           </div>
-          <div className="mt-3 text-2xl font-black text-sky-600 dark:text-sky-400">
+          <div className="mt-3 text-2xl font-black text-amber-600 dark:text-amber-400">
             {candidates.length}
           </div>
           <div className="mt-1 text-[11px] font-medium text-[var(--text-muted)]">
@@ -324,7 +324,7 @@ export default function AdminManagersPage() {
             placeholder="Search by department, manager name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] text-xs font-semibold text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-hidden focus:ring-2 focus:ring-purple-500/30 transition"
+            className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-[var(--card-bg)] border border-[var(--card-border)] text-xs font-semibold text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 transition"
           />
           {search && (
             <button
@@ -342,7 +342,7 @@ export default function AdminManagersPage() {
             onClick={() => setFilterTab('ALL')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
               filterTab === 'ALL'
-                ? 'bg-purple-600 text-white shadow-xs'
+                ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
             }`}
           >
@@ -352,7 +352,7 @@ export default function AdminManagersPage() {
             onClick={() => setFilterTab('ASSIGNED')}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
               filterTab === 'ASSIGNED'
-                ? 'bg-emerald-600 text-white shadow-xs'
+                ? 'bg-teal-600 text-white shadow-xs'
                 : 'text-[var(--text-secondary)] hover:bg-[var(--hover-bg)]'
             }`}
           >
@@ -374,7 +374,7 @@ export default function AdminManagersPage() {
       {/* Grid of Department Cards */}
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center gap-3 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl">
-          <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
           <span className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">
             Loading Department Managers...
           </span>
@@ -396,7 +396,7 @@ export default function AdminManagersPage() {
                 key={dept.id}
                 className={`flex flex-col justify-between rounded-3xl bg-[var(--card-bg)] border transition-all duration-200 shadow-xs hover:shadow-md ${
                   hasMgr
-                    ? 'border-[var(--card-border)] hover:border-purple-300 dark:hover:border-purple-800'
+                    ? 'border-[var(--card-border)] hover:border-emerald-300 dark:hover:border-emerald-800'
                     : 'border-amber-200 dark:border-amber-900/60 bg-gradient-to-b from-[var(--card-bg)] to-amber-500/5'
                 }`}
               >
@@ -404,7 +404,7 @@ export default function AdminManagersPage() {
                   {/* Department Header */}
                   <div className="flex items-start justify-between gap-3 mb-5">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex items-center justify-center shrink-0 shadow-2xs font-black">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center shrink-0 shadow-2xs font-black">
                         <Building2 className="w-5 h-5" />
                       </div>
                       <div className="min-w-0">
@@ -432,7 +432,7 @@ export default function AdminManagersPage() {
                   {hasMgr ? (
                     <div className="p-4 rounded-2xl bg-[var(--hover-bg)] border border-[var(--card-border)] space-y-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                        <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 via-teal-600 to-amber-600 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
                           {dept.manager?.manager_name ? dept.manager.manager_name[0].toUpperCase() : 'M'}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -478,7 +478,7 @@ export default function AdminManagersPage() {
                     <>
                       <button
                         onClick={() => openAssignModal(dept.name)}
-                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[var(--card-bg)] hover:bg-[var(--hover-bg)] border border-[var(--card-border)] text-xs font-bold text-purple-700 dark:text-purple-300 transition cursor-pointer shadow-2xs"
+                        className="flex-1 inline-flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-[var(--card-bg)] hover:bg-[var(--hover-bg)] border border-[var(--card-border)] text-xs font-bold text-emerald-700 dark:text-emerald-300 transition cursor-pointer shadow-2xs"
                       >
                         <UserCheck className="w-3.5 h-3.5" />
                         <span>Reassign Manager</span>
@@ -500,9 +500,9 @@ export default function AdminManagersPage() {
                   ) : (
                     <button
                       onClick={() => openAssignModal(dept.name)}
-                      className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold transition cursor-pointer shadow-xs hover:shadow"
+                      className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold transition cursor-pointer shadow-xs hover:shadow active:scale-95"
                     >
-                      <Crown className="w-3.5 h-3.5" />
+                      <Crown className="w-3.5 h-3.5 text-amber-300" />
                       <span>Appoint Manager</span>
                     </button>
                   )}
@@ -518,10 +518,10 @@ export default function AdminManagersPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="w-full max-w-xl bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="p-6 border-b border-[var(--card-border)] flex items-center justify-between bg-gradient-to-r from-purple-700/10 via-transparent to-transparent">
+            <div className="p-6 border-b border-[var(--card-border)] flex items-center justify-between bg-gradient-to-r from-emerald-600/10 via-amber-500/10 to-transparent">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-bold shadow-md">
-                  <Crown className="w-5 h-5" />
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-center font-bold shadow-md">
+                  <Crown className="w-5 h-5 text-amber-300" />
                 </div>
                 <div>
                   <h3 className="text-base font-black text-[var(--text-primary)]">
@@ -550,7 +550,7 @@ export default function AdminManagersPage() {
                 <select
                   value={selectedDeptName}
                   onChange={(e) => setSelectedDeptName(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-2xl bg-[var(--hover-bg)] border border-[var(--card-border)] text-xs font-bold text-[var(--text-primary)] focus:outline-hidden focus:ring-2 focus:ring-purple-500/30"
+                  className="w-full px-4 py-2.5 rounded-2xl bg-[var(--hover-bg)] border border-[var(--card-border)] text-xs font-bold text-[var(--text-primary)] focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30"
                   required
                 >
                   <option value="" disabled>Select Department</option>
@@ -581,7 +581,7 @@ export default function AdminManagersPage() {
                     placeholder="Search candidate by name, code, designation..."
                     value={candidateSearch}
                     onChange={(e) => setCandidateSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[var(--hover-bg)] border border-[var(--card-border)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-hidden"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl bg-[var(--hover-bg)] border border-[var(--card-border)] text-xs text-[var(--text-primary)] placeholder-[var(--text-muted)] focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30"
                   />
                 </div>
 
@@ -601,7 +601,7 @@ export default function AdminManagersPage() {
                           onClick={() => setSelectedUserId(cand.id)}
                           className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition ${
                             isSelected
-                              ? 'bg-purple-600 text-white shadow-xs font-bold'
+                              ? 'bg-emerald-600 text-white shadow-xs font-bold'
                               : 'hover:bg-[var(--hover-bg)] text-[var(--text-primary)]'
                           }`}
                         >
@@ -609,8 +609,8 @@ export default function AdminManagersPage() {
                             <div
                               className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black shrink-0 ${
                                 isSelected
-                                  ? 'bg-white text-purple-700'
-                                  : 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300'
+                                  ? 'bg-white text-emerald-700'
+                                  : 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300'
                               }`}
                             >
                               {cand.name ? cand.name[0].toUpperCase() : 'U'}
@@ -632,7 +632,7 @@ export default function AdminManagersPage() {
                               </div>
                               <div
                                 className={`text-[10px] truncate ${
-                                  isSelected ? 'text-purple-100' : 'text-[var(--text-muted)]'
+                                  isSelected ? 'text-emerald-100' : 'text-[var(--text-muted)]'
                                 }`}
                               >
                                 {cand.designation || 'Team Member'} • {cand.emp_code || `ID: ${cand.id}`}
@@ -643,7 +643,7 @@ export default function AdminManagersPage() {
                           {isSelected ? (
                             <CheckCircle2 className="w-4 h-4 text-white shrink-0 ml-2" />
                           ) : cand.is_manager ? (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold shrink-0 ml-2">
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 font-bold shrink-0 ml-2">
                               Already Mgr
                             </span>
                           ) : null}
@@ -655,8 +655,8 @@ export default function AdminManagersPage() {
               </div>
 
               {/* Notice Box */}
-              <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 text-[11px] text-purple-900 dark:text-purple-200 flex items-start gap-2.5">
-                <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0 mt-0.5" />
+              <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-[11px] text-emerald-900 dark:text-emerald-200 flex items-start gap-2.5">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                 <span>
                   Appointing this member will grant them access to the <strong>Dept Manager Hub</strong>, enabling them to assign tasks and review/unlock daily trackers for <strong>{selectedDeptName || 'the department'}</strong>.
                 </span>
@@ -674,7 +674,7 @@ export default function AdminManagersPage() {
                 <button
                   type="submit"
                   disabled={saving || !selectedDeptName || !selectedUserId}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-extrabold transition disabled:opacity-50 cursor-pointer shadow-md flex items-center gap-2"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-extrabold transition disabled:opacity-50 cursor-pointer shadow-md flex items-center gap-2 active:scale-95"
                 >
                   {saving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>{saving ? 'Appointing...' : 'Confirm Appointment'}</span>

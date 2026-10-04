@@ -32,9 +32,13 @@ export default function ProfilePage() {
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [ndaSignature, setNdaSignature] = useState('');
   const [ndaAgreed, setNdaAgreed] = useState(false);
+  const [ndaFile, setNdaFile] = useState<File | null>(null);
+  const [ndaFileDragOver, setNdaFileDragOver] = useState(false);
+  const [isReuploadingNda, setIsReuploadingNda] = useState(false);
   const [submittingNda, setSubmittingNda] = useState(false);
   const [ndaSubmitted, setNdaSubmitted] = useState<boolean | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const ndaFileInputRef = useRef<HTMLInputElement>(null);
   const modalCardRef = useRef<HTMLDivElement>(null);
   const modalBarcodeRef = useRef<SVGSVGElement>(null);
 
@@ -198,7 +202,7 @@ export default function ProfilePage() {
     }
   };
 
-  // Employee: Submit NDA
+  // Employee: Submit NDA (with signed document upload)
   const handleSubmitNda = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!ndaAgreed) {
@@ -208,23 +212,33 @@ export default function ProfilePage() {
     const sig = ndaSignature.trim() || employee?.name || 'Employee Signature';
     setSubmittingNda(true);
     try {
-      const res = await api.post('/api/nda/submit', {
-        signature_name: sig,
-        agreed: true
+      const formData = new FormData();
+      formData.append('signature_name', sig);
+      formData.append('agreed', 'true');
+      if (ndaFile) {
+        formData.append('nda_file', ndaFile);
+      }
+
+      const res = await api.post('/api/nda/submit', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
       });
       if (res.data?.success) {
-        showAlert('Non-Disclosure Agreement (NDA) successfully submitted and signed!');
+        showAlert('Non-Disclosure Agreement (NDA) successfully submitted, signed, and uploaded!');
         setNdaSubmitted(true);
+        setIsReuploadingNda(false);
         if (employee) {
           const updated = {
             ...employee,
             nda_submitted: true,
             nda_signature: sig,
-            nda_submitted_at: new Date().toLocaleDateString('en-GB')
+            nda_submitted_at: res.data.nda_submitted_at || new Date().toLocaleDateString('en-GB'),
+            nda_doc_name: res.data.nda_doc_name || ndaFile?.name || employee.nda_doc_name,
+            has_nda_doc: Boolean(res.data.has_nda_doc || ndaFile)
           };
           setEmployee(updated);
           localStorage.setItem('fret_user', JSON.stringify(updated));
         }
+        await fetchProfile();
       } else {
         showAlert(res.data?.message || 'Failed to submit NDA.', 'error');
       }
@@ -413,16 +427,7 @@ export default function ProfilePage() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans antialiased">
       <Sidebar 
-        user={employee ? {
-          name: employee.name || 'Employee',
-          designation: employee.designation || 'Staff',
-          emp_type: employee.emp_type || 'Normal',
-          role: 'employee'
-        } : (hrUser ? {
-          name: hrUser.name || 'HR Admin',
-          designation: hrUser.designation || 'HR Manager',
-          role: 'hr'
-        } : undefined)}
+        user={isHr ? hrUser : employee}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
       />
@@ -464,7 +469,7 @@ export default function ProfilePage() {
                       />
                     ) : (
                       <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-[#4F46E5] to-[#6366F1] text-white flex items-center justify-center font-bold text-4xl border-4 border-[var(--surface)] shadow-md select-none">
-                        {employee?.name ? employee.name[0].toUpperCase() : 'C'}
+                        {employee?.name ? employee.name[0].toUpperCase() : 'U'}
                       </div>
                     )}
 
@@ -496,17 +501,28 @@ export default function ProfilePage() {
                 {/* Profile Meta & Actions */}
                 <div className="text-center sm:text-left space-y-2 flex-1">
                   <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text)] tracking-tight font-['Plus_Jakarta_Sans']">
-                    {employee?.name || 'Chhayakanta Maharana'}
+                    {employee?.name || 'Employee'}
                   </h1>
 
                   <p className="text-xs sm:text-sm font-medium text-[var(--text3)]">
-                    {employee?.designation || 'IT Intern – Web & Automation Developer'} • {employee?.department || 'Data & Analytics'}
+                    {employee?.designation || 'Staff Member'} • {employee?.department || 'General'}
                   </p>
 
-                  <div className="pt-1">
+                  <div className="pt-1 flex flex-wrap items-center gap-2 justify-center sm:justify-start">
                     <span className="inline-flex items-center px-3.5 py-1 rounded-full text-xs font-bold bg-[#EEF2FF] text-[#4F46E5] border border-[#C7D2FE] shadow-2xs capitalize">
-                      {employee?.emp_type || 'Intern'}
+                      {employee?.emp_type || 'Normal'}
                     </span>
+                    {Boolean(employee?.is_manager) && (
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-300 shadow-2xs">
+                        <Shield className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Manager — {employee?.managed_department || employee?.department || 'Department'}</span>
+                      </span>
+                    )}
+                    {Boolean(employee?.is_superadmin) && (
+                      <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-300 shadow-2xs">
+                        <span>SuperAdmin</span>
+                      </span>
+                    )}
                   </div>
 
                   <div className="pt-3">
@@ -534,21 +550,21 @@ export default function ProfilePage() {
                     <div>
                       <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Email</div>
                       <div className="text-sm font-bold text-[var(--text)] mt-1 break-all">
-                        {employee?.email || 'chhayakantamaharan@gmail.com'}
+                        {employee?.email || 'Not Available'}
                       </div>
                     </div>
 
                     <div>
                       <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Phone</div>
                       <div className="text-sm font-bold text-[var(--text)] mt-1">
-                        {employee?.phone ? (employee.phone.startsWith('+') ? employee.phone : `+91 ${employee.phone}`) : '+91 8260770510'}
+                        {employee?.phone ? (employee.phone.startsWith('+') ? employee.phone : `+91 ${employee.phone}`) : 'Not Available'}
                       </div>
                     </div>
 
                     <div>
                       <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Employee ID</div>
                       <div className="text-sm font-bold text-[var(--text)] mt-1">
-                        {employee?.emp_id || `INT${employee?.id ? String(employee.id).padStart(4, '0') : '0025'}`}
+                        {employee?.emp_id || (employee?.id ? `INT${String(employee.id).padStart(4, '0')}` : 'N/A')}
                       </div>
                     </div>
 
@@ -607,35 +623,62 @@ export default function ProfilePage() {
               <div className="bg-[var(--surface)] border border-[var(--border)] rounded-2xl p-6 shadow-sm space-y-4">
                 <div className="flex items-center space-x-2 font-bold text-sm text-[var(--text)] border-b border-[var(--border)] pb-3">
                   <Briefcase className="w-4 h-4 text-[#4F46E5]" />
-                  <span>Employment Details</span>
+                  <span>Employment & Organization Details</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-1">
                   <div>
                     <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Department</div>
                     <div className="text-sm font-bold text-[var(--text)] mt-1">
-                      {employee?.department || 'Data & Analytics'}
+                      {employee?.department || '-'}
                     </div>
                   </div>
 
                   <div>
                     <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Designation</div>
                     <div className="text-sm font-bold text-[var(--text)] mt-1">
-                      {employee?.designation || 'IT Intern – Web & Automation Developer'}
+                      {employee?.designation || '-'}
                     </div>
                   </div>
 
                   <div>
                     <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Joining Date</div>
                     <div className="text-sm font-bold text-[var(--text)] mt-1">
-                      {employee?.joining_date || '25 Aug 2026'}
+                      {employee?.joining_date || '-'}
                     </div>
                   </div>
 
                   <div>
                     <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Employment Type</div>
                     <div className="text-sm font-bold text-[var(--text)] mt-1 capitalize">
-                      {employee?.emp_type || 'Intern'}
+                      {employee?.emp_type || 'Normal'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Manager Role</div>
+                    <div className="text-sm font-bold mt-1">
+                      {employee?.is_manager ? (
+                        <span className="text-amber-600 font-extrabold flex items-center gap-1">
+                          <span>Yes (Managing {employee?.managed_department || employee?.department || 'Department'})</span>
+                        </span>
+                      ) : (
+                        <span className="text-[var(--text3)] font-medium">Individual Contributor</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">Reporting Manager</div>
+                    <div className="text-sm font-bold text-[var(--text)] mt-1">
+                      {employee?.reporting_manager_name ? (
+                        <span>
+                          {employee.reporting_manager_name}
+                          {employee.reporting_manager_designation ? ` (${employee.reporting_manager_designation})` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-[var(--text3)] font-medium">Department Manager / HR Admin</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -659,8 +702,8 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* NDA Submission Section (Only shown if NOT submitted yet) */}
-              {(!employee?.nda_submitted && ndaSubmitted !== true) && (
+              {/* NDA Submission Section (Pending Submission OR Re-uploading) */}
+              {((!employee?.nda_submitted && ndaSubmitted !== true) || isReuploadingNda) ? (
                 <div className="bg-gradient-to-br from-[var(--surface)] to-[var(--surface2)] border-2 border-indigo-500/30 rounded-2xl p-6 sm:p-7 shadow-lg space-y-5 animate-fadeIn relative overflow-hidden">
                   <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
 
@@ -671,21 +714,32 @@ export default function ProfilePage() {
                       </div>
                       <div>
                         <h3 className="text-base font-extrabold text-[var(--text)] font-['Plus_Jakarta_Sans']">
-                          Non-Disclosure Agreement (NDA) Submission
+                          Non-Disclosure Agreement (NDA) Submission & Upload
                         </h3>
                         <p className="text-xs text-[var(--text3)]">
-                          Action Required: Complete your digital NDA signature for organizational compliance
+                          Action Required: Complete your digital signature and upload your signed NDA document
                         </p>
                       </div>
                     </div>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 self-start sm:self-auto">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      <span>Pending Submission</span>
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {isReuploadingNda && (
+                        <button
+                          type="button"
+                          onClick={() => setIsReuploadingNda(false)}
+                          className="px-3 py-1 text-xs font-semibold text-[var(--text3)] hover:text-[var(--text)] rounded-lg hover:bg-[var(--surface2)] transition"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 self-start sm:self-auto">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Pending Submission</span>
+                      </span>
+                    </div>
                   </div>
 
                   {/* Summary Terms Box */}
-                  <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] text-xs text-[var(--text2)] space-y-2.5 max-h-48 overflow-y-auto leading-relaxed">
+                  <div className="p-4 rounded-xl bg-[var(--bg)] border border-[var(--border)] text-xs text-[var(--text2)] space-y-2.5 max-h-40 overflow-y-auto leading-relaxed">
                     <div className="font-bold text-[var(--text)] text-xs uppercase tracking-wider">
                       NDA Agreement Terms Summary — TimeArrow Pvt. Ltd. (WisBees)
                     </div>
@@ -705,21 +759,89 @@ export default function ProfilePage() {
 
                   {/* Form */}
                   <form onSubmit={handleSubmitNda} className="space-y-4 pt-1">
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-1.5">
-                        Full Legal Name (Electronic Signature) *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={ndaSignature}
-                        onChange={(e) => setNdaSignature(e.target.value)}
-                        placeholder={employee?.name || 'Enter your full legal name'}
-                        className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-semibold text-[var(--text)] focus:outline-none focus:border-[#4F46E5] transition"
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Full Legal Name */}
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-1.5">
+                          Full Legal Name (Electronic Signature) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={ndaSignature}
+                          onChange={(e) => setNdaSignature(e.target.value)}
+                          placeholder={employee?.name || 'Enter your full legal name'}
+                          className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-xl text-sm font-semibold text-[var(--text)] focus:outline-none focus:border-[#4F46E5] transition"
+                        />
+                      </div>
+
+                      {/* File Upload Box */}
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-[var(--text3)] mb-1.5">
+                          Upload Signed NDA Document (PDF / Image) *
+                        </label>
+
+                        <input
+                          type="file"
+                          ref={ndaFileInputRef}
+                          onChange={(e) => {
+                            if (e.target.files?.[0]) setNdaFile(e.target.files[0]);
+                          }}
+                          accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                          className="hidden"
+                        />
+
+                        {ndaFile ? (
+                          <div className="flex items-center justify-between p-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200">
+                            <div className="flex items-center space-x-2.5 min-w-0">
+                              <FileText className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold truncate">{ndaFile.name}</p>
+                                <p className="text-[10px] text-emerald-700 dark:text-emerald-400">
+                                  {(ndaFile.size / 1024).toFixed(1)} KB · Ready to upload
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNdaFile(null);
+                                if (ndaFileInputRef.current) ndaFileInputRef.current.value = '';
+                              }}
+                              className="p-1 rounded-lg hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 transition"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div
+                            onClick={() => ndaFileInputRef.current?.click()}
+                            onDragOver={(e) => { e.preventDefault(); setNdaFileDragOver(true); }}
+                            onDragLeave={() => setNdaFileDragOver(false)}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              setNdaFileDragOver(false);
+                              if (e.dataTransfer.files?.[0]) setNdaFile(e.dataTransfer.files[0]);
+                            }}
+                            className={`border-2 border-dashed rounded-xl p-3 text-center cursor-pointer transition flex flex-col items-center justify-center gap-1 ${
+                              ndaFileDragOver 
+                                ? 'border-[#4F46E5] bg-indigo-50/50 dark:bg-indigo-950/30' 
+                                : 'border-[var(--border)] hover:border-[#4F46E5] bg-[var(--input-bg)]'
+                            }`}
+                          >
+                            <Upload className="w-4 h-4 text-[#4F46E5]" />
+                            <span className="text-xs font-bold text-[var(--text)]">
+                              Click or Drag & Drop Signed NDA Document
+                            </span>
+                            <span className="text-[10px] text-[var(--text3)]">
+                              Supports PDF, JPG, PNG, DOCX (Max 15MB)
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    <label className="flex items-start gap-3 cursor-pointer select-none">
+                    <label className="flex items-start gap-3 cursor-pointer select-none pt-1">
                       <input
                         type="checkbox"
                         checked={ndaAgreed}
@@ -727,11 +849,11 @@ export default function ProfilePage() {
                         className="mt-1 w-4 h-4 rounded text-[#4F46E5] focus:ring-[#4F46E5] cursor-pointer"
                       />
                       <span className="text-xs text-[var(--text2)] leading-relaxed font-medium">
-                        I hereby confirm that I have read, understood, and voluntarily agree to be legally bound by the terms and conditions of the Non-Disclosure Agreement (NDA).
+                        I hereby confirm that I have read, understood, electronically signed, and uploaded the valid signed copy of the Non-Disclosure Agreement (NDA).
                       </span>
                     </label>
 
-                    <div className="pt-2">
+                    <div className="pt-2 flex flex-wrap items-center gap-3">
                       <button
                         type="submit"
                         disabled={submittingNda || !ndaAgreed}
@@ -740,17 +862,95 @@ export default function ProfilePage() {
                         {submittingNda ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Submitting NDA...</span>
+                            <span>Uploading & Submitting NDA...</span>
                           </>
                         ) : (
                           <>
                             <FileSignature className="w-4 h-4" />
-                            <span>Submit NDA Agreement</span>
+                            <span>Upload & Submit NDA Agreement</span>
                           </>
                         )}
                       </button>
                     </div>
                   </form>
+                </div>
+              ) : (
+                /* NDA Completed & Verified State */
+                <div className="bg-[var(--surface)] border border-emerald-500/30 rounded-2xl p-6 shadow-sm space-y-4 animate-fadeIn">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--border)] pb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center font-bold">
+                        <Check className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-base font-extrabold text-[var(--text)] font-['Plus_Jakarta_Sans']">
+                          Non-Disclosure Agreement (NDA) — Completed & Verified
+                        </h3>
+                        <p className="text-xs text-[var(--text3)]">
+                          Your signed NDA has been recorded for legal and organizational compliance
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Compliant</span>
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                    <div>
+                      <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">
+                        Electronic Signature
+                      </div>
+                      <div className="text-sm font-bold text-[var(--text)] mt-1">
+                        {employee?.nda_signature || employee?.name || 'Verified Signature'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">
+                        Submitted On
+                      </div>
+                      <div className="text-sm font-bold text-[var(--text)] mt-1">
+                        {employee?.nda_submitted_at || 'Recorded'}
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs text-[var(--text3)] font-semibold uppercase tracking-wider">
+                        Uploaded Document
+                      </div>
+                      <div className="text-sm font-bold text-[var(--text)] mt-1 truncate">
+                        {employee?.nda_doc_name || 'Signed_NDA_Document.pdf'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-wrap items-center gap-3">
+                    <a
+                      href={getApiUrl('/api/nda/download')}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-xl font-bold text-xs shadow-sm transition flex items-center gap-2 active:scale-95 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Download / View Signed NDA</span>
+                    </a>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsReuploadingNda(true);
+                        setNdaFile(null);
+                        setNdaAgreed(false);
+                      }}
+                      className="px-4 py-2 bg-[var(--surface)] hover:bg-[var(--surface2)] border border-[var(--border)] text-[var(--text)] rounded-xl font-bold text-xs transition flex items-center gap-1.5 active:scale-95"
+                    >
+                      <Upload className="w-4 h-4 text-[#4F46E5]" />
+                      <span>Re-upload Signed Document</span>
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1097,28 +1297,28 @@ export default function ProfilePage() {
                       {/* Card Body Content */}
                       <div className="w-full px-5 pt-3 pb-5 space-y-2.5 flex flex-col items-center">
                         <h2 className="text-lg font-black tracking-wide uppercase text-[#000000] font-['Montserrat',sans-serif]">
-                          {employee?.name || 'CHHAYAKANTA MAHARANA'}
+                          {employee?.name || 'EMPLOYEE'}
                         </h2>
 
                         {/* Bright Orange Designation Pill */}
                         <div className="w-full px-4 py-2 bg-[#F28500] text-white rounded-2xl shadow-xs">
                           <div className="text-xs font-bold leading-tight">
-                            {employee?.designation || 'IT Intern – Web & Automation Developer'}
+                            {employee?.designation || 'Staff Member'}
                           </div>
                         </div>
 
                         {/* Blood Group */}
                         <div className="text-sm font-bold text-[#000000]">
-                          {selectedBloodGroup || employee?.blood_group || 'A+'}
+                          {selectedBloodGroup || employee?.blood_group || '-'}
                         </div>
 
                         {/* Contact Details */}
                         <div className="text-xs text-[#000000] space-y-0.5 font-normal leading-relaxed text-left w-full px-2">
                           <div>
-                            <span className="font-bold">E-mail:</span> {employee?.email || 'chhayakantamaharan@gmail.com'}
+                            <span className="font-bold">E-mail:</span> {employee?.email || 'N/A'}
                           </div>
                           <div>
-                            <span className="font-bold">Phone:</span> {employee?.phone ? (employee.phone.startsWith('+') ? employee.phone : `+91 ${employee.phone}`) : '+91 8260770510'}
+                            <span className="font-bold">Phone:</span> {employee?.phone ? (employee.phone.startsWith('+') ? employee.phone : `+91 ${employee.phone}`) : 'N/A'}
                           </div>
                         </div>
 

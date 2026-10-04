@@ -35,14 +35,22 @@ export default function AdminDailyTrackersPage() {
   const [submittingUnlock, setSubmittingUnlock] = useState<boolean>(false);
 
   const fetchTrackers = async () => {
-    setLoading(true);
     try {
+      if (trackers.length === 0) {
+        const cachedTrackers = localStorage.getItem('ops_cached_trackers');
+        if (cachedTrackers) {
+          try { setTrackers(JSON.parse(cachedTrackers)); setLoading(false); } catch(e){}
+        }
+      }
+
       let query = `?date=${filterDate}`;
       if (departmentFilter) query += `&department=${departmentFilter}`;
       if (statusFilter) query += `&status=${statusFilter}`;
       const res = await api.get(`/tracker/admin/list${query}`);
       if (res.data?.success) {
-        setTrackers(res.data.trackers || []);
+        const list = res.data.trackers || [];
+        setTrackers(list);
+        try { localStorage.setItem('ops_cached_trackers', JSON.stringify(list)); } catch(e){}
       }
     } catch (err) {
       console.error('Failed to load trackers:', err);
@@ -66,9 +74,14 @@ export default function AdminDailyTrackersPage() {
 
   const fetchDepartments = async () => {
     try {
+      const cachedDepts = localStorage.getItem('ops_cached_departments');
+      if (cachedDepts) {
+        try { setDepartments(JSON.parse(cachedDepts)); } catch(e){}
+      }
       const res = await api.get('/admin/departments');
       if (res.data?.departments) {
         setDepartments(res.data.departments);
+        try { localStorage.setItem('ops_cached_departments', JSON.stringify(res.data.departments)); } catch(e){}
       }
     } catch (err) {}
   };
@@ -169,7 +182,7 @@ export default function AdminDailyTrackersPage() {
       {/* Header Banner */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-6 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black text-xl">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-black text-xl">
             <CalendarCheck className="w-6 h-6" />
           </div>
           <div>
@@ -198,7 +211,7 @@ export default function AdminDailyTrackersPage() {
       {/* KPI Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
             <Users className="w-5 h-5" />
           </div>
           <div>
@@ -218,7 +231,7 @@ export default function AdminDailyTrackersPage() {
         </div>
 
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center font-bold">
             <Clock className="w-5 h-5" />
           </div>
           <div>
@@ -244,7 +257,7 @@ export default function AdminDailyTrackersPage() {
           onClick={() => setActiveTab('trackers')}
           className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 ${
             activeTab === 'trackers'
-              ? 'bg-indigo-600 text-white shadow-sm'
+              ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-[var(--text-secondary)] hover:bg-[var(--card-border)]/20'
           }`}
         >
@@ -256,7 +269,7 @@ export default function AdminDailyTrackersPage() {
           onClick={() => setActiveTab('unlocks')}
           className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer flex items-center gap-2 relative ${
             activeTab === 'unlocks'
-              ? 'bg-indigo-600 text-white shadow-sm'
+              ? 'bg-emerald-600 text-white shadow-sm'
               : 'text-[var(--text-secondary)] hover:bg-[var(--card-border)]/20'
           }`}
         >
@@ -293,7 +306,7 @@ export default function AdminDailyTrackersPage() {
           <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--sidebar-bg)]">
-                <Calendar className="w-4 h-4 text-indigo-500" />
+                <Calendar className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 <input
                   type="date"
                   value={filterDate}
@@ -334,14 +347,14 @@ export default function AdminDailyTrackersPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search employee or role..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
           </div>
 
           {/* Trackers List Table */}
           <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl shadow-sm overflow-hidden">
-            {loading ? (
+            {loading && trackers.length === 0 ? (
               <div className="p-12 text-center text-xs text-[var(--text-muted)]">Loading organization trackers...</div>
             ) : filteredTrackers.length === 0 ? (
               <div className="p-12 text-center text-xs text-[var(--text-muted)]">
@@ -366,7 +379,7 @@ export default function AdminDailyTrackersPage() {
                       <tr key={t.id} className="hover:bg-[var(--card-border)]/10 transition">
                         <td className="p-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                            <div className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs">
                               {t.user_name ? t.user_name[0].toUpperCase() : 'U'}
                             </div>
                             <div>
@@ -413,9 +426,9 @@ export default function AdminDailyTrackersPage() {
                         <td className="p-4 text-right">
                           <button
                             onClick={() => openReviewModal(t)}
-                            className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 ml-auto cursor-pointer shadow-xs"
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 ml-auto cursor-pointer shadow-xs"
                           >
-                            <Eye className="w-3.5 h-3.5" /> Review
+                            <Check className="w-3.5 h-3.5" /> Review
                           </button>
                         </td>
                       </tr>
@@ -582,7 +595,7 @@ export default function AdminDailyTrackersPage() {
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
                   placeholder="Provide feedback, observations, or action points..."
-                  className="w-full px-3 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                  className="w-full px-3 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                 />
               </div>
             </div>
@@ -598,7 +611,7 @@ export default function AdminDailyTrackersPage() {
               <button
                 disabled={submittingReview}
                 onClick={handleSaveReview}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
               >
                 <Check className="w-4 h-4" /> Save Review
               </button>
@@ -635,7 +648,7 @@ export default function AdminDailyTrackersPage() {
                 value={unlockNotes}
                 onChange={(e) => setUnlockNotes(e.target.value)}
                 placeholder="Add notes for the employee..."
-                className="w-full px-3 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+                className="w-full px-3 py-2 rounded-xl border border-[var(--card-border)] bg-[var(--card-bg)] text-xs text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
               />
             </div>
 

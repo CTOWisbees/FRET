@@ -72,11 +72,7 @@ export default function ApplyLeavePage() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans">
       <Sidebar 
-        user={{
-          name: employee?.name || 'Employee',
-          designation: employee?.designation || 'Staff',
-          emp_type: employee?.emp_type || 'Normal'
-        }}
+        user={employee}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
       />
@@ -98,7 +94,26 @@ export default function ApplyLeavePage() {
             <h1 className="text-2xl font-extrabold text-[var(--text)] tracking-tight font-['Plus_Jakarta_Sans']">
               Apply for Time-Off
             </h1>
-            <p className="text-[var(--text3)] text-sm mt-0.5">Submit a leave request for HR review and approval</p>
+            <p className="text-[var(--text3)] text-sm mt-0.5">
+              {employee?.is_manager 
+                ? 'Submit your manager leave application for SuperAdmin review and sanction'
+                : `Submit your leave application for ${employee?.department || 'Branch'} Manager review and sanction`}
+            </p>
+          </div>
+
+          {/* Workflow Routing Info Banner */}
+          <div className={`p-4 rounded-2xl border flex items-start gap-3 text-xs ${
+            employee?.is_manager
+              ? 'bg-purple-500/10 border-purple-500/20 text-purple-700'
+              : 'bg-amber-500/10 border-amber-500/20 text-amber-800'
+          }`}>
+            <Clock className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold">Approval Hierarchy: </span>
+              {employee?.is_manager
+                ? 'Your application will be routed to the SuperAdmin for executive review and approval.'
+                : `Your application will be routed to your Branch / Department Manager (${employee?.department || 'Department'}) for review and approval.`}
+            </div>
           </div>
 
           {message && (
@@ -200,7 +215,8 @@ export default function ApplyLeavePage() {
                       <th className="py-3 px-4 text-xs font-bold uppercase text-[var(--text3)]">To</th>
                       <th className="py-3 px-4 text-xs font-bold uppercase text-[var(--text3)]">Duration</th>
                       <th className="py-3 px-4 text-xs font-bold uppercase text-[var(--text3)]">Applied</th>
-                      <th className="py-3 px-4 text-xs font-bold uppercase text-[var(--text3)] text-right">Status</th>
+                      <th className="py-3 px-4 text-xs font-bold uppercase text-[var(--text3)]">Review & Status</th>
+                      <th className="py-3 px-4 text-xs font-bold uppercase text-[var(--text3)] text-right">Sanction Letter</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border)] bg-[var(--surface)]">
@@ -211,7 +227,7 @@ export default function ApplyLeavePage() {
                         <td className="py-3 px-4 text-xs font-mono text-[var(--text2)]">{lr.to_date}</td>
                         <td className="py-3 px-4 text-xs font-bold text-[var(--text)]">{lr.days} Days</td>
                         <td className="py-3 px-4 text-xs font-mono text-[var(--text3)]">{lr.applied_on}</td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-3 px-4 text-xs">
                           <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${
                             lr.status === 'Approved'
                               ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
@@ -221,6 +237,28 @@ export default function ApplyLeavePage() {
                           }`}>
                             {lr.status}
                           </span>
+                          {lr.approved_by && (
+                            <div className="text-[10px] text-[var(--text3)] mt-0.5">
+                              By {lr.approved_by} {lr.approved_by_role ? `(${lr.approved_by_role})` : ''}
+                            </div>
+                          )}
+                          {lr.status === 'Pending' && (
+                            <div className="text-[10px] text-[var(--text3)] mt-0.5">
+                              Awaiting {lr.target_approver || 'Branch Manager'}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          {lr.status === 'Approved' ? (
+                            <button
+                              onClick={() => window.open(`http://localhost:8000/api/leave/${lr.id}/pdf`, '_blank')}
+                              className="px-2.5 py-1 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg text-xs font-bold transition inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              PDF Letter
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-[var(--text3)]">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}

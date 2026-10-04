@@ -88,14 +88,30 @@ export default function AdminRolesPage() {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
+      if (roles.length === 0) {
+        const cachedRoles = localStorage.getItem('ops_cached_roles');
+        const cachedEmps = localStorage.getItem('ops_cached_employees');
+        if (cachedRoles) {
+          try { setRoles(JSON.parse(cachedRoles)); setLoading(false); } catch(e){}
+        }
+        if (cachedEmps) {
+          try { setEmployees(JSON.parse(cachedEmps)); } catch(e){}
+        }
+      }
+
       const [roleRes, empRes] = await Promise.all([
         api.get('/admin/roles'),
         api.get('/admin/employees'),
       ]);
-      if (roleRes.data?.roles) setRoles(roleRes.data.roles);
+      if (roleRes.data?.roles) {
+        setRoles(roleRes.data.roles);
+        try { localStorage.setItem('ops_cached_roles', JSON.stringify(roleRes.data.roles)); } catch(e){}
+      }
       if (roleRes.data?.department_catalog) setDeptCatalog(roleRes.data.department_catalog);
-      if (empRes.data?.employees) setEmployees(empRes.data.employees);
+      if (empRes.data?.employees) {
+        setEmployees(empRes.data.employees);
+        try { localStorage.setItem('ops_cached_employees', JSON.stringify(empRes.data.employees)); } catch(e){}
+      }
     } catch (err) {
       console.error('Failed to load roles and catalog:', err);
     } finally {
@@ -147,7 +163,7 @@ export default function AdminRolesPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
               Role & Access Control
             </span>
             <span className="text-xs text-[var(--text-muted)]">• Google Sheets Matrix Architecture</span>
@@ -170,7 +186,7 @@ export default function AdminRolesPage() {
             setFormPermissions(['view_assigned_work', 'update_task_status', 'submit_work_logs']);
             setShowCreateModal(true);
           }}
-          className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+          className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
         >
           <PlusCircle className="w-4 h-4" />
           <span>Create New Role</span>
@@ -504,7 +520,7 @@ export default function AdminRolesPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
                   <span>Save Role</span>

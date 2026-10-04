@@ -46,15 +46,15 @@ export default function AdminDashboardPage() {
   return (
     <div className="space-y-7 animate-fadeIn">
       {/* Top Banner with Quick Actions */}
-      <div className="p-6 sm:p-8 bg-gradient-to-r from-slate-900 via-indigo-950 to-purple-950 text-white rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 relative overflow-hidden border border-white/10">
+      <div className="p-6 sm:p-8 bg-gradient-to-r from-emerald-950 via-teal-950 to-amber-950 text-white rounded-3xl shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 relative overflow-hidden border border-emerald-500/20">
         <div className="relative z-10 space-y-1.5">
-          <span className="px-3 py-1 rounded-full bg-white/10 border border-white/15 text-[11px] font-extrabold uppercase tracking-wider text-purple-300 inline-block">
+          <span className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-[11px] font-extrabold uppercase tracking-wider text-emerald-200 inline-block">
             Operations Management Console
           </span>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white">
             Welcome to Operations Command Hub
           </h2>
-          <p className="text-xs sm:text-sm text-slate-300 max-w-xl">
+          <p className="text-xs sm:text-sm text-emerald-100/90 max-w-xl">
             Assign work, manage team permissions, configure operational roles, and review deliverable submissions in real-time.
           </p>
         </div>
@@ -62,14 +62,14 @@ export default function AdminDashboardPage() {
         <div className="flex flex-wrap items-center gap-2.5 relative z-10">
           <Link
             href="/admin/managers"
-            className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 active:scale-95"
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 active:scale-95 border border-emerald-300/30"
           >
             <span>👑 Department Managers</span>
           </Link>
 
           <Link
             href="/admin/daily-trackers"
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 active:scale-95"
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 active:scale-95 border border-amber-300/30"
           >
             <span>📅 Daily Trackers Review</span>
           </Link>
@@ -78,7 +78,7 @@ export default function AdminDashboardPage() {
             href="/admin/tasks"
             className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl text-xs font-bold transition flex items-center gap-2 active:scale-95"
           >
-            <PlusCircle className="w-4 h-4" />
+            <PlusCircle className="w-4 h-4 text-emerald-300" />
             <span>Assign Task</span>
           </Link>
         </div>
@@ -90,7 +90,7 @@ export default function AdminDashboardPage() {
         <div className="p-5 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl shadow-xs space-y-3 transition-colors">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Total Staff</span>
-            <div className="w-9 h-9 rounded-2xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-300 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-300 flex items-center justify-center">
               <Users className="w-4 h-4" />
             </div>
           </div>
@@ -108,7 +108,7 @@ export default function AdminDashboardPage() {
         <div className="p-5 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl shadow-xs space-y-3 transition-colors">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">Total Tasks</span>
-            <div className="w-9 h-9 rounded-2xl bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-300 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-2xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-300 flex items-center justify-center">
               <CheckSquare className="w-4 h-4" />
             </div>
           </div>
@@ -116,7 +116,7 @@ export default function AdminDashboardPage() {
             <div className="text-2xl sm:text-3xl font-black text-[var(--text-primary)]">
               {stats.total_tasks ?? 0}
             </div>
-            <div className="text-[11px] font-semibold text-sky-600 dark:text-sky-400 flex items-center gap-1 mt-0.5">
+            <div className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-0.5">
               <span>{stats.in_progress_tasks ?? 0} currently in progress</span>
             </div>
           </div>

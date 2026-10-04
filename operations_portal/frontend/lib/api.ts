@@ -3,31 +3,34 @@ import axios from 'axios';
 let activeBaseUrl = '';
 
 export const getOpsBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_OPS_API_URL) {
-    return process.env.NEXT_PUBLIC_OPS_API_URL;
-  }
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
+  const envUrl = process.env.NEXT_PUBLIC_OPS_API_URL || process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl) {
+    const cleaned = envUrl.trim().replace(/\/+$/, '');
+    return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
   }
   if (activeBaseUrl) {
-    return activeBaseUrl;
+    const cleaned = activeBaseUrl.trim().replace(/\/+$/, '');
+    return cleaned.endsWith('/api') ? cleaned : `${cleaned}/api`;
   }
   if (typeof window !== 'undefined') {
     const customApiUrl = localStorage.getItem('ops_api_url');
     if (customApiUrl) {
       return customApiUrl.endsWith('/api') ? customApiUrl : `${customApiUrl}/api`;
     }
-    if (window.location.hostname.includes('ops.wisbees.com') || window.location.hostname.includes('onrender.com')) {
-      return 'https://ops.backend.wisbees.com/api';
+    if (
+      window.location.hostname.includes('vercel.app') ||
+      window.location.hostname.includes('wisbees.com') ||
+      window.location.hostname.includes('onrender.com')
+    ) {
+      return 'https://operation-r9e5.onrender.com/api';
     }
     const savedPort = localStorage.getItem('ops_api_port');
     if (savedPort) {
       return `http://127.0.0.1:${savedPort}/api`;
     }
-    // Default to port 8000 (standard Django runserver) or 8001
     return 'http://127.0.0.1:8000/api';
   }
-  return 'http://127.0.0.1:8000/api';
+  return 'https://operation-r9e5.onrender.com/api';
 };
 
 export const api = axios.create({

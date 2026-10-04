@@ -137,9 +137,9 @@ WSGI_APPLICATION = 'fret_project.wsgi.application'
 
 # Database configuration: DATABASE_URL (Neon Postgres) in production, ultra-fast local SQLite for localhost
 db_url = os.environ.get('DATABASE_URL')
-use_remote = bool(os.environ.get('FORCE_REMOTE_DB') == '1' or os.environ.get('RENDER') or (not DEBUG and db_url))
+use_remote = bool(db_url)
 
-if db_url and use_remote:
+if db_url:
     if db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
     try:

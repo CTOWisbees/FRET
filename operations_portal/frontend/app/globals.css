@@ -3,42 +3,46 @@
 @custom-variant dark (&:is(.dark, .dark *));
 
 :root {
-  --bg-main: #F1F5F9;
-  --bg-subtle: #E2E8F0;
+  --bg-main: #F8FAF9;
+  --bg-subtle: #EEF4F1;
   --card-bg: #FFFFFF;
-  --card-border: #E2E8F0;
-  --card-hover: #F8FAFC;
-  --header-bg: rgba(255, 255, 255, 0.9);
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-muted: #64748B;
-  --input-bg: #F8FAFC;
-  --input-border: #CBD5E1;
-  --hover-bg: #F1F5F9;
-  --accent: #0284C7;
-  --accent-light: #E0F2FE;
-  --accent-glow: rgba(2, 132, 199, 0.15);
-  --hero-bg: linear-gradient(135deg, #F8FAFC 0%, #EEF2FF 50%, #E0F2FE 100%);
+  --card-border: #E2EBE5;
+  --card-hover: #F4F9F6;
+  --header-bg: rgba(255, 255, 255, 0.94);
+  --text-primary: #0D1F18;
+  --text-secondary: #334E45;
+  --text-muted: #5E7A71;
+  --input-bg: #F8FAF9;
+  --input-border: #CFDDD5;
+  --hover-bg: #EEF5F1;
+  --accent: #059669; /* Wisbees Emerald */
+  --accent-light: #ECFDF5;
+  --accent-glow: rgba(5, 150, 105, 0.18);
+  --accent-orange: #EA580C; /* Wisbees Honey Orange */
+  --accent-orange-light: #FFF7ED;
+  --hero-bg: linear-gradient(135deg, #022C22 0%, #064E3B 50%, #78350F 100%);
   color-scheme: light;
 }
 
 html.dark, body.dark, [data-theme="dark"] {
-  --bg-main: #06080D;
-  --bg-subtle: #0B0E17;
-  --card-bg: #0C0F1A;
-  --card-border: #171D2D;
-  --card-hover: #131929;
-  --header-bg: rgba(6, 8, 13, 0.92);
-  --text-primary: #F8FAFC;
-  --text-secondary: #94A3B8;
-  --text-muted: #64748B;
-  --input-bg: #080A12;
-  --input-border: #1C2337;
-  --hover-bg: #151D2F;
-  --accent: #38BDF8;
-  --accent-light: rgba(56, 189, 248, 0.15);
-  --accent-glow: rgba(56, 189, 248, 0.25);
-  --hero-bg: linear-gradient(135deg, #06080D 0%, #0A0E1A 50%, #0F1424 100%);
+  --bg-main: #070D0B;
+  --bg-subtle: #0D1613;
+  --card-bg: #0F1A16;
+  --card-border: #182C24;
+  --card-hover: #15241F;
+  --header-bg: rgba(7, 13, 11, 0.94);
+  --text-primary: #F2FAF5;
+  --text-secondary: #A3D9C4;
+  --text-muted: #649683;
+  --input-bg: #0A1310;
+  --input-border: #1B3027;
+  --hover-bg: #14231E;
+  --accent: #10B981; /* Radiant Wisbees Emerald */
+  --accent-light: rgba(16, 185, 129, 0.16);
+  --accent-glow: rgba(16, 185, 129, 0.28);
+  --accent-orange: #F97316; /* Radiant Wisbees Honey Orange */
+  --accent-orange-light: rgba(249, 115, 22, 0.16);
+  --hero-bg: linear-gradient(135deg, #022C22 0%, #064E3B 50%, #451A03 100%);
   color-scheme: dark;
 }
 

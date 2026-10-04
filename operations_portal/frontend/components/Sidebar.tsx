@@ -415,7 +415,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                 {/* 6. Content Publishing Work */}
                 {isPublishing && (
                   <div className="pt-4 mt-4 border-t border-[var(--card-border)]">
-                    <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                    <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
                       Content Publishing Work
                     </div>
                     <Link
@@ -423,7 +423,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                       onClick={() => setMobileOpen(false)}
                       className="flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold text-[var(--text-secondary)] hover:bg-[var(--hover-bg)] hover:text-[var(--text-primary)] transition"
                     >
-                      <FileText className="w-4 h-4 text-indigo-500" />
+                      <FileText className="w-4 h-4 text-amber-500" />
                       <span>Publishing Hub</span>
                     </Link>
                   </div>
@@ -461,7 +461,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                   className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-[var(--hover-bg)] border border-dashed border-[var(--card-border)] transition"
                 >
                   <div className="flex items-center gap-2.5">
-                    <Shield className="w-4 h-4 text-sky-500" />
+                    <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                     <span>Django Administration</span>
                   </div>
                   <ExternalLink className="w-3.5 h-3.5 text-[var(--text-muted)]" />
@@ -482,7 +482,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
               {(() => {
                 const avatarSrc = user?.avatar_url || user?.avatar || user?.profile_photo || user?.photo;
                 return (
-                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-sky-500/20">
+                  <div className="w-9 h-9 rounded-xl overflow-hidden bg-gradient-to-tr from-emerald-600 to-teal-700 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-xs border border-emerald-500/20">
                     {avatarSrc ? (
                       <img
                         src={avatarSrc}
@@ -501,7 +501,7 @@ export function Sidebar({ user, mobileOpen, setMobileOpen }: SidebarProps) {
                 </div>
                 <div className="text-[10px] font-medium text-[var(--text-muted)] truncate flex items-center gap-1">
                   <span>{user?.designation || (isAdmin ? 'Operations Admin' : 'Team Member')}</span>
-                  <span className="text-[9px] text-sky-500 font-bold">• Profile</span>
+                  <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold">• Profile</span>
                 </div>
               </div>
             </Link>

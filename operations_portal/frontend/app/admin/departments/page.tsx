@@ -44,10 +44,12 @@ export default function AdminDepartmentsPage() {
 
   const fetchDepartments = async () => {
     try {
-      setLoading(true);
       const res = await api.get('/admin/departments');
       if (res.data?.departments) {
         setDepartments(res.data.departments);
+        try {
+          localStorage.setItem('ops_cached_departments', JSON.stringify(res.data.departments));
+        } catch (e) {}
       }
     } catch (err) {
       console.error('Failed to load departments:', err);
@@ -57,6 +59,13 @@ export default function AdminDepartmentsPage() {
   };
 
   useEffect(() => {
+    try {
+      const cached = localStorage.getItem('ops_cached_departments');
+      if (cached) {
+        setDepartments(JSON.parse(cached));
+        setLoading(false);
+      }
+    } catch (e) {}
     fetchDepartments();
   }, []);
 
@@ -187,7 +196,7 @@ export default function AdminDepartmentsPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-sky-50 dark:bg-sky-950/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
               OP Access Management
             </span>
             <span className="text-xs text-[var(--text-muted)]">• Department Scopes & Page Keys</span>
@@ -203,7 +212,7 @@ export default function AdminDepartmentsPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={openAddModal}
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95"
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95 border border-emerald-300/30"
           >
             <Plus className="w-4 h-4" />
             <span>Add Department</span>
@@ -217,7 +226,7 @@ export default function AdminDepartmentsPage() {
           className={`p-4 rounded-2xl text-xs font-bold border flex items-center justify-between animate-fadeIn ${
             alertMsg.type === 'success'
               ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-              : 'bg-red-50 dark:bg-red-950/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'
+              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -239,7 +248,7 @@ export default function AdminDepartmentsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search departments by name or page key..."
-            className="w-full pl-10 pr-4 py-2.5 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl text-xs font-medium text-[var(--text-primary)] focus:outline-none focus:border-sky-500 shadow-2xs"
+            className="w-full pl-10 pr-4 py-2.5 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl text-xs font-medium text-[var(--text-primary)] focus:outline-hidden focus:border-emerald-500 shadow-2xs"
           />
         </div>
 
@@ -248,7 +257,7 @@ export default function AdminDepartmentsPage() {
             onClick={() => setStatusFilter('ALL')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               statusFilter === 'ALL'
-                ? 'bg-sky-600 text-white'
+                ? 'bg-emerald-600 text-white'
                 : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border border-[var(--card-border)]'
             }`}
           >
@@ -258,7 +267,7 @@ export default function AdminDepartmentsPage() {
             onClick={() => setStatusFilter('ACTIVE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               statusFilter === 'ACTIVE'
-                ? 'bg-emerald-600 text-white'
+                ? 'bg-teal-600 text-white'
                 : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border border-[var(--card-border)]'
             }`}
           >
@@ -268,7 +277,7 @@ export default function AdminDepartmentsPage() {
             onClick={() => setStatusFilter('INACTIVE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
               statusFilter === 'INACTIVE'
-                ? 'bg-slate-600 text-white'
+                ? 'bg-amber-600 text-white'
                 : 'bg-[var(--card-bg)] text-[var(--text-secondary)] border border-[var(--card-border)]'
             }`}
           >
@@ -277,7 +286,7 @@ export default function AdminDepartmentsPage() {
         </div>
       </div>
 
-      {/* Departments Table (Matching Screenshot Image 4) */}
+      {/* Departments Table */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-3xl overflow-hidden shadow-xs transition-colors">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -291,11 +300,11 @@ export default function AdminDepartmentsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--card-border)]">
-              {loading ? (
+              {loading && departments.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="py-12 text-center text-[var(--text-muted)]">
                     <div className="flex items-center justify-center gap-2">
-                      <RefreshCw className="w-4 h-4 animate-spin text-sky-500" />
+                      <RefreshCw className="w-4 h-4 animate-spin text-emerald-500" />
                       <span>Loading departments list...</span>
                     </div>
                   </td>
@@ -312,7 +321,7 @@ export default function AdminDepartmentsPage() {
                     {/* Name */}
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-300 border border-sky-200 dark:border-sky-800 flex items-center justify-center shrink-0 shadow-2xs">
+                        <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center shrink-0 shadow-2xs">
                           <Building2 className="w-4 h-4" />
                         </div>
                         <div>
@@ -326,7 +335,7 @@ export default function AdminDepartmentsPage() {
 
                     {/* Page Key */}
                     <td className="py-4 px-6">
-                      <span className="font-mono font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 px-2.5 py-1 rounded-lg border border-sky-200 dark:border-sky-800/60 text-xs">
+                      <span className="font-mono font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/60 text-xs">
                         {dept.page_key}
                       </span>
                     </td>
@@ -334,7 +343,7 @@ export default function AdminDepartmentsPage() {
                     {/* Members Count */}
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-1.5 text-[var(--text-secondary)] font-semibold">
-                        <Users className="w-3.5 h-3.5 text-indigo-500" />
+                        <Users className="w-3.5 h-3.5 text-amber-500" />
                         <span>{dept.user_count || 0} Member(s)</span>
                       </div>
                     </td>
@@ -369,14 +378,14 @@ export default function AdminDepartmentsPage() {
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => openEditModal(dept)}
-                          className="p-2 text-[var(--text-secondary)] hover:text-sky-500 hover:bg-[var(--hover-bg)] rounded-xl transition cursor-pointer"
+                          className="p-2 text-[var(--text-secondary)] hover:text-emerald-600 hover:bg-[var(--hover-bg)] rounded-xl transition cursor-pointer"
                           title="Edit Department"
                         >
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirmDept(dept)}
-                          className="p-2 text-[var(--text-muted)] hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition cursor-pointer"
+                          className="p-2 text-[var(--text-muted)] hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition cursor-pointer"
                           title="Delete Department"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -429,13 +438,13 @@ export default function AdminDepartmentsPage() {
                   value={formName}
                   onChange={(e) => handleNameChange(e.target.value)}
                   placeholder="e.g. Accounts, Compliance, Equity, HR, Treasury"
-                  className="w-full px-3.5 py-2.5 bg-[var(--input-bg)] border border-[var(--card-border)] rounded-xl font-semibold text-[var(--text-primary)] focus:outline-none focus:border-sky-500"
+                  className="w-full px-3.5 py-2.5 bg-[var(--input-bg)] border border-[var(--card-border)] rounded-xl font-semibold text-[var(--text-primary)] focus:outline-hidden focus:border-emerald-500"
                 />
               </div>
 
               <div>
                 <label className="block font-bold uppercase tracking-wider text-[var(--text-secondary)] mb-1.5 flex items-center gap-1.5">
-                  <Key className="w-3.5 h-3.5 text-sky-500" />
+                  <Key className="w-3.5 h-3.5 text-amber-500" />
                   <span>Page Key (System Identifier) *</span>
                 </label>
                 <input
@@ -444,7 +453,7 @@ export default function AdminDepartmentsPage() {
                   value={formPageKey}
                   onChange={(e) => setFormPageKey(e.target.value)}
                   placeholder="e.g. Accounts, Compliance, Compliance Checker"
-                  className="w-full px-3.5 py-2.5 bg-[var(--input-bg)] border border-[var(--card-border)] rounded-xl font-mono font-semibold text-[var(--text-primary)] focus:outline-none focus:border-sky-500"
+                  className="w-full px-3.5 py-2.5 bg-[var(--input-bg)] border border-[var(--card-border)] rounded-xl font-mono font-semibold text-[var(--text-primary)] focus:outline-hidden focus:border-emerald-500"
                 />
                 <span className="text-[10px] text-[var(--text-muted)] mt-1 block">
                   Identifies the department route and permissions scope across OP Portal.
@@ -465,7 +474,7 @@ export default function AdminDepartmentsPage() {
                     onChange={(e) => setFormIsActive(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-emerald-500"></div>
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-emerald-500"></div>
                 </label>
               </div>
 
@@ -483,7 +492,7 @@ export default function AdminDepartmentsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer text-xs disabled:opacity-50"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer text-xs disabled:opacity-50 active:scale-95 border border-emerald-300/30"
                 >
                   {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
                   <span>{showAddModal ? 'Create Department' : 'Save Changes'}</span>

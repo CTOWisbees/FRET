@@ -128,14 +128,19 @@ def _default_email_body_text(emp, role_key, role_title):
         emp.joining_date.strftime('%d %B %Y').lstrip('0')
         if emp.joining_date else 'the agreed date'
     )
+    email_val = getattr(emp, 'email', '') or 'your registered email'
     return (
         f"We are pleased to offer you the position of Intern – {role_display} with "
         f"TimeArrow Pvt. Ltd. (WisBees), effective {joining_str}.\n\n"
         "Please find attached:\n(1) Internship Offer Letter\n(2) Non-Disclosure Agreement (NDA)\n\n"
         "Please return the signed copies at your earliest convenience to confirm your acceptance of the offer.\n\n"
-        "Should you have any questions or require any clarification, please feel free to reach out.\n\n"
-        f"Your login email is {emp.email}.\n"
+        f"Your login email is {email_val}.\n"
         "Your Default Password for the WisBees portal is: Wisbees@2026. Please log in and change your password immediately after your first login.\n\n"
+        "WisBees Operations Portal Access Details:\n"
+        "• Portal URL: https://ops.wisbees.com\n"
+        f"• Username / Email: {email_val}\n"
+        "• Default Password: Wisbees@2026\n\n"
+        "Should you have any questions or require any clarification, please feel free to reach out.\n\n"
         "We look forward to your continued association and contribution to WisBees."
     )
 
@@ -252,8 +257,6 @@ def _default_full_letter_text(emp, role_key, role_title):
         "Upon successful completion of the internship and fulfilment of assigned responsibilities, you "
         "will receive:\n- Internship Experience Letter\n- Letter of Recommendation (if applicable)",
         "To formally accept this offer, please sign and return a copy of this letter along with the NDA.",
-        f"Your login email is {emp.email}.\n"
-        "Your Default Password for the WisBees portal is: Wisbees@2026. Please log in and change your password immediately after your first login.\n\n"
         f"We look forward to having you onboard and contributing to your professional growth in "
         f"{role_display} and related domains.",
     ])

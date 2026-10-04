@@ -100,12 +100,12 @@ export default function LoginPage() {
       
       {/* Background Subtle Highlights & Glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-sky-500/10 dark:bg-sky-500/10 rounded-full blur-3xl animate-pulse-glow" />
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-emerald-500/15 dark:bg-emerald-500/15 rounded-full blur-3xl animate-pulse-glow" />
         <div
-          className="absolute -bottom-40 -right-40 w-96 h-96 bg-emerald-500/10 dark:bg-emerald-500/10 rounded-full blur-3xl animate-pulse-glow"
+          className="absolute -bottom-40 -right-40 w-96 h-96 bg-amber-500/15 dark:bg-amber-500/15 rounded-full blur-3xl animate-pulse-glow"
           style={{ animationDelay: '2s' }}
         />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(#94a3b8_1px,transparent_1px)] dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] bg-[size:32px_32px] opacity-20 pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-[radial-gradient(#059669_1px,transparent_1px)] dark:bg-[radial-gradient(#10b981_1px,transparent_1px)] bg-[size:32px_32px] opacity-10 pointer-events-none" />
       </div>
 
       {/* Top Floating Theme Switcher Button */}
@@ -113,7 +113,7 @@ export default function LoginPage() {
         <button
           onClick={toggleTheme}
           title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-          className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/90 dark:bg-[#0B0E17]/90 hover:bg-white dark:hover:bg-[#121726] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-[#1E2538] shadow-lg backdrop-blur-md transition cursor-pointer active:scale-95"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/90 dark:bg-[#0F1A16]/90 hover:bg-white dark:hover:bg-[#15241F] text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-[#1E2D27] shadow-lg backdrop-blur-md transition cursor-pointer active:scale-95"
         >
           {theme === 'dark' ? (
             <>
@@ -122,7 +122,7 @@ export default function LoginPage() {
             </>
           ) : (
             <>
-              <Moon className="w-4 h-4 text-indigo-600 animate-fadeIn" />
+              <Moon className="w-4 h-4 text-emerald-600 animate-fadeIn" />
               <span className="text-xs font-bold">Dark Mode</span>
             </>
           )}
@@ -131,11 +131,11 @@ export default function LoginPage() {
 
       {/* Main Container: Centered Single User Login Console */}
       <div className="relative z-10 w-full max-w-md my-auto">
-        <div className="w-full bg-white dark:bg-[#0C0F1A]/95 backdrop-blur-2xl border border-slate-200 dark:border-[#181E2E] rounded-3xl p-6 sm:p-8 lg:p-9 shadow-2xl transition-colors relative">
+        <div className="w-full bg-white/95 dark:bg-[#0F1A16]/95 backdrop-blur-2xl border border-emerald-100 dark:border-[#1E2D27] rounded-3xl p-6 sm:p-8 lg:p-9 shadow-2xl transition-colors relative">
           
           {/* WisBees Brand Logo & Header */}
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-[#06080D] border border-slate-200 dark:border-[#181E2E] shadow-sm mb-3.5 backdrop-blur-md">
+            <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-slate-50 dark:bg-[#070D0B] border border-emerald-100 dark:border-[#182C24] shadow-xs mb-3.5 backdrop-blur-md">
               <WisBeesLogo imgClassName="h-9 w-auto object-contain" />
             </div>
             
@@ -162,8 +162,8 @@ export default function LoginPage() {
 
           {/* Error Banner */}
           {errorMsg && (
-            <div className="mb-5 p-3.5 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-300 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-500" />
+            <div className="mb-5 p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fadeIn">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
               <span>{errorMsg}</span>
             </div>
           )}
@@ -175,14 +175,14 @@ export default function LoginPage() {
                 Work Email Address
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-emerald-600/70 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@wisbees.com"
-                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-[#070912] border border-slate-200 dark:border-[#1C2337] rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-[#0A1310] border border-slate-200 dark:border-[#1E2D27] rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
                 />
               </div>
             </div>
@@ -194,20 +194,20 @@ export default function LoginPage() {
                 </label>
                 <Link
                   href="/forgot-password"
-                  className="text-xs font-semibold text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 transition"
+                  className="text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition"
                 >
                   Forgot password?
                 </Link>
               </div>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-emerald-600/70 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-[#070912] border border-slate-200 dark:border-[#1C2337] rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition"
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 dark:bg-[#0A1310] border border-slate-200 dark:border-[#1E2D27] rounded-xl text-sm font-medium text-slate-900 dark:text-white placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition"
                 />
                 <button
                   type="button"
@@ -222,7 +222,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-xl text-white text-xs font-extrabold shadow-lg bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 shadow-sky-500/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-98 mt-2"
+              className="w-full py-3.5 rounded-xl text-white text-xs font-extrabold shadow-lg bg-gradient-to-r from-emerald-600 via-teal-600 to-amber-600 hover:from-emerald-700 hover:to-amber-700 shadow-emerald-500/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 active:scale-98 mt-2 border border-emerald-400/30"
             >
               {loading ? (
                 <>
@@ -232,12 +232,11 @@ export default function LoginPage() {
               ) : (
                 <>
                   <span>Sign In to Operations Portal</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 text-amber-300" />
                 </>
               )}
             </button>
           </form>
-
         </div>
       </div>
     </div>

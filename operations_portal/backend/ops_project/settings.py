@@ -82,9 +82,14 @@ if db_url:
                 'HOST': url.hostname,
                 'PORT': url.port or 5432,
                 'CONN_MAX_AGE': 600,
+                'CONN_HEALTH_CHECKS': True,
                 'OPTIONS': {
                     'sslmode': sslmode,
                     'connect_timeout': 10,
+                    'keepalives': 1,
+                    'keepalives_idle': 30,
+                    'keepalives_interval': 10,
+                    'keepalives_count': 5,
                 },
             }
         }
@@ -128,11 +133,29 @@ from corsheaders.defaults import default_headers
 
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https://.*\.vercel\.app$",
+    r"^https://.*\.onrender\.com$",
+    r"^https://.*\.wisbees\.com$",
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
 CORS_ALLOW_HEADERS = list(default_headers) + [
+    'authorization',
     'x-user-auth',
     'x-role',
     'x-employee-id',
     'x-user-id',
+    'x-csrftoken',
+    'x-requested-with',
+]
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 CSRF_TRUSTED_ORIGINS = [
@@ -144,6 +167,8 @@ CSRF_TRUSTED_ORIGINS = [
     'http://127.0.0.1:8000',
     'http://localhost:8001',
     'http://127.0.0.1:8001',
+    'https://*.vercel.app',
+    'https://operation-onjzhzve7-wisbees1.vercel.app',
     'https://operation-r9e5.onrender.com',
     'https://*.onrender.com',
     'https://ops.wisbees.com',
