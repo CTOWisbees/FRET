@@ -632,18 +632,24 @@ def api_admin_departments(request):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     if request.method == 'GET':
-        depts = Department.objects.all().order_by('name')
-        dept_list = []
-        for d in depts:
-            user_count = d.user_accesses.filter(is_active=True, user__is_active=True).count()
-            dept_list.append({
+        depts = Department.objects.annotate(
+            active_users_count=Count(
+                'user_accesses',
+                filter=Q(user_accesses__is_active=True, user_accesses__user__is_active=True),
+                distinct=True
+            )
+        ).order_by('name')
+        dept_list = [
+            {
                 'id': d.id,
                 'name': d.name,
                 'page_key': d.page_key,
                 'is_active': d.is_active,
-                'user_count': user_count,
+                'user_count': d.active_users_count,
                 'created_at': d.created_at.strftime('%Y-%m-%d %H:%M') if d.created_at else '',
-            })
+            }
+            for d in depts
+        ]
         return JsonResponse({'departments': dept_list})
 
     if request.method == 'POST':
@@ -982,7 +988,10 @@ def api_admin_roles(request):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     if request.method == 'GET':
-        roles = OperationalRole.objects.all().order_by('title')
+        roles = OperationalRole.objects.annotate(
+            multi_cnt=Count('members_multi', distinct=True),
+            single_cnt=Count('members', distinct=True)
+        ).order_by('title')
         return JsonResponse({
             'roles': [{
                 'id': r.id,
@@ -992,7 +1001,7 @@ def api_admin_roles(request):
                 'level': r.level,
                 'permissions': r.permissions,
                 'responsibilities': r.responsibilities,
-                'member_count': r.members_multi.count() or r.members.count(),
+                'member_count': r.multi_cnt or r.single_cnt,
             } for r in roles],
             'department_catalog': DEPARTMENTS_MODULES_CATALOG,
         })

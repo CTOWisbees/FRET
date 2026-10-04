@@ -233,16 +233,16 @@ export default function EmployeeWorkLogsPage() {
                           <span>{r.work_mode}</span>
                         </span>
                       </td>
-                      <td className="py-4 px-6 font-black text-sky-600 dark:text-sky-400 font-mono">
+                      <td className="py-4 px-6 font-black text-emerald-600 dark:text-emerald-400 font-mono">
                         {r.total_hours > 0 ? `${r.total_hours} hrs` : 'In Progress'}
                       </td>
                       <td className="py-4 px-6 text-right">
                         <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
                           r.status === 'Completed'
                             ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                            : 'bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                            : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                         }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${r.status === 'Completed' ? 'bg-emerald-500' : 'bg-blue-500 animate-pulse'}`} />
+                          <span className={`w-1.5 h-1.5 rounded-full ${r.status === 'Completed' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
                           <span>{r.status}</span>
                         </span>
                       </td>
@@ -259,8 +259,8 @@ export default function EmployeeWorkLogsPage() {
       {activeTab === 'work_logs' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="px-3.5 py-2 bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-2xs">
-              <Clock className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400" />
+            <div className="px-3.5 py-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-2xl text-xs font-bold flex items-center gap-1.5 shadow-2xs">
+              <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
               <span>Total Task Hours: {totalHours.toFixed(1)} hrs</span>
             </div>
 
@@ -269,7 +269,7 @@ export default function EmployeeWorkLogsPage() {
                 setSelectedTaskId(tasks[0]?.id ? String(tasks[0].id) : '');
                 setShowLogModal(true);
               }}
-              className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95"
+              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-bold shadow-md transition flex items-center gap-2 cursor-pointer active:scale-95"
             >
               <PlusCircle className="w-4 h-4" />
               <span>Record Daily Log</span>
@@ -417,7 +417,7 @@ export default function EmployeeWorkLogsPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
                   {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   <span>Save Work Log</span>

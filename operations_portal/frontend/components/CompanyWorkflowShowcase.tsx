@@ -43,9 +43,9 @@ const STAGES: StageConfig[] = [
     badge: 'STAGE 01 • DEV MODE',
     role: 'Lead Full-Stack & Automation Engineer',
     tagline: 'Writing high-throughput APIs, automated pipelines & frontend systems',
-    color: 'sky',
-    gradient: 'from-sky-500 to-blue-600',
-    accentBg: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30',
+    color: 'emerald',
+    gradient: 'from-emerald-500 to-teal-600',
+    accentBg: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
     icon: Code2,
   },
   {
@@ -55,9 +55,9 @@ const STAGES: StageConfig[] = [
     badge: 'STAGE 02 • OPS LEAD',
     role: 'Operations & Sprint Director',
     tagline: 'Assigning deliverables, tracking team matrix & unblocking roadblocks',
-    color: 'purple',
-    gradient: 'from-purple-600 to-indigo-600',
-    accentBg: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/30',
+    color: 'amber',
+    gradient: 'from-amber-500 to-orange-600',
+    accentBg: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30',
     icon: Users2,
   },
   {
@@ -165,14 +165,14 @@ export async function dispatchTaskPipeline(payload: TaskPayload) {
                 {/* Active Progress Line */}
                 {isActive && (
                   <div
-                    className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-sky-500 via-indigo-500 to-purple-500 opacity-15"
+                    className="absolute top-0 left-0 bottom-0 bg-gradient-to-r from-emerald-500 via-teal-500 to-amber-500 opacity-15"
                     style={{ width: `${progress}%` }}
                   />
                 )}
                 {/* Active Top Glow Bar */}
                 {isActive && (
                   <div
-                    className="absolute top-0 left-0 h-1 bg-gradient-to-r from-sky-500 to-indigo-500"
+                    className="absolute top-0 left-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500"
                     style={{ width: `${progress}%` }}
                   />
                 )}

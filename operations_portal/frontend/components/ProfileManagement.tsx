@@ -254,10 +254,10 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
                 <img
                   src={avatarUrl}
                   alt={fullName || 'Avatar'}
-                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover shadow-lg border-2 border-sky-500/30 group-hover:opacity-80 transition"
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl object-cover shadow-lg border-2 border-emerald-500/30 group-hover:opacity-80 transition"
                 />
               ) : (
-                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-sky-600 to-indigo-600 text-white flex items-center justify-center text-2xl sm:text-3xl font-black shadow-lg group-hover:opacity-90 transition">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-emerald-600 to-teal-700 text-white flex items-center justify-center text-2xl sm:text-3xl font-black shadow-lg group-hover:opacity-90 transition">
                   {user?.name ? user.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() : 'U'}
                 </div>
               )}
@@ -270,7 +270,7 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
 
               {/* Role Badge Indicator */}
               <div className="absolute -bottom-1 -right-1 p-1.5 bg-white dark:bg-slate-800 rounded-xl shadow border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-                {isAdmin ? <Shield className="w-4 h-4 text-purple-600" /> : <BadgeCheck className="w-4 h-4 text-sky-600" />}
+                {isAdmin ? <Shield className="w-4 h-4 text-emerald-600" /> : <BadgeCheck className="w-4 h-4 text-emerald-600" />}
               </div>
             </div>
 
@@ -632,7 +632,7 @@ export function ProfileManagement({ initialUser }: ProfileManagementProps) {
           <button
             type="submit"
             disabled={saving}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-extrabold shadow-lg shadow-sky-500/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
+            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-extrabold shadow-lg shadow-emerald-500/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-50 active:scale-95"
           >
             {saving ? (
               <>

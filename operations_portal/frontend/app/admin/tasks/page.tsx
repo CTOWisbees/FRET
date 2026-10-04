@@ -76,15 +76,33 @@ export default function AdminTasksPage() {
 
   const fetchTasksAndEmployees = async () => {
     try {
-      setLoading(true);
+      if (tasks.length === 0) {
+        const cachedTasks = localStorage.getItem('ops_cached_tasks');
+        const cachedEmps = localStorage.getItem('ops_cached_employees');
+        const cachedDepts = localStorage.getItem('ops_cached_departments');
+        if (cachedTasks) {
+          try { setTasks(JSON.parse(cachedTasks)); setLoading(false); } catch(e){}
+        }
+        if (cachedEmps) {
+          try { setEmployees(JSON.parse(cachedEmps)); } catch(e){}
+        }
+        if (cachedDepts) {
+          try { setDepartmentsList(JSON.parse(cachedDepts).map((d: any) => d.name)); } catch(e){}
+        }
+      }
+
       const [tasksRes, empRes, deptRes] = await Promise.all([
         api.get('/admin/tasks').catch(() => ({ data: { tasks: [] } })),
         api.get('/admin/employees').catch(() => ({ data: { employees: [] } })),
         api.get('/admin/departments').catch(() => ({ data: { departments: [] } })),
       ]);
-      if (tasksRes.data?.tasks) setTasks(tasksRes.data.tasks);
+      if (tasksRes.data?.tasks) {
+        setTasks(tasksRes.data.tasks);
+        try { localStorage.setItem('ops_cached_tasks', JSON.stringify(tasksRes.data.tasks)); } catch(e){}
+      }
       if (empRes.data?.employees && empRes.data.employees.length > 0) {
         setEmployees(empRes.data.employees);
+        try { localStorage.setItem('ops_cached_employees', JSON.stringify(empRes.data.employees)); } catch(e){}
       }
       if (deptRes.data?.departments && deptRes.data.departments.length > 0) {
         setDepartmentsList(deptRes.data.departments.map((d: any) => d.name));
@@ -246,9 +264,9 @@ export default function AdminTasksPage() {
 
   const columns = [
     { id: 'Todo', label: 'To Do', border: 'border-slate-300 dark:border-slate-700', badgeColor: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
-    { id: 'In Progress', label: 'In Progress', border: 'border-blue-400 dark:border-blue-800', badgeColor: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300' },
+    { id: 'In Progress', label: 'In Progress', border: 'border-emerald-400 dark:border-emerald-800', badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' },
     { id: 'Under Review', label: 'Under Review', border: 'border-amber-400 dark:border-amber-800', badgeColor: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300' },
-    { id: 'Completed', label: 'Completed', border: 'border-emerald-400 dark:border-emerald-800', badgeColor: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300' },
+    { id: 'Completed', label: 'Completed', border: 'border-teal-400 dark:border-teal-800', badgeColor: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300' },
   ];
 
   return (
@@ -277,7 +295,7 @@ export default function AdminTasksPage() {
               onClick={() => setViewMode('kanban')}
               className={`p-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'kanban'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -288,7 +306,7 @@ export default function AdminTasksPage() {
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
                 viewMode === 'list'
-                  ? 'bg-sky-600 text-white shadow-xs'
+                  ? 'bg-emerald-600 text-white shadow-xs'
                   : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
             >
@@ -299,7 +317,7 @@ export default function AdminTasksPage() {
 
           <button
             onClick={openCreateModal}
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-2xl text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-2xl text-xs font-bold shadow-md hover:shadow-lg transition flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Create & Assign Task</span>
@@ -853,7 +871,7 @@ export default function AdminTasksPage() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50 text-xs"
+                  className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl font-bold shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-50 text-xs"
                 >
                   {saving && <RefreshCw className="w-4 h-4 animate-spin" />}
                   <span>{assignMode === 'everyone' ? 'Broadcast to Everyone' : 'Dispatch Task'}</span>

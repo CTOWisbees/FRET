@@ -405,7 +405,7 @@ export default function EmployeeDailyTrackerPage() {
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-2xl p-4 shadow-sm flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
+          <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center font-bold">
             <Hash className="w-5 h-5" />
           </div>
           <div>
@@ -680,12 +680,12 @@ export default function EmployeeDailyTrackerPage() {
 
       {/* Assigned Tasks Available for Today (if any) */}
       {assignedTasks && assignedTasks.length > 0 && !isLocked && (
-        <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-2xl p-5 space-y-3">
+        <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-2xl p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-black text-xs uppercase tracking-wider">
-              <Zap className="w-4 h-4" /> Assigned Tasks for You
+            <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 font-black text-xs uppercase tracking-wider">
+              <Zap className="w-4 h-4 text-emerald-600" /> Assigned Tasks for You
             </div>
-            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold">
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold">
               {assignedTasks.length} task{assignedTasks.length > 1 ? 's' : ''} available
             </span>
           </div>
@@ -705,7 +705,7 @@ export default function EmployeeDailyTrackerPage() {
                 <button
                   type="button"
                   onClick={() => handleAddAssignedTaskRow(at)}
-                  className="px-2.5 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer"
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shrink-0 cursor-pointer"
                 >
                   <Plus className="w-3 h-3" /> Log Work
                 </button>
