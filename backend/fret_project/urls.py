@@ -163,6 +163,8 @@ urlpatterns = [
     path('api/nda/template', views.api_nda_template, name='api_nda_template'),
     path('api/nda/submit', views.api_nda_submit, name='api_nda_submit'),
     path('api/nda/status', views.api_nda_status, name='api_nda_status'),
+    path('api/nda/download', views.api_nda_download, name='api_nda_download'),
+    path('api/nda/download/<int:emp_id>', views.api_nda_download, name='api_nda_download_emp'),
     path('api/employee/<int:emp_id>/role-access', views.api_update_employee_role_access, name='api_update_employee_role_access'),
 ]
 

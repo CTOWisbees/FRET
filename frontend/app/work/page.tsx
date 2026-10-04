@@ -39,11 +39,7 @@ export default function WorkPage() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans antialiased">
       <Sidebar 
-        user={{
-          name: employee?.name || 'Employee',
-          designation: employee?.designation || 'Staff',
-          emp_type: employee?.emp_type || 'Normal'
-        }}
+        user={employee}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
       />
@@ -62,7 +58,7 @@ export default function WorkPage() {
             </h1>
 
             <div className="px-4 py-1.5 rounded-full bg-[#EEF2FF] text-[#4F46E5] border border-[#C7D2FE] text-xs font-bold w-fit shadow-2xs">
-              Designation: {employee?.designation || 'IT Intern – Web & Automation Developer'}
+              Designation: {employee?.designation || 'Staff Member'}
             </div>
           </div>
 

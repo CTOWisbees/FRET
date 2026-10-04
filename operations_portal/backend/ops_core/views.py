@@ -762,8 +762,8 @@ def api_admin_dashboard(request):
     pending_review = WorkTask.objects.filter(status='Under Review').count()
     urgent_tasks = WorkTask.objects.filter(priority='Urgent', status__in=['Todo', 'In Progress']).count()
 
-    recent_tasks = WorkTask.objects.all().order_by('-created_at')[:8]
-    recent_activities = ActivityLog.objects.all().order_by('-created_at')[:10]
+    recent_tasks = WorkTask.objects.all().select_related('assigned_to', 'assigned_by', 'department').order_by('-created_at')[:8]
+    recent_activities = ActivityLog.objects.all().select_related('user').order_by('-created_at')[:10]
     all_departments = Department.objects.filter(is_active=True).values('id', 'name', 'page_key')
 
     return JsonResponse({
@@ -802,7 +802,7 @@ def api_admin_employees(request):
 
     if request.method == 'GET':
         # Department managers, admins, and staff can retrieve active employees & interns
-        employees = OperationUser.objects.filter(is_active=True).order_by('name')
+        employees = OperationUser.objects.filter(is_active=True).prefetch_related('assigned_roles', 'department_accesses__department', 'department_managements__department').order_by('name')
         all_departments = Department.objects.all().order_by('name').values('id', 'name', 'page_key', 'is_active')
         return JsonResponse({
             'success': True,
@@ -1023,7 +1023,7 @@ def api_admin_tasks(request):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     if request.method == 'GET':
-        tasks = WorkTask.objects.all().order_by('-created_at')
+        tasks = WorkTask.objects.all().select_related('assigned_to', 'assigned_by', 'department').order_by('-created_at')
         status_filter = request.GET.get('status')
         assignee_filter = request.GET.get('assigned_to')
         dept_filter = request.GET.get('department')

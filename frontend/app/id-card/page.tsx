@@ -288,28 +288,28 @@ export default function IdCardPage() {
           <div className="w-full px-5 pt-3 pb-5 space-y-2.5 flex flex-col items-center">
             {/* Full Name in Montserrat */}
             <h2 className="text-lg font-black tracking-wide uppercase text-[#000000] font-['Montserrat',sans-serif]">
-              {employee?.name || 'CHHAYAKANTA MAHARANA'}
+              {employee?.name || 'EMPLOYEE'}
             </h2>
 
             {/* Bright Orange Designation Pill */}
             <div className="w-full px-4 py-2 bg-[#F28500] text-white rounded-2xl shadow-xs">
               <div className="text-xs font-bold leading-tight">
-                {employee?.designation || 'IT Intern – Web & Automation Developer'}
+                {employee?.designation || 'Staff Member'}
               </div>
             </div>
 
             {/* Blood Group */}
             <div className="text-sm font-bold text-[#000000]">
-              {employee?.blood_group || 'B+'}
+              {employee?.blood_group || '-'}
             </div>
 
             {/* Contact Details */}
             <div className="text-xs text-[#000000] space-y-0.5 font-normal leading-relaxed text-left w-full px-2">
               <div>
-                <span className="font-bold">E-mail:</span> {employee?.email || 'chhayakantamaharan@gmail.com'}
+                <span className="font-bold">E-mail:</span> {employee?.email || 'N/A'}
               </div>
               <div>
-                <span className="font-bold">Phone:</span> {formattedPhone}
+                <span className="font-bold">Phone:</span> {formattedPhone || 'N/A'}
               </div>
             </div>
 

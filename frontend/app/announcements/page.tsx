@@ -136,16 +136,7 @@ export default function AnnouncementsPage() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans antialiased">
       <Sidebar 
-        user={isHr ? (user ? {
-          name: user.name || 'HR Admin',
-          designation: user.designation || 'HR Administrator',
-          role: 'hr'
-        } : { name: 'HR Admin', designation: 'HR Administrator', role: 'hr' }) : (user ? {
-          name: user.name || 'Employee',
-          designation: user.designation || 'Staff',
-          emp_type: user.emp_type || 'Normal',
-          role: 'employee'
-        } : undefined)}
+        user={user}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
       />

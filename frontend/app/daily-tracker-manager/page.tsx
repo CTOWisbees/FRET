@@ -11,7 +11,7 @@ export default function DailyTrackerManagerRedirectPage() {
 
   const opsPortalUrl = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
     ? 'http://localhost:3001/employee/tracker-review'
-    : '/employee/tracker-review';
+    : 'https://ops.wisbees.com/employee/tracker-review';
 
   return (
     <div className="flex h-screen bg-[var(--background)] text-[var(--text)] overflow-hidden">

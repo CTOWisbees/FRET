@@ -720,6 +720,9 @@ def generate_leave_approval_pdf(leave_request, settings=None, hr_user=None):
     story.append(Paragraph("Yours sincerely,", sty_sign))
     story.append(Spacer(1, 0.2 * cm))
 
+    approver_name = leave_request.approved_by or (getattr(hr_user, 'name', 'Authorized Signatory') if hr_user else 'Authorized Signatory')
+    approver_role = leave_request.approved_by_role or (getattr(hr_user, 'designation', 'Management Authority') if hr_user else 'Management Authority')
+
     hr_sig_path = getattr(hr_user, 'signature_path', None) if hr_user else None
     if hr_sig_path and os.path.exists(hr_sig_path):
         try:
@@ -731,10 +734,8 @@ def generate_leave_approval_pdf(leave_request, settings=None, hr_user=None):
     else:
         story.append(Spacer(1, 0.8 * cm))
 
-    hr_name = getattr(hr_user, 'name', 'HR Department') if hr_user else 'HR Department'
-    hr_desig = getattr(hr_user, 'designation', 'Human Resources Manager') if hr_user else 'Human Resources Manager'
-    story.append(Paragraph(f"<b>{hr_name}</b>", sty_signb))
-    story.append(Paragraph(hr_desig, sty_sign))
+    story.append(Paragraph(f"<b>{approver_name}</b>", sty_signb))
+    story.append(Paragraph(approver_role, sty_sign))
     story.append(Paragraph(f"<b>{company_name}</b>", sty_sign))
 
     def add_letterhead(canvas, doc):

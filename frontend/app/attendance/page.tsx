@@ -55,11 +55,7 @@ export default function AttendancePage() {
   return (
     <div className="flex min-h-screen bg-[var(--bg)] text-[var(--text)] font-sans">
       <Sidebar 
-        user={{
-          name: employee.name || 'Employee',
-          designation: employee.designation || 'Staff',
-          emp_type: employee.emp_type || 'Normal'
-        }}
+        user={employee}
         mobileOpen={mobileOpen}
         setMobileOpen={setMobileOpen}
       />

@@ -85,43 +85,43 @@ export default function EmployeeDashboardPage() {
   return (
     <div className="space-y-5 sm:space-y-7 animate-fadeIn pb-12">
       {/* Welcome Banner */}
-      <div className="p-5 sm:p-8 bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 text-white rounded-2xl sm:rounded-3xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden border border-white/10">
+      <div className="p-5 sm:p-8 bg-gradient-to-r from-emerald-950 via-teal-950 to-amber-950 text-white rounded-2xl sm:rounded-3xl shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-5 relative overflow-hidden border border-emerald-500/20">
         <div className="relative z-10 space-y-1.5 sm:space-y-2 w-full md:w-auto">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-white/10 border border-white/15 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-sky-300">
+            <span className="px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-[10px] sm:text-[11px] font-extrabold uppercase tracking-wider text-emerald-200">
               Operational Workspace
             </span>
             {assignedRoles.map((r: any) => (
               <span
                 key={r.id || r.title}
-                className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400/30 text-[10px] sm:text-[11px] font-bold text-indigo-200"
+                className="px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-[10px] sm:text-[11px] font-bold text-amber-200"
               >
                 🛡️ {r.title}
               </span>
             ))}
           </div>
 
-          <h2 className="text-lg sm:text-2xl font-black tracking-tight break-words">
+          <h2 className="text-lg sm:text-2xl font-black tracking-tight break-words text-white">
             {greeting}, {employeeName} 👋
           </h2>
 
-          <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed">
-            {designation} • <span className="text-sky-300 font-semibold">{displayDepts}</span>
+          <p className="text-xs sm:text-sm text-emerald-100/90 max-w-xl leading-relaxed">
+            {designation} • <span className="text-amber-300 font-semibold">{displayDepts}</span>
           </p>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 relative z-10 w-full md:w-auto">
           <Link
             href="/employee/daily-tracker"
-            className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl sm:rounded-2xl text-xs font-black shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer"
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl sm:rounded-2xl text-xs font-black shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer border border-emerald-300/30"
           >
-            <CalendarCheck className="w-4 h-4 shrink-0" />
+            <CalendarCheck className="w-4 h-4 shrink-0 text-amber-300" />
             <span>📅 Daily Work Tracker</span>
           </Link>
 
           <Link
             href="/employee/my-work"
-            className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-xl sm:rounded-2xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer"
+            className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white rounded-xl sm:rounded-2xl text-xs font-bold shadow-md transition flex items-center justify-center gap-2 active:scale-95 text-center cursor-pointer border border-amber-300/30"
           >
             <Briefcase className="w-4 h-4 shrink-0" />
             <span>Assigned Work ({stats.in_progress_count ?? 0})</span>
@@ -130,10 +130,10 @@ export default function EmployeeDashboardPage() {
       </div>
 
       {/* ─── DAILY WORK TRACKER PROMINENT CALLOUT CARD ─── */}
-      <div className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-sky-500/10 border border-emerald-300/80 dark:border-emerald-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+      <div className="p-5 sm:p-6 rounded-2xl sm:rounded-3xl bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-amber-500/10 border border-emerald-300/80 dark:border-emerald-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
         <div className="flex items-start gap-3.5">
           <div className="w-10 h-10 rounded-2xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-300 flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800">
-            <CalendarCheck className="w-5 h-5" />
+            <CalendarCheck className="w-5 h-5 text-amber-500" />
           </div>
           <div>
             <div className="flex items-center gap-2">

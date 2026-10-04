@@ -4,6 +4,7 @@ import random
 import json
 import base64
 import time
+import calendar
 from datetime import datetime, date, timedelta
 from io import BytesIO
 import pandas as pd
@@ -795,8 +796,21 @@ def employee_dashboard_view(request):
     employee = get_object_or_404(Employee, id=emp_id)
     today = timezone.localtime(timezone.now()).date()
     now_hour = timezone.localtime(timezone.now()).hour
+    emp_start_date = employee.joining_date or (employee.created_at.date() if employee.created_at else today)
 
-    # 1. Single batch query for last 200 days attendance (covers today, month, 4 weeks, 6 month trends)
+    # Helper to count working days (Monday-Friday) in range [s_d, e_d]
+    def count_weekdays(s_d, e_d):
+        if s_d > e_d:
+            return 0
+        c = s_d
+        cnt = 0
+        while c <= e_d:
+            if c.weekday() < 5:  # Mon to Fri
+                cnt += 1
+            c += timedelta(days=1)
+        return cnt
+
+    # 1. Single batch query for last 200 days attendance
     start_date = today - timedelta(days=200)
     att_records = list(Attendance.objects.filter(
         employee_id=employee.id,
@@ -804,30 +818,20 @@ def employee_dashboard_view(request):
     ).order_by('-date'))
 
     today_attendance = None
-    this_month_present = 0
-    this_month_total = 0
-    month_records_map = {}
-
     for r in att_records:
-        r_date = r.date
-        if not r_date:
-            continue
-        if r_date == today and today_attendance is None:
+        if r.date == today and today_attendance is None:
             today_attendance = r
 
-        key = (r_date.year, r_date.month)
-        if key not in month_records_map:
-            month_records_map[key] = {'present': 0, 'total': 0}
-        month_records_map[key]['total'] += 1
-        if r.status == 'Present':
-            month_records_map[key]['present'] += 1
-
-        if r_date.year == today.year and r_date.month == today.month:
-            this_month_total += 1
-            if r.status == 'Present':
-                this_month_present += 1
-
-    attendance_percent = round((this_month_present / this_month_total * 100), 1) if this_month_total else 100.0
+    # Calculate real attendance for current month
+    m_start = date(today.year, today.month, 1)
+    act_m_start = max(m_start, emp_start_date)
+    act_m_end = today
+    if act_m_start <= act_m_end:
+        expected_wd = count_weekdays(act_m_start, act_m_end)
+        present_cnt = sum(1 for r in att_records if r.date and m_start <= r.date <= today and r.status == 'Present')
+        attendance_percent = round(min(100.0, (present_cnt / expected_wd * 100)), 1) if expected_wd > 0 else (100.0 if present_cnt > 0 else 0.0)
+    else:
+        attendance_percent = 0.0
 
     worked_duration_str = None
     today_status_label = 'Not Checked In'
@@ -842,7 +846,7 @@ def employee_dashboard_view(request):
         else:
             today_status_label = 'Shift Completed'
 
-    # 2. Monthly trend calculation in memory
+    # 2. Monthly trend calculation in memory (last 6 months, strictly from real attendance and joining date)
     month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     current_m_idx = today.month - 1
     trend_data = []
@@ -850,21 +854,43 @@ def employee_dashboard_view(request):
         m_idx = (current_m_idx - i) % 12
         m_num = m_idx + 1
         y_num = today.year if (current_m_idx - i) >= 0 else today.year - 1
-        m_data = month_records_map.get((y_num, m_num), {'present': 0, 'total': 0})
-        m_present = m_data['present']
-        m_total = m_data['total']
-        val = round((m_present / m_total * 100), 1) if m_total else (attendance_percent if i == 0 else 100.0)
+        
+        _, last_day = calendar.monthrange(y_num, m_num)
+        period_start = date(y_num, m_num, 1)
+        period_end = date(y_num, m_num, last_day)
+        
+        r_start = max(period_start, emp_start_date)
+        r_end = min(period_end, today)
+        
+        if r_start <= r_end:
+            wd = count_weekdays(r_start, r_end)
+            pr = sum(1 for r in att_records if r.date and period_start <= r.date <= period_end and r.status == 'Present')
+            val = round(min(100.0, (pr / wd * 100)), 1) if wd > 0 else (100.0 if pr > 0 else 0.0)
+        else:
+            val = 0.0
+        
         trend_data.append({
             'month': month_names[m_idx],
             'attendance': val
         })
 
-    # 3. Weekly overview calculation in memory
+    # 3. Weekly overview calculation in memory (bounded by real days elapsed in current month)
     weekly_overview = []
     for w_num, (start_d, end_d) in enumerate([(1, 7), (8, 14), (15, 21), (22, 31)], 1):
-        w_present = sum(1 for r in att_records if r.date and r.date.year == today.year and r.date.month == today.month and start_d <= r.date.day <= end_d and r.status == 'Present')
-        w_total = sum(1 for r in att_records if r.date and r.date.year == today.year and r.date.month == today.month and start_d <= r.date.day <= end_d)
-        w_pct = round((w_present / w_total * 100), 1) if w_total > 0 else 100.0
+        w_start = date(today.year, today.month, start_d)
+        _, max_m_day = calendar.monthrange(today.year, today.month)
+        w_end = date(today.year, today.month, min(end_d, max_m_day))
+        
+        r_w_start = max(w_start, emp_start_date)
+        r_w_end = min(w_end, today)
+        
+        if r_w_start <= r_w_end:
+            w_wd = count_weekdays(r_w_start, r_w_end)
+            w_present = sum(1 for r in att_records if r.date and w_start <= r.date <= w_end and r.status == 'Present')
+            w_pct = round(min(100.0, (w_present / w_wd * 100)), 1) if w_wd > 0 else (100.0 if w_present > 0 else 0.0)
+        else:
+            w_pct = 0.0
+        
         weekly_overview.append({'week': f'Week {w_num}', 'attendance': w_pct})
 
     # 4. Single query for leaves
@@ -875,12 +901,27 @@ def employee_dashboard_view(request):
     pending_leaves = sum(1 for l in all_leaves if l.status == 'Pending')
     leave_request_list = all_leaves[:8]
 
-    # 5. Announcements in 1 query
+    # 5. Announcements with active & valid expiration check
+    ann_filter = Q(is_active=True) & (Q(expires_at__isnull=True) | Q(expires_at__gte=timezone.now()))
+    audience_filter = Q(audience__iexact="Everyone") | Q(audience__iexact="All")
+    if (employee.emp_type or '').strip().lower() == "intern":
+        audience_filter |= Q(audience__in=["Intern", "Interns", "intern", "interns"])
+    else:
+        audience_filter |= Q(audience__in=["Normal", "Employee", "Employees", "normal", "employee", "employees"])
+
     latest_announcements = list(Announcement.objects.filter(
-        is_active=True
-    ).filter(
-        Q(audience="Everyone") | Q(audience=employee.emp_type)
-    ).order_by('-created_at')[:4])
+        ann_filter & audience_filter
+    ).order_by('-created_at')[:5])
+
+    # Manager team stats
+    pending_team_leaves = 0
+    if employee.is_manager:
+        mgr_dept = employee.managed_department or employee.department or ''
+        if mgr_dept:
+            pending_team_leaves = LeaveRequest.objects.filter(
+                employee__department__iexact=mgr_dept,
+                status='Pending'
+            ).exclude(employee_id=employee.id).count()
 
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
         return JsonResponse({
@@ -892,13 +933,21 @@ def employee_dashboard_view(request):
                 'first_name': employee.name.split(' ')[0] if employee.name else '',
                 'email': employee.email or '',
                 'phone': employee.phone or '',
-                'designation': employee.designation or 'IT Intern – Web & Automation Developer',
-                'department': employee.department or 'Data & Analytics',
-                'emp_type': employee.emp_type or 'Intern',
+                'designation': employee.designation or 'Staff',
+                'department': employee.department or 'General',
+                'emp_type': employee.emp_type or 'Normal',
                 'status': employee.status or 'Active',
-                'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
+                'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '',
                 'gender': employee.gender or 'female',
                 'blood_group': employee.blood_group or '',
+                'is_manager': bool(employee.is_manager),
+                'managed_department': employee.managed_department or '',
+                'is_superadmin': bool(employee.is_superadmin),
+                'reporting_manager_id': employee.reporting_manager.id if employee.reporting_manager else None,
+                'reporting_manager_name': employee.reporting_manager.name if employee.reporting_manager else None,
+                'reporting_manager_designation': employee.reporting_manager.designation if employee.reporting_manager else None,
+                'reporting_manager_department': employee.reporting_manager.department if employee.reporting_manager else None,
+                'reporting_manager_email': employee.reporting_manager.email if employee.reporting_manager else None,
             },
             'now_hour': now_hour,
             'today_attendance': {
@@ -919,8 +968,12 @@ def employee_dashboard_view(request):
                 'leave_balance': leave_balance,
                 'leaves_taken': leaves_taken,
                 'pending_leaves': pending_leaves,
+                'pending_team_leaves': pending_team_leaves,
                 'status': employee.status or 'Active',
-                'emp_type': employee.emp_type or 'Intern'
+                'emp_type': employee.emp_type or 'Normal',
+                'is_manager': bool(employee.is_manager),
+                'managed_department': employee.managed_department or '',
+                'is_superadmin': bool(employee.is_superadmin)
             },
             'weekly_overview': weekly_overview,
             'monthly_trend': trend_data,
@@ -1030,20 +1083,25 @@ def api_employee_me(request):
         'emp_id': employee.emp_id or f"INT{employee.id:04d}",
         'name': employee.name,
         'first_name': employee.name.split(' ')[0] if employee.name else '',
-        'email': employee.email,
-        'phone': employee.phone or 'Not Available',
-        'department': employee.department or 'Data & Analytics',
-        'designation': employee.designation or 'IT Intern – Web & Automation Developer',
-        'emp_type': employee.emp_type or 'Intern',
+        'email': employee.email or '',
+        'phone': employee.phone or '',
+        'department': employee.department or 'General',
+        'designation': employee.designation or 'Staff',
+        'emp_type': employee.emp_type or 'Normal',
         'status': employee.status or 'Active',
         'blood_group': employee.blood_group or '',
         'is_manager': bool(employee.is_manager),
         'managed_department': employee.managed_department or '',
         'is_superadmin': bool(employee.is_superadmin),
+        'reporting_manager_id': employee.reporting_manager.id if employee.reporting_manager else None,
+        'reporting_manager_name': employee.reporting_manager.name if employee.reporting_manager else None,
+        'reporting_manager_designation': employee.reporting_manager.designation if employee.reporting_manager else None,
+        'reporting_manager_department': employee.reporting_manager.department if employee.reporting_manager else None,
+        'reporting_manager_email': employee.reporting_manager.email if employee.reporting_manager else None,
         'nda_submitted': bool(employee.nda_submitted),
         'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p') if employee.nda_submitted_at else None,
         'nda_signature': employee.nda_signature or '',
-        'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
+        'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '',
         'has_photo': bool(employee.profile_pic_data),
         'avatar_url': get_employee_avatar_base64(employee) or f"/employee/{employee.id}/avatar",
     }
@@ -1649,11 +1707,11 @@ def employee_profile_view(request):
                 'emp_id': employee.emp_id or f"INT{employee.id:04d}",
                 'name': employee.name,
                 'first_name': employee.name.split(' ')[0] if employee.name else '',
-                'email': employee.email,
-                'phone': employee.phone or 'Not Available',
-                'department': employee.department or 'Data & Analytics',
-                'designation': employee.designation or 'IT Intern – Web & Automation Developer',
-                'emp_type': employee.emp_type or 'Intern',
+                'email': employee.email or '',
+                'phone': employee.phone or '',
+                'department': employee.department or 'General',
+                'designation': employee.designation or 'Staff',
+                'emp_type': employee.emp_type or 'Normal',
                 'status': employee.status or 'Active',
                 'blood_group': employee.blood_group or '',
                 'is_manager': bool(employee.is_manager),
@@ -1662,7 +1720,7 @@ def employee_profile_view(request):
                 'nda_submitted': bool(employee.nda_submitted),
                 'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p') if employee.nda_submitted_at else None,
                 'nda_signature': employee.nda_signature or '',
-                'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
+                'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '',
                 'has_photo': bool(employee.profile_pic_data),
                 'avatar_url': get_employee_avatar_base64(employee) or f"/employee/{employee.id}/avatar",
             }
@@ -2523,7 +2581,9 @@ def _send_leave_notification_email(leave_request, action='approved', pdf_bytes=N
 
     company_settings = CompanySettings.objects.first() or CompanySettings()
     company_name = getattr(company_settings, 'company_name', 'TimeArrow Pvt. Ltd. (WisBees)')
-    sender_name = getattr(hr_user, 'name', 'HR Department') if hr_user else 'HR Department'
+    
+    approver_name = leave_request.approved_by or (getattr(hr_user, 'name', 'Management') if hr_user else 'Authorized Management')
+    approver_role = leave_request.approved_by_role or (getattr(hr_user, 'designation', 'Approval Authority') if hr_user else 'Approval Authority')
 
     from_str = leave_request.from_date.strftime('%d %b %Y') if leave_request.from_date else 'N/A'
     to_str = leave_request.to_date.strftime('%d %b %Y') if leave_request.to_date else 'N/A'
@@ -2534,18 +2594,19 @@ def _send_leave_notification_email(leave_request, action='approved', pdf_bytes=N
         html_body = f"""
         <div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:600px;line-height:1.6;">
           <p>Dear <strong>{emp.name}</strong>,</p>
-          <p>We are pleased to inform you that your leave application for <strong>{leave_request.leave_type or 'Leave'}</strong> has been <span style="color:#059669;font-weight:bold;">APPROVED</span>.</p>
+          <p>We are pleased to inform you that your leave application for <strong>{leave_request.leave_type or 'Leave'}</strong> has been <span style="color:#059669;font-weight:bold;">APPROVED</span> by <strong>{approver_name} ({approver_role})</strong>.</p>
           <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:12px 16px;margin:16px 0;">
             <p style="margin:4px 0;"><strong>Leave Type:</strong> {leave_request.leave_type or 'Casual Leave'}</p>
             <p style="margin:4px 0;"><strong>Period:</strong> {from_str} to {to_str} ({total_days} Day(s))</p>
+            <p style="margin:4px 0;"><strong>Sanctioned By:</strong> {approver_name} ({approver_role})</p>
             <p style="margin:4px 0;"><strong>Status:</strong> <span style="color:#059669;font-weight:bold;">Sanctioned & Approved</span></p>
           </div>
           <p>Please find attached your official <strong>Leave Approval Sanction Letter</strong> for your records.</p>
           <p>We wish you a pleasant time off.</p>
           <br>
           <p style="margin:0;">Yours sincerely,</p>
-          <p style="margin:0;"><strong>{sender_name}</strong></p>
-          <p style="margin:0;color:#666;">Human Resources Department</p>
+          <p style="margin:0;"><strong>{approver_name}</strong></p>
+          <p style="margin:0;color:#666;">{approver_role}</p>
           <p style="margin:0;color:#666;">{company_name}</p>
         </div>
         """
@@ -2554,16 +2615,18 @@ def _send_leave_notification_email(leave_request, action='approved', pdf_bytes=N
         html_body = f"""
         <div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:600px;line-height:1.6;">
           <p>Dear <strong>{emp.name}</strong>,</p>
-          <p>This is to inform you that your leave request for <strong>{leave_request.leave_type or 'Leave'}</strong> for the period from <strong>{from_str}</strong> to <strong>{to_str}</strong> has been <span style="color:#dc2626;font-weight:bold;">DECLINED / REJECTED</span> by HR.</p>
+          <p>This is to inform you that your leave request for <strong>{leave_request.leave_type or 'Leave'}</strong> for the period from <strong>{from_str}</strong> to <strong>{to_str}</strong> has been <span style="color:#dc2626;font-weight:bold;">DECLINED / REJECTED</span> by <strong>{approver_name} ({approver_role})</strong>.</p>
           <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px 16px;margin:16px 0;">
             <p style="margin:4px 0;"><strong>Reason stated:</strong> {leave_request.reason or 'Personal'}</p>
+            {f'<p style="margin:4px 0;"><strong>Approver Note:</strong> {leave_request.rejection_reason}</p>' if leave_request.rejection_reason else ''}
+            <p style="margin:4px 0;"><strong>Reviewed By:</strong> {approver_name} ({approver_role})</p>
             <p style="margin:4px 0;"><strong>Status:</strong> <span style="color:#dc2626;font-weight:bold;">Rejected</span></p>
           </div>
-          <p>If you have any questions or require further clarification, please contact the HR department.</p>
+          <p>If you have any questions or require further clarification, please coordinate with your branch manager or management.</p>
           <br>
           <p style="margin:0;">Yours sincerely,</p>
-          <p style="margin:0;"><strong>{sender_name}</strong></p>
-          <p style="margin:0;color:#666;">Human Resources Department</p>
+          <p style="margin:0;"><strong>{approver_name}</strong></p>
+          <p style="margin:0;color:#666;">{approver_role}</p>
           <p style="margin:0;color:#666;">{company_name}</p>
         </div>
         """
@@ -2653,10 +2716,10 @@ def leave_management(request):
         if scope == 'my':
             leaves_qs = LeaveRequest.objects.filter(employee=caller_emp).select_related('employee').order_by('-applied_on')
         else:
-            # Manager sees leave requests from employees of their managed department (excluding themselves)
+            # Manager sees leave requests from employees of their managed branch/department (excluding themselves)
             dept = managed_dept or (caller_emp.department if caller_emp else '')
             leaves_qs = LeaveRequest.objects.filter(
-                employee__department__iexact=dept
+                Q(employee__department__iexact=dept) | Q(employee__reporting_manager=caller_emp)
             ).exclude(
                 employee_id=caller_emp.id if caller_emp else 0
             ).select_related('employee').order_by('-applied_on')
@@ -2679,16 +2742,43 @@ def leave_management(request):
             to_str = lr.to_date.strftime('%Y-%m-%d') if lr.to_date else ''
             days = ((lr.to_date - lr.from_date).days + 1) if (lr.from_date and lr.to_date) else 1
 
-            # Determine whether caller can approve this specific request
+            # Determine who has authority to approve/reject this specific leave request
             can_approve = False
-            if caller_role == 'hr':
-                can_approve = True
-            elif caller_role == 'superadmin':
-                can_approve = True
-            elif caller_role == 'manager' and emp and emp.id != (caller_emp.id if caller_emp else 0):
-                dept_match = (emp.department or '').strip().lower() == managed_dept.strip().lower()
-                if dept_match:
+            designated_approver = ''
+            approver_note = ''
+
+            if emp and emp.is_manager:
+                designated_approver = 'SuperAdmin'
+                if caller_role == 'superadmin':
                     can_approve = True
+                    approver_note = 'SuperAdmin approval authority for Manager leave'
+                elif caller_role == 'hr':
+                    can_approve = False
+                    approver_note = 'Managed by SuperAdmin (Designated by HR)'
+                else:
+                    can_approve = False
+                    approver_note = 'Requires SuperAdmin approval'
+            else:
+                # Regular employee / intern
+                dept_label = emp.department if (emp and emp.department) else 'Branch'
+                designated_approver = f"{dept_label} Manager"
+                if caller_role == 'superadmin':
+                    can_approve = True
+                    approver_note = 'SuperAdmin governance override authority'
+                elif caller_role == 'manager' and caller_emp:
+                    is_my_dept = ((emp.department or '').strip().lower() == managed_dept.strip().lower()) or (emp.reporting_manager_id == caller_emp.id)
+                    if is_my_dept and emp.id != caller_emp.id:
+                        can_approve = True
+                        approver_note = f'Branch Manager ({managed_dept or dept_label})'
+                    else:
+                        can_approve = False
+                        approver_note = f'Handled by {dept_label} Manager'
+                elif caller_role == 'hr':
+                    can_approve = False
+                    approver_note = f'HR Audit: Handled by {dept_label} Manager'
+                else:
+                    can_approve = False
+                    approver_note = f'Handled by {dept_label} Manager'
 
             data.append({
                 'id': lr.id,
@@ -2715,6 +2805,8 @@ def leave_management(request):
                 'approved_by_role': lr.approved_by_role or '',
                 'rejection_reason': lr.rejection_reason or '',
                 'can_approve': can_approve,
+                'designated_approver': designated_approver,
+                'approver_note': approver_note,
             })
         return JsonResponse({
             'success': True,
@@ -2732,38 +2824,72 @@ def leave_management(request):
 @csrf_exempt
 def approve_leave(request, leave_id):
     leave = get_object_or_404(LeaveRequest, id=leave_id)
-    
-    # Determine approver identity & title
-    approver_name = 'HR Admin'
-    approver_role = 'HR Admin'
-    hr_user = None
+    emp = leave.employee
 
     user = getattr(request, 'current_user', None)
+    is_hr = False
+    caller_emp = None
+
     if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
-        approver_name = user.name or 'HR Admin'
-        approver_role = 'HR Admin'
-        hr_user = user
+        is_hr = True
     else:
+        auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
+        if auth_header and 'hr:' in auth_header:
+            is_hr = True
+
+    if not is_hr:
         emp_id = resolve_employee_id(request)
         if emp_id:
             caller_emp = Employee.objects.filter(id=emp_id).first()
-            if caller_emp:
-                approver_name = caller_emp.name
-                if caller_emp.is_superadmin:
-                    approver_role = 'SuperAdmin'
-                elif caller_emp.is_manager:
-                    dept = caller_emp.managed_department or caller_emp.department or 'Department'
-                    approver_role = f"Manager ({dept})"
-                else:
-                    approver_role = 'Authorized Lead'
-        if not hr_user:
-            hr_user = HR.objects.first()
+
+    # Rule: HR does not assign or approve leaves directly
+    if is_hr and not caller_emp:
+        return JsonResponse({
+            'success': False,
+            'message': 'HR cannot assign or approve leaves directly. Employee/Intern leaves are approved by their Branch Manager, and Manager leaves are approved by SuperAdmin.'
+        }, status=403)
+
+    if not caller_emp:
+        return JsonResponse({'success': False, 'message': 'Unauthorized to approve leaves.'}, status=401)
+
+    # Determine authority according to the hierarchy
+    if emp and emp.is_manager:
+        # Manager Leave: ONLY SuperAdmin can approve
+        if not caller_emp.is_superadmin:
+            return JsonResponse({
+                'success': False,
+                'message': 'Manager leave requests can only be approved by an authorized SuperAdmin.'
+            }, status=403)
+        approver_name = caller_emp.name
+        approver_role = f"SuperAdmin ({caller_emp.designation or 'SuperAdmin'})"
+    else:
+        # Regular Employee / Intern Leave: Branch Manager or SuperAdmin
+        if caller_emp.is_superadmin:
+            approver_name = caller_emp.name
+            approver_role = f"SuperAdmin ({caller_emp.designation or 'SuperAdmin'})"
+        elif caller_emp.is_manager:
+            emp_dept = (emp.department or '').strip().lower() if emp else ''
+            mgr_dept = (caller_emp.managed_department or caller_emp.department or '').strip().lower()
+            is_direct = (emp and emp.reporting_manager_id == caller_emp.id)
+            if emp_dept != mgr_dept and not is_direct:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'You are only authorized to approve leaves for your managed branch ({caller_emp.managed_department or caller_emp.department}).'
+                }, status=403)
+            approver_name = caller_emp.name
+            approver_role = f"Manager — {caller_emp.managed_department or caller_emp.department or 'Department'}"
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': 'You do not have permission to approve this leave request.'
+            }, status=403)
 
     leave.status = "Approved"
     leave.approved_by = approver_name
     leave.approved_by_role = approver_role
     leave.save()
 
+    hr_user = HR.objects.first()
     settings = CompanySettings.objects.first() or CompanySettings()
     hydrate_company_files(settings)
     if hr_user and hasattr(hr_user, 'id'):
@@ -2789,7 +2915,7 @@ def approve_leave(request, leave_id):
     if is_json:
         return JsonResponse({
             'success': True,
-            'message': f'Leave approved by {approver_name} ({approver_role})! {"Approval email with PDF attached sent to " + leave.employee.email if leave.employee and leave.employee.email else ""}',
+            'message': f'Leave approved by {approver_name} ({approver_role})! {"Official sanction letter emailed to " + leave.employee.email if leave.employee and leave.employee.email else ""}',
             'email_status': email_msg,
             'leave_id': leave.id,
             'status': 'Approved',
@@ -2797,18 +2923,42 @@ def approve_leave(request, leave_id):
             'approved_by_role': approver_role
         })
 
-    messages.success(request, f'Leave approved by {approver_name} ({approver_role}) and email dispatched.')
+    messages.success(request, f'Leave approved by {approver_name} ({approver_role}) and notification dispatched.')
     return redirect('leave_management')
 
 
 @csrf_exempt
 def reject_leave(request, leave_id):
     leave = get_object_or_404(LeaveRequest, id=leave_id)
-    
-    approver_name = 'HR Admin'
-    approver_role = 'HR Admin'
-    rejection_reason = ''
+    emp = leave.employee
 
+    user = getattr(request, 'current_user', None)
+    is_hr = False
+    caller_emp = None
+
+    if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
+        is_hr = True
+    else:
+        auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
+        if auth_header and 'hr:' in auth_header:
+            is_hr = True
+
+    if not is_hr:
+        emp_id = resolve_employee_id(request)
+        if emp_id:
+            caller_emp = Employee.objects.filter(id=emp_id).first()
+
+    # Rule: HR does not assign or reject leaves directly
+    if is_hr and not caller_emp:
+        return JsonResponse({
+            'success': False,
+            'message': 'HR cannot assign or reject leaves directly. Employee/Intern leaves are handled by their Branch Manager, and Manager leaves are handled by SuperAdmin.'
+        }, status=403)
+
+    if not caller_emp:
+        return JsonResponse({'success': False, 'message': 'Unauthorized to reject leaves.'}, status=401)
+
+    rejection_reason = ''
     if request.content_type == 'application/json' and request.body:
         try:
             body = json.loads(request.body.decode('utf-8'))
@@ -2818,25 +2968,37 @@ def reject_leave(request, leave_id):
     elif request.POST.get('reason'):
         rejection_reason = request.POST.get('reason', '').strip()
 
-    user = getattr(request, 'current_user', None)
-    if user and isinstance(user, HR) and getattr(user, 'is_authenticated', False):
-        approver_name = user.name or 'HR Admin'
-        approver_role = 'HR Admin'
-        hr_user = user
+    # Determine authority according to hierarchy
+    if emp and emp.is_manager:
+        # Manager Leave: ONLY SuperAdmin can reject
+        if not caller_emp.is_superadmin:
+            return JsonResponse({
+                'success': False,
+                'message': 'Manager leave requests can only be rejected by an authorized SuperAdmin.'
+            }, status=403)
+        approver_name = caller_emp.name
+        approver_role = f"SuperAdmin ({caller_emp.designation or 'SuperAdmin'})"
     else:
-        emp_id = resolve_employee_id(request)
-        if emp_id:
-            caller_emp = Employee.objects.filter(id=emp_id).first()
-            if caller_emp:
-                approver_name = caller_emp.name
-                if caller_emp.is_superadmin:
-                    approver_role = 'SuperAdmin'
-                elif caller_emp.is_manager:
-                    dept = caller_emp.managed_department or caller_emp.department or 'Department'
-                    approver_role = f"Manager ({dept})"
-                else:
-                    approver_role = 'Authorized Lead'
-        hr_user = HR.objects.first()
+        # Regular Employee / Intern Leave: Branch Manager or SuperAdmin
+        if caller_emp.is_superadmin:
+            approver_name = caller_emp.name
+            approver_role = f"SuperAdmin ({caller_emp.designation or 'SuperAdmin'})"
+        elif caller_emp.is_manager:
+            emp_dept = (emp.department or '').strip().lower() if emp else ''
+            mgr_dept = (caller_emp.managed_department or caller_emp.department or '').strip().lower()
+            is_direct = (emp and emp.reporting_manager_id == caller_emp.id)
+            if emp_dept != mgr_dept and not is_direct:
+                return JsonResponse({
+                    'success': False,
+                    'message': f'You are only authorized to reject leaves for your managed branch ({caller_emp.managed_department or caller_emp.department}).'
+                }, status=403)
+            approver_name = caller_emp.name
+            approver_role = f"Manager — {caller_emp.managed_department or caller_emp.department or 'Department'}"
+        else:
+            return JsonResponse({
+                'success': False,
+                'message': 'You do not have permission to reject this leave request.'
+            }, status=403)
 
     leave.status = "Rejected"
     leave.approved_by = approver_name
@@ -2845,6 +3007,7 @@ def reject_leave(request, leave_id):
         leave.rejection_reason = rejection_reason
     leave.save()
 
+    hr_user = HR.objects.first()
     email_sent, email_msg = _send_leave_notification_email(leave, action='rejected', hr_user=hr_user)
 
     is_json = (
@@ -2866,7 +3029,7 @@ def reject_leave(request, leave_id):
             'approved_by_role': approver_role
         })
 
-    messages.info(request, f'Leave rejected by {approver_name} and notification email sent.')
+    messages.info(request, f'Leave rejected by {approver_name} ({approver_role}) and notification email sent.')
     return redirect('leave_management')
 
 
@@ -2973,12 +3136,32 @@ def attendance_view(request):
         return redirect('login')
 
     employee = get_object_or_404(Employee, id=employee_id)
+    today = timezone.localtime(timezone.now()).date()
+    emp_start_date = employee.joining_date or (employee.created_at.date() if employee.created_at else today)
+
     records = list(Attendance.objects.filter(employee_id=employee.id).order_by('-date'))
 
+    def count_weekdays(s_d, e_d):
+        if s_d > e_d:
+            return 0
+        c = s_d
+        cnt = 0
+        while c <= e_d:
+            if c.weekday() < 5:
+                cnt += 1
+            c += timedelta(days=1)
+        return cnt
+
     present_days = sum(1 for r in records if r.status == 'Present')
-    absent_days = sum(1 for r in records if r.status == 'Absent')
-    total_days = len(records)
-    attendance_percentage = round((present_days / total_days * 100), 1) if total_days else 100.0
+    total_expected_days = count_weekdays(emp_start_date, today)
+    if total_expected_days > 0:
+        absent_days = max(total_expected_days - present_days, 0)
+        attendance_percentage = round(min(100.0, (present_days / total_expected_days * 100)), 1)
+        total_days = total_expected_days
+    else:
+        absent_days = sum(1 for r in records if r.status == 'Absent')
+        total_days = len(records)
+        attendance_percentage = 100.0 if present_days > 0 else 0.0
 
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
         records_list = []
@@ -3005,8 +3188,11 @@ def attendance_view(request):
             'employee': {
                 'id': employee.id,
                 'name': employee.name,
-                'designation': employee.designation or 'IT Intern – Web & Automation Developer',
-                'emp_type': employee.emp_type or 'Intern'
+                'designation': employee.designation or 'Staff',
+                'emp_type': employee.emp_type or 'Normal',
+                'is_manager': bool(employee.is_manager),
+                'managed_department': employee.managed_department or '',
+                'is_superadmin': bool(employee.is_superadmin)
             },
             'present_days': present_days,
             'absent_days': absent_days,
@@ -3185,19 +3371,41 @@ def apply_leave(request):
             to_date=to_d,
             reason=reason
         )
+
+        # Build routing notice
+        if employee.is_manager:
+            superadmin = Employee.objects.filter(is_superadmin=True).first()
+            sa_name = superadmin.name if superadmin else 'SuperAdmin'
+            routing_msg = f"Your leave request has been submitted and forwarded to {sa_name} (SuperAdmin) for review."
+        else:
+            dept_name = employee.department or 'Branch'
+            mgr = Employee.objects.filter(
+                Q(is_manager=True, managed_department__iexact=dept_name) |
+                Q(id=employee.reporting_manager_id or 0)
+            ).first()
+            mgr_label = f"{mgr.name} ({dept_name} Manager)" if mgr else f"{dept_name} Branch Manager"
+            routing_msg = f"Your leave request has been submitted and forwarded to {mgr_label} for review and approval."
+
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
             return JsonResponse({
                 'success': True,
-                'message': 'Leave request submitted successfully',
-                'leave_id': lr.id
+                'message': routing_msg,
+                'leave_id': lr.id,
+                'routing_info': routing_msg
             })
-        messages.success(request, "Leave request submitted successfully")
+        messages.success(request, routing_msg)
         return redirect('employee_dashboard')
 
     leave_history = LeaveRequest.objects.filter(employee_id=employee.id).order_by('-applied_on')
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
-        return JsonResponse({
-            'leave_history': [{
+        history_list = []
+        for lr in leave_history:
+            if employee.is_manager:
+                target_approver = "SuperAdmin"
+            else:
+                target_approver = f"{employee.department or 'Branch'} Manager"
+
+            history_list.append({
                 'id': lr.id,
                 'leave_type': lr.leave_type or 'Casual Leave',
                 'from_date': lr.from_date.strftime('%d %b %Y') if lr.from_date else '',
@@ -3205,8 +3413,17 @@ def apply_leave(request):
                 'days': ((lr.to_date - lr.from_date).days + 1) if lr.to_date and lr.from_date else 1,
                 'applied_on': lr.applied_on.strftime('%d %b %Y') if lr.applied_on else '',
                 'status': lr.status or 'Pending',
-                'reason': lr.reason or ''
-            } for lr in leave_history]
+                'reason': lr.reason or '',
+                'approved_by': lr.approved_by or '',
+                'approved_by_role': lr.approved_by_role or '',
+                'rejection_reason': lr.rejection_reason or '',
+                'target_approver': target_approver,
+            })
+
+        return JsonResponse({
+            'leave_history': history_list,
+            'is_manager': bool(employee.is_manager),
+            'department': employee.department or '',
         })
 
     return render(request, 'apply_leave.html', {'employee': employee, 'leave_history': leave_history})
@@ -3243,7 +3460,7 @@ def announcements_view(request):
             audience=audience,
             priority=priority,
             posted_by=sender_name,
-            expires_at=timezone.now() + timedelta(days=2)
+            expires_at=None
         )
         if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json':
             return JsonResponse({'success': True, 'message': 'Announcement published successfully!'})
@@ -3319,14 +3536,14 @@ def employee_announcements_view(request):
     employee = get_object_or_404(Employee, id=emp_id)
     now = timezone.now()
 
-    if employee.emp_type == "Intern":
-        announcements = Announcement.objects.filter(
-            is_active=True, expires_at__gt=now
-        ).filter(Q(audience="Everyone") | Q(audience="Interns") | Q(audience="Intern")).order_by('-created_at')
+    ann_filter = Q(is_active=True) & (Q(expires_at__isnull=True) | Q(expires_at__gte=now))
+    audience_filter = Q(audience__iexact="Everyone") | Q(audience__iexact="All")
+    if (employee.emp_type or '').strip().lower() == "intern":
+        audience_filter |= Q(audience__in=["Intern", "Interns", "intern", "interns"])
     else:
-        announcements = Announcement.objects.filter(
-            is_active=True, expires_at__gt=now
-        ).filter(Q(audience="Everyone") | Q(audience="Employees") | Q(audience="Normal") | Q(audience="Employee")).order_by('-created_at')
+        audience_filter |= Q(audience__in=["Normal", "Employee", "Employees", "normal", "employee", "employees"])
+
+    announcements = Announcement.objects.filter(ann_filter & audience_filter).order_by('-created_at')
 
     if request.headers.get('Accept') == 'application/json' or request.content_type == 'application/json' or request.GET.get('format') == 'json':
         return JsonResponse({
@@ -3337,6 +3554,9 @@ def employee_announcements_view(request):
                 'name': employee.name,
                 'designation': employee.designation or 'Staff',
                 'emp_type': employee.emp_type or 'Normal',
+                'is_manager': bool(employee.is_manager),
+                'managed_department': employee.managed_department or '',
+                'is_superadmin': bool(employee.is_superadmin),
             },
             'announcements': [{
                 'id': ann.id,
@@ -3434,14 +3654,14 @@ def view_id_card(request, emp_id):
                 'id': employee.id,
                 'emp_id': employee.emp_id or f"INT{employee.id:04d}",
                 'name': employee.name,
-                'email': employee.email,
-                'phone': employee.phone or 'Not Available',
-                'department': employee.department or 'Data & Analytics',
-                'designation': employee.designation or 'IT Intern – Web & Automation Developer',
-                'emp_type': employee.emp_type or 'Intern',
+                'email': employee.email or '',
+                'phone': employee.phone or '',
+                'department': employee.department or 'General',
+                'designation': employee.designation or 'Staff',
+                'emp_type': employee.emp_type or 'Normal',
                 'status': employee.status or 'Active',
-                'blood_group': employee.blood_group or 'B+',
-                'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '25 Aug 2026',
+                'blood_group': employee.blood_group or '',
+                'joining_date': employee.joining_date.strftime('%d %b %Y') if employee.joining_date else '',
                 'has_photo': bool(employee.profile_pic_data),
                 'avatar_url': get_employee_avatar_base64(employee) or f"/employee/{employee.id}/avatar",
             }
@@ -4342,6 +4562,7 @@ def api_nda_submit(request):
     employee = get_object_or_404(Employee, id=emp_id)
 
     signature_name = ''
+    agreed = False
     if request.content_type == 'application/json' and request.body:
         try:
             data = json.loads(request.body.decode('utf-8'))
@@ -4359,6 +4580,12 @@ def api_nda_submit(request):
     if not signature_name:
         signature_name = employee.name
 
+    # Handle file upload if present
+    nda_file = request.FILES.get('nda_file') or request.FILES.get('file')
+    if nda_file:
+        employee.nda_doc_data = nda_file.read()
+        employee.nda_doc_name = nda_file.name
+
     employee.nda_submitted = True
     employee.nda_submitted_at = timezone.now()
     employee.nda_signature = signature_name
@@ -4366,10 +4593,13 @@ def api_nda_submit(request):
 
     return JsonResponse({
         'success': True,
-        'message': 'Non-Disclosure Agreement (NDA) successfully submitted and digitally signed!',
+        'message': 'Non-Disclosure Agreement (NDA) successfully submitted, signed, and uploaded!',
         'nda_submitted': True,
         'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p'),
-        'nda_signature': employee.nda_signature
+        'nda_signature': employee.nda_signature,
+        'nda_doc_name': employee.nda_doc_name,
+        'has_nda_doc': bool(employee.nda_doc_data),
+        'nda_doc_url': f"/api/nda/download/{employee.id}" if employee.nda_doc_data else None
     })
 
 
@@ -4383,8 +4613,33 @@ def api_nda_status(request):
         'success': True,
         'nda_submitted': bool(employee.nda_submitted),
         'nda_submitted_at': employee.nda_submitted_at.strftime('%d %b %Y, %I:%M %p') if employee.nda_submitted_at else None,
-        'nda_signature': employee.nda_signature or ''
+        'nda_signature': employee.nda_signature or '',
+        'nda_doc_name': employee.nda_doc_name or None,
+        'has_nda_doc': bool(employee.nda_doc_data),
+        'download_url': f"/api/nda/download/{employee.id}" if employee.nda_doc_data else None
     })
+
+
+@csrf_exempt
+def api_nda_download(request, emp_id=None):
+    if not emp_id:
+        emp_id = resolve_employee_id(request)
+    if not emp_id:
+        return JsonResponse({'success': False, 'message': 'Unauthorized'}, status=401)
+    
+    employee = get_object_or_404(Employee, id=emp_id)
+    if not employee.nda_doc_data:
+        return HttpResponse('No NDA document has been uploaded for this employee.', status=404)
+
+    filename = employee.nda_doc_name or f"NDA_{employee.name.replace(' ', '_')}.pdf"
+    import mimetypes
+    content_type, _ = mimetypes.guess_type(filename)
+    if not content_type:
+        content_type = 'application/pdf'
+
+    response = HttpResponse(employee.nda_doc_data, content_type=content_type)
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
 
 
 # ─────────────── ROLE & ACCESS MANAGEMENT (HR ADMIN) ───────────────
