@@ -4704,3 +4704,92 @@ def api_update_employee_role_access(request, emp_id):
         }
     })
 
+
+# ─────────────── TENURE & INTERNSHIP NOTIFICATIONS ───────────────
+
+@csrf_exempt
+def api_tenure_notifications(request):
+    """
+    Returns employees/interns whose tenure is ending soon (within 30 days)
+    or has ended recently (within past 30 days, or active with past end_date).
+    """
+    today = date.today()
+    # Fetch employees with an end_date set
+    emps = Employee.objects.filter(end_date__isnull=False).order_by('end_date')
+    
+    notifications = []
+    
+    for emp in emps:
+        days_diff = (emp.end_date - today).days
+        
+        # We notify for tenures within 60 days ahead or 60 days past
+        if -60 <= days_diff <= 60:
+            if days_diff == 0:
+                status_label = "Ends Today"
+                urgency = "critical"
+                category = "today"
+            elif 0 < days_diff <= 3:
+                status_label = f"Ends in {days_diff} day{'s' if days_diff > 1 else ''}"
+                urgency = "critical"
+                category = "soon"
+            elif 3 < days_diff <= 7:
+                status_label = f"Ends in {days_diff} days"
+                urgency = "warning"
+                category = "soon"
+            elif 7 < days_diff <= 60:
+                status_label = f"Ends in {days_diff} days"
+                urgency = "info"
+                category = "soon"
+            else: # days_diff < 0
+                past_days = abs(days_diff)
+                status_label = f"Ended {past_days} day{'s' if past_days > 1 else ''} ago"
+                urgency = "critical" if past_days <= 7 else "warning"
+                category = "ended"
+
+            notifications.append({
+                'id': emp.id,
+                'emp_id': emp.emp_id or f"EMP-{emp.id}",
+                'name': emp.name,
+                'email': emp.email or '',
+                'gender': (emp.gender or 'female').strip().lower(),
+                'department': emp.department or 'General',
+                'designation': emp.designation or ('Intern' if emp.emp_type == 'Intern' else 'Employee'),
+                'emp_type': emp.emp_type or 'Normal',
+                'joining_date': emp.joining_date.isoformat() if emp.joining_date else None,
+                'end_date': emp.end_date.isoformat() if emp.end_date else None,
+                'days_left': days_diff,
+                'status_label': status_label,
+                'urgency': urgency,
+                'category': category,
+                'status': emp.status or 'Active'
+            })
+
+    # Sort: today first (0), then upcoming soon (1..30), then past (-1..-30)
+    def sort_key(n):
+        d = n['days_left']
+        if d == 0:
+            return (0, 0)
+        elif d > 0:
+            return (1, d)
+        else:
+            return (2, -d)
+
+    notifications.sort(key=sort_key)
+
+    total_count = len(notifications)
+    ending_today_count = sum(1 for n in notifications if n['category'] == 'today')
+    ending_soon_count = sum(1 for n in notifications if n['category'] == 'soon')
+    ended_count = sum(1 for n in notifications if n['category'] == 'ended')
+    urgent_count = sum(1 for n in notifications if n['urgency'] == 'critical')
+
+    return JsonResponse({
+        'success': True,
+        'count': total_count,
+        'urgent_count': urgent_count,
+        'ending_today_count': ending_today_count,
+        'ending_soon_count': ending_soon_count,
+        'ended_count': ended_count,
+        'notifications': notifications
+    })
+
+

@@ -72,8 +72,10 @@ urlpatterns = [
     path('profile/update', views.update_profile_view, name='update_profile'),
     path('api/profile/update', views.update_profile_view, name='api_update_profile'),
 
-    # Stats & Files
+    # Stats, Notifications & Files
     path('api/stats', views.api_stats, name='api_stats'),
+    path('api/notifications/tenure', views.api_tenure_notifications, name='api_tenure_notifications'),
+    path('notifications/tenure', views.api_tenure_notifications),
     path('api/employee/<int:emp_id>', views.api_employee, name='api_employee'),
     path('api/role-info', views.api_role_info, name='api_role_info'),
     path('api/employees-list', views.api_employees_list, name='api_employees_list'),

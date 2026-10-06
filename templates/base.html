@@ -1224,10 +1224,47 @@ textarea.form-control{
 <!-- TOPBAR -->
 <header class="topbar">
   <div class="topbar-title">{% block page_title %}Dashboard{% endblock %}</div>
-  <div class="topbar-actions">
+  <div class="topbar-actions" style="position: relative;">
+    <!-- Tenure Notification Bell -->
+    <div style="position: relative;">
+      <button class="btn-icon" id="notifBellBtn" onclick="toggleTenureNotifs()" title="Tenure & Internship Alerts" style="position: relative;">
+        <i class="fas fa-bell" id="bellIcon"></i>
+        <span id="notifBadge" style="display: none; position: absolute; top: -4px; right: -4px; background: #EF4444; color: #fff; font-size: 10px; font-weight: 700; min-width: 18px; height: 18px; border-radius: 99px; line-height: 18px; text-align: center; padding: 0 4px; border: 2px solid var(--bg3);">0</span>
+      </button>
+
+      <!-- Dropdown Popover -->
+      <div id="notifDropdown" style="display: none; position: absolute; right: 0; top: 46px; width: 380px; max-width: 90vw; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: 0 14px 40px rgba(0,0,0,0.3); z-index: 1000; overflow: hidden; font-family: 'Inter', sans-serif;">
+        <div style="padding: 14px 16px; background: var(--bg3); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <i class="fas fa-clock" style="color: var(--accent); font-size: 1rem;"></i>
+            <div>
+              <div style="font-weight: 700; font-size: 0.9rem; color: var(--text);">Tenure & Internship Alerts</div>
+              <div style="font-size: 0.75rem; color: var(--text3);">Completion dates & letters</div>
+            </div>
+          </div>
+          <button onclick="fetchTenureNotifs()" style="background: none; border: none; color: var(--text2); cursor: pointer; padding: 4px;" title="Refresh">
+            <i class="fas fa-sync-alt" id="notifRefreshIcon"></i>
+          </button>
+        </div>
+
+        <div id="notifList" style="max-height: 340px; overflow-y: auto; padding: 0;">
+          <div style="padding: 24px; text-align: center; color: var(--text3); font-size: 0.85rem;">
+            Loading alerts...
+          </div>
+        </div>
+
+        <div style="padding: 10px; background: var(--bg3); border-top: 1px solid var(--border); text-align: center;">
+          <a href="/employees" style="font-size: 0.8rem; font-weight: 600; color: var(--accent); text-decoration: none;">
+            View All in Employee Directory &rarr;
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Theme Toggle -->
     <button class="btn-icon" onclick="toggleTheme()" id="themeBtn" title="Toggle theme">
-  <i class="fas fa-sun" id="themeIcon"></i>
-</button>
+      <i class="fas fa-sun" id="themeIcon"></i>
+    </button>
   </div>
 </header>
 
@@ -1363,6 +1400,121 @@ function toggleTheme() {
     icon.className = saved === 'light' ? 'fas fa-moon' : 'fas fa-sun';
   }
 })();
+
+// Tenure & Internship Notifications
+function toggleTenureNotifs() {
+  const dd = document.getElementById('notifDropdown');
+  if (!dd) return;
+  const isHidden = dd.style.display === 'none' || !dd.style.display;
+  dd.style.display = isHidden ? 'block' : 'none';
+  if (isHidden) {
+    fetchTenureNotifs();
+  }
+}
+
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('notifDropdown');
+  const btn = document.getElementById('notifBellBtn');
+  if (dd && btn && !dd.contains(e.target) && !btn.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
+async function fetchTenureNotifs() {
+  const listEl = document.getElementById('notifList');
+  const badgeEl = document.getElementById('notifBadge');
+  const bellIcon = document.getElementById('bellIcon');
+  const refreshIcon = document.getElementById('notifRefreshIcon');
+  
+  if (refreshIcon) refreshIcon.classList.add('fa-spin');
+
+  try {
+    const res = await fetch('/api/notifications/tenure');
+    const data = await res.json();
+    
+    if (data && data.success) {
+      const notifs = data.notifications || [];
+      const total = data.count || 0;
+      const urgent = data.urgent_count || 0;
+
+      if (total > 0) {
+        badgeEl.style.display = 'block';
+        badgeEl.textContent = total > 99 ? '99+' : total;
+        if (urgent > 0) {
+          badgeEl.style.background = '#EF4444';
+          bellIcon.style.color = '#F59E0B';
+        } else {
+          badgeEl.style.background = '#10B981';
+          bellIcon.style.color = 'var(--text2)';
+        }
+      } else {
+        badgeEl.style.display = 'none';
+        bellIcon.style.color = 'var(--text2)';
+      }
+
+      if (notifs.length === 0) {
+        listEl.innerHTML = `
+          <div style="padding: 30px 20px; text-align: center;">
+            <i class="fas fa-check-circle" style="font-size: 2rem; color: #10B981; margin-bottom: 8px;"></i>
+            <div style="font-weight: 600; color: var(--text); font-size: 0.9rem;">No Tenure Alerts</div>
+            <div style="font-size: 0.75rem; color: var(--text3); margin-top: 4px;">All intern & employee tenures are on schedule.</div>
+          </div>
+        `;
+      } else {
+        listEl.innerHTML = notifs.map(n => {
+          const isToday = n.category === 'today';
+          const isCritical = n.urgency === 'critical';
+          const isEnded = n.category === 'ended';
+          
+          let badgeBg = '#FEF3C7';
+          let badgeColor = '#D97706';
+          if (isToday) {
+            badgeBg = '#FEE2E2';
+            badgeColor = '#DC2626';
+          } else if (isCritical) {
+            badgeBg = '#FEE2E2';
+            badgeColor = '#E11D48';
+          } else if (isEnded) {
+            badgeBg = '#F1F5F9';
+            badgeColor = '#64748B';
+          }
+
+          return `
+            <div style="padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; background: ${isToday ? 'rgba(239, 68, 68, 0.05)' : 'transparent'};">
+              <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
+                <div>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-weight: 700; font-size: 0.85rem; color: var(--text);">${n.name}</span>
+                    <span style="font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; background: rgba(99,102,241,0.15); color: var(--accent); font-weight: 600;">${n.emp_type}</span>
+                  </div>
+                  <div style="font-size: 0.75rem; color: var(--text3); margin-top: 2px;">${n.designation} &bull; ${n.department}</div>
+                </div>
+                <span style="font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: ${badgeBg}; color: ${badgeColor}; white-space: nowrap;">
+                  ${n.status_label}
+                </span>
+              </div>
+              <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text3); border-top: 1px dashed var(--border); padding-top: 6px;">
+                <div>Ends: <strong>${n.end_date || 'N/A'}</strong></div>
+                <a href="/employees?openExp=${n.id}" style="color: var(--accent); font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 4px;">
+                  <i class="fas fa-file-alt"></i> Experience Letter &rarr;
+                </a>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+  } catch (err) {
+    console.warn('Error loading notifications:', err);
+  } finally {
+    if (refreshIcon) refreshIcon.classList.remove('fa-spin');
+  }
+}
+
+// Auto-load notification badge on page load
+document.addEventListener('DOMContentLoaded', () => {
+  fetchTenureNotifs();
+});
 </script>
 {% block extra_scripts %}{% endblock %}
 </body>

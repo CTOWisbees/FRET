@@ -106,6 +106,23 @@ export default function EmployeesPage() {
     fetchEmployees();
   }, []);
 
+  // Handle URL query parameters (e.g. ?openExp=12 or ?action=exp&id=12 from Tenure Notifications)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && employees.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const openExpId = params.get('openExp') || (params.get('action') === 'exp' ? params.get('id') : null);
+      if (openExpId) {
+        const target = employees.find((e) => String(e.id) === String(openExpId));
+        if (target) {
+          openExpModal(target);
+          // Clean URL without reloading
+          const newUrl = window.location.pathname;
+          window.history.replaceState({}, '', newUrl);
+        }
+      }
+    }
+  }, [employees]);
+
   // Filter employees
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch = !search || 

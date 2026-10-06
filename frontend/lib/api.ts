@@ -9,8 +9,9 @@ export const getBaseUrl = () => {
     if (host.includes('wisbees.com') || host.includes('vercel.app') || host.includes('onrender.com')) {
       return 'https://beta-fret.onrender.com';
     }
+    return 'http://localhost:8000';
   }
-  return 'https://beta-fret.onrender.com';
+  return process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : 'https://beta-fret.onrender.com';
 };
 
 export const api = axios.create({
