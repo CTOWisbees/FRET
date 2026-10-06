@@ -32,6 +32,7 @@ export default function EmployeesPage() {
 
   // Experience Letter Modal State
   const [showExpModal, setShowExpModal] = useState(false);
+  const [expEmailBody, setExpEmailBody] = useState('');
 
   // Shared CC Email States
   const [ccJd, setCcJd] = useState(false);
@@ -269,6 +270,7 @@ export default function EmployeesPage() {
     setCcGouri(false);
     setCcCto(false);
     setExtraCcInput('');
+    setExpEmailBody(`Please find attached your Experience Letter from TimeArrow Pvt. Ltd. (WisBees).\n\nShould you have any questions or require any clarification, please feel free to reach out.\n\nWe wish you the very best in your future endeavours.`);
     setShowExpModal(true);
   };
 
@@ -337,6 +339,7 @@ export default function EmployeesPage() {
         const res = await api.post('/experience_letter/send', {
           id: selectedEmp.id,
           cc_emails: cc_emails,
+          email_body: expEmailBody,
         });
         if (res.data?.success) {
           alert(res.data.message || `Experience letter email sent successfully to ${selectedEmp.email}!`);
@@ -1076,6 +1079,21 @@ export default function EmployeesPage() {
                   <small style={{ color: 'var(--text3)', display: 'block', marginTop: '4px', fontSize: '0.78rem' }}>
                     Tick the addresses above, and/or type any extra ones here
                   </small>
+                </div>
+
+                <div className="form-group" style={{ marginTop: '14px', textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block' }}>
+                    <i className="fas fa-envelope-open-text text-accent"></i> Email Body
+                    <small style={{ color: 'var(--text3)', fontWeight: 400 }}> (edit freely before sending)</small>
+                  </label>
+                  <textarea
+                    id="expEmailBody"
+                    className="form-control"
+                    rows={4}
+                    style={{ width: '100%', fontSize: '0.83rem', lineHeight: 1.5, resize: 'vertical', padding: '8px', borderRadius: '6px', boxSizing: 'border-box' }}
+                    value={expEmailBody}
+                    onChange={(e) => setExpEmailBody(e.target.value)}
+                  />
                 </div>
               </div>
 

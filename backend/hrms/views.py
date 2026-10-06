@@ -2113,12 +2113,22 @@ def send_experience_letter_email(request):
         subject = f"{emp.name} | Experience Letter | TimeArrow Pvt. Ltd (WisBees)"
         sender_name = getattr(request.current_user, 'name', 'HR Manager')
 
+        custom_email_body = (data.get('email_body') or data.get('email_body_text') or '').strip()
+        if custom_email_body:
+            body_paragraphs = ''.join(
+                f"<p>{p.strip()}</p>\n" for p in custom_email_body.split('\n\n') if p.strip()
+            )
+        else:
+            body_paragraphs = """
+              <p>Please find attached your Experience Letter from <strong>TimeArrow Pvt. Ltd. (WisBees)</strong>.</p>
+              <p>Should you have any questions or require any clarification, please feel free to reach out.</p>
+              <p>We wish you the very best in your future endeavours.</p>
+            """
+
         html_body = f"""
         <div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:600px;">
           <p>Dear {emp.name},</p>
-          <p>Please find attached your Experience Letter from <strong>TimeArrow Pvt. Ltd. (WisBees)</strong>.</p>
-          <p>Should you have any questions or require any clarification, please feel free to reach out.</p>
-          <p>We wish you the very best in your future endeavours.</p>
+          {body_paragraphs}
           <br>
           <p style="margin:0;">Yours sincerely,</p>
           <p style="margin:0;"><strong>{sender_name}</strong></p>

@@ -346,6 +346,15 @@
               </small>
             </div>
 
+            <div class="form-group" style="margin-top: 14px; text-align: left;">
+              <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">
+                <i class="fas fa-envelope-open-text text-accent"></i> Email Body
+                <small style="color:var(--text3);font-weight:400;">(edit freely before sending)</small>
+              </label>
+              <textarea id="expEmailBody" class="form-control" rows="5"
+                        style="width: 100%; font-size: 0.83rem; line-height: 1.5; resize: vertical; padding: 8px; border-radius: 6px; box-sizing: border-box;"></textarea>
+            </div>
+
         </div>
 
         <div class="exp-modal-footer">
@@ -557,6 +566,9 @@ function openExperienceModal(button){
     document.getElementById("exp_email_cc_input").value = "";
     document.querySelectorAll('.exp-cc-checkbox').forEach(cb => cb.checked = false);
 
+    const defaultExpBody = `Please find attached your Experience Letter from TimeArrow Pvt. Ltd. (WisBees).\n\nShould you have any questions or require any clarification, please feel free to reach out.\n\nWe wish you the very best in your future endeavours.`;
+    document.getElementById("expEmailBody").value = defaultExpBody;
+
     document
         .getElementById("experienceModal")
         .classList.add("show");
@@ -584,6 +596,7 @@ function sendExperienceEmail() {
 
 function doSendExperienceEmail() {
   const ccEmails = collectCcEmails('exp-cc-checkbox', 'exp_email_cc_input');
+  const emailBody = document.getElementById('expEmailBody').value;
 
   const sendBtn = document.getElementById('sendExperienceBtn');
   const originalHtml = sendBtn.innerHTML;
@@ -595,7 +608,8 @@ function doSendExperienceEmail() {
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       employee_id: currentExpEmpId,
-      cc_emails: ccEmails
+      cc_emails: ccEmails,
+      email_body: emailBody
     })
   })
   .then(r => r.json())
