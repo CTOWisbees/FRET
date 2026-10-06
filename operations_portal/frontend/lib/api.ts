@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
 let activeBaseUrl = '';
 
@@ -28,21 +28,22 @@ export const getOpsBaseUrl = () => {
     if (savedPort) {
       return `http://127.0.0.1:${savedPort}/api`;
     }
-    return 'http://127.0.0.1:8000/api';
+    return 'http://127.0.0.1:8001/api';
   }
   return 'https://operation-r9e5.onrender.com/api';
 };
 
-export const api = axios.create({
+export const rawAxios = axios.create({
   baseURL: getOpsBaseUrl(),
   withCredentials: true,
+  timeout: 45000,
   headers: {
     'Accept': 'application/json',
     'Content-Type': 'application/json',
   },
 });
 
-api.interceptors.request.use((config) => {
+rawAxios.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
     config.baseURL = getOpsBaseUrl();
     const token = localStorage.getItem('ops_token');
@@ -64,7 +65,7 @@ api.interceptors.request.use((config) => {
 });
 
 // Automatic fallback between port 8000 and 8001 if one fails
-api.interceptors.response.use(
+rawAxios.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (
@@ -86,9 +87,80 @@ api.interceptors.response.use(
       if (fallbackUrl) {
         activeBaseUrl = fallbackUrl;
         error.config.baseURL = fallbackUrl;
-        return api(error.config);
+        return rawAxios(error.config);
       }
     }
     return Promise.reject(error);
   }
 );
+
+// In-flight GET request deduplication & short-lived response cache
+const inFlightRequests = new Map<string, Promise<AxiosResponse<any>>>();
+const responseCache = new Map<string, { data: any; status: number; statusText: string; headers: any; timestamp: number }>();
+const CACHE_TTL_MS = 2500; // 2.5s cache for fast multi-component mounting
+
+export const clearApiCache = () => {
+  responseCache.clear();
+  inFlightRequests.clear();
+};
+
+export const api = {
+  ...rawAxios,
+  get: <T = any, R = AxiosResponse<T>, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R> => {
+    const key = `GET:${url}:${JSON.stringify(config?.params || {})}`;
+    const now = Date.now();
+
+    // Check cache
+    const cached = responseCache.get(key);
+    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+      return Promise.resolve({
+        data: cached.data,
+        status: cached.status,
+        statusText: cached.statusText,
+        headers: cached.headers,
+        config: config as any,
+      } as unknown as R);
+    }
+
+    // Check in-flight promise
+    if (inFlightRequests.has(key)) {
+      return inFlightRequests.get(key) as unknown as Promise<R>;
+    }
+
+    const requestPromise = rawAxios.get<T, R, D>(url, config)
+      .then((res: any) => {
+        responseCache.set(key, {
+          data: res.data,
+          status: res.status,
+          statusText: res.statusText,
+          headers: res.headers,
+          timestamp: Date.now(),
+        });
+        inFlightRequests.delete(key);
+        return res;
+      })
+      .catch((err) => {
+        inFlightRequests.delete(key);
+        throw err;
+      });
+
+    inFlightRequests.set(key, requestPromise as any);
+    return requestPromise;
+  },
+  post: <T = any, R = AxiosResponse<T>, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R> => {
+    clearApiCache();
+    return rawAxios.post(url, data, config) as unknown as Promise<R>;
+  },
+  put: <T = any, R = AxiosResponse<T>, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R> => {
+    clearApiCache();
+    return rawAxios.put(url, data, config) as unknown as Promise<R>;
+  },
+  delete: <T = any, R = AxiosResponse<T>, D = any>(url: string, config?: AxiosRequestConfig<D>): Promise<R> => {
+    clearApiCache();
+    return rawAxios.delete(url, config) as unknown as Promise<R>;
+  },
+  patch: <T = any, R = AxiosResponse<T>, D = any>(url: string, data?: D, config?: AxiosRequestConfig<D>): Promise<R> => {
+    clearApiCache();
+    return rawAxios.patch(url, data, config) as unknown as Promise<R>;
+  },
+};

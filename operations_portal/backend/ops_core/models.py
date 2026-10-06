@@ -48,8 +48,8 @@ class OperationUser(models.Model):
     full_name = models.CharField(max_length=150, blank=True, default='', verbose_name="Full name")
     email = models.EmailField(unique=True, verbose_name="Email")
     password = models.CharField(max_length=255, verbose_name="Password")
-    is_active = models.BooleanField(default=True, verbose_name="Is active")
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee', verbose_name="Role")
+    is_active = models.BooleanField(default=True, verbose_name="Is active", db_index=True)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='employee', verbose_name="Role", db_index=True)
     is_superadmin = models.BooleanField(default=False, verbose_name="Is Superadmin")
     is_manager = models.BooleanField(default=False, verbose_name="Is Manager")
     managed_department = models.CharField(max_length=100, blank=True, null=True, verbose_name="Managed Department")
@@ -60,12 +60,12 @@ class OperationUser(models.Model):
     phone = models.CharField(max_length=30, blank=True, default='', verbose_name="Phone")
     emp_code = models.CharField(max_length=50, blank=True, default='', verbose_name="Employee Code")
     designation = models.CharField(max_length=150, blank=True, default='', verbose_name="Designation")
-    department = models.CharField(max_length=100, blank=True, default='Operations', verbose_name="Department")
+    department = models.CharField(max_length=100, blank=True, default='Operations', verbose_name="Department", db_index=True)
     assigned_role = models.ForeignKey(OperationalRole, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
     assigned_roles = models.ManyToManyField(OperationalRole, blank=True, related_name='members_multi')
     assigned_departments = models.JSONField(default=list, blank=True)
     assigned_modules = models.JSONField(default=list, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Active', db_index=True)
     joining_date = models.DateField(default=timezone.now)
     avatar_url = models.TextField(blank=True, default='')
     skills = models.CharField(max_length=255, blank=True, default='')
@@ -217,8 +217,8 @@ class WorkTask(models.Model):
     description = models.TextField(blank=True, default='')
     assigned_to = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='assigned_tasks')
     created_by = models.ForeignKey(OperationUser, on_delete=models.SET_NULL, null=True, related_name='created_tasks')
-    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='Medium')
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Todo')
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='Medium', db_index=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Todo', db_index=True)
     deadline = models.DateField(null=True, blank=True)
     estimated_hours = models.FloatField(default=0.0)
     tags = models.CharField(max_length=200, blank=True, default='')
@@ -226,7 +226,7 @@ class WorkTask(models.Model):
     submission_notes = models.TextField(blank=True, default='')
     submission_link = models.CharField(max_length=255, blank=True, default='')
     completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -249,7 +249,7 @@ class ActivityLog(models.Model):
     user = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='activities')
     action = models.CharField(max_length=150)
     details = models.TextField(blank=True, default='')
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     def __str__(self):
         return f"[{self.created_at.strftime('%Y-%m-%d %H:%M')}] {self.user.name}: {self.action}"
@@ -264,11 +264,11 @@ class AttendanceRecord(models.Model):
     ]
 
     user = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='attendance_records')
-    date = models.DateField(default=timezone.now)
+    date = models.DateField(default=timezone.now, db_index=True)
     check_in_time = models.DateTimeField(null=True, blank=True)
     check_out_time = models.DateTimeField(null=True, blank=True)
     total_hours = models.FloatField(default=0.0)
-    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Checked In')
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='Checked In', db_index=True)
     work_mode = models.CharField(max_length=30, default='Office')
     notes = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -290,7 +290,7 @@ class DepartmentManagerAssignment(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name='manager_assignments')
     manager = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='department_managements')
     assigned_by = models.ForeignKey(OperationUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='managers_appointed')
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -329,13 +329,13 @@ class DailyAssignedTask(models.Model):
     assigned_by = models.ForeignKey(OperationUser, on_delete=models.CASCADE, related_name='ops_assigned_tasks_created')
     assigned_to = models.ForeignKey(OperationUser, on_delete=models.CASCADE, null=True, blank=True, related_name='ops_assigned_tasks_received')
     task_type = models.CharField(max_length=50, default='Major')
-    priority = models.CharField(max_length=20, default='Normal')  # Low | Normal | High | Urgent
+    priority = models.CharField(max_length=20, default='Normal', db_index=True)  # Low | Normal | High | Urgent
     due_date = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=30, default='Pending')  # Pending | In Progress | Completed | Flagged
+    status = models.CharField(max_length=30, default='Pending', db_index=True)  # Pending | In Progress | Completed | Flagged
     is_flagged = models.BooleanField(default=False)
     flag_reason = models.TextField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    created_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(default=timezone.now, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -353,7 +353,7 @@ class DailyTrackerDay(models.Model):
     date = models.DateField(db_index=True)
     day_number = models.IntegerField(default=1)  # Sequence / Day number (e.g. Day 1, Day 2)
     day_status = models.CharField(max_length=30, default='Working Day')  # Working Day | Weekly Off | Holiday | Leave | Other
-    status = models.CharField(max_length=20, default='Draft')  # Draft | Submitted | Locked
+    status = models.CharField(max_length=20, default='Draft', db_index=True)  # Draft | Submitted | Locked
     submitted_at = models.DateTimeField(null=True, blank=True)
     locked_at = models.DateTimeField(null=True, blank=True)
     manager_rating = models.IntegerField(default=0)  # 1 to 5 stars
@@ -371,15 +371,21 @@ class DailyTrackerDay(models.Model):
 
     @property
     def total_hours(self):
+        if hasattr(self, '_prefetched_objects_cache') and 'tasks' in self._prefetched_objects_cache:
+            return sum((task.hours_worked or 0) for task in self._prefetched_objects_cache['tasks'])
         return sum((task.hours_worked or 0) for task in self.tasks.all())
 
     @property
     def achievements_count(self):
-        return self.tasks.filter(is_achievement=True).count()
+        if hasattr(self, '_prefetched_objects_cache') and 'tasks' in self._prefetched_objects_cache:
+            return sum(1 for task in self._prefetched_objects_cache['tasks'] if task.is_achievement)
+        return sum(1 for task in self.tasks.all() if task.is_achievement)
 
     @property
     def tasks_count(self):
-        return self.tasks.count()
+        if hasattr(self, '_prefetched_objects_cache') and 'tasks' in self._prefetched_objects_cache:
+            return len(self._prefetched_objects_cache['tasks'])
+        return len(self.tasks.all())
 
     def __str__(self):
         return f"{self.user.name} - {self.date} ({self.status}) [{self.total_hours:.1f}h]"

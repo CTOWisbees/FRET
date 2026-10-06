@@ -37,6 +37,9 @@ from .models import (
 )
 
 
+from django.core.cache import cache
+
+
 def parse_request_json(request):
     try:
         if request.body:
@@ -46,10 +49,26 @@ def parse_request_json(request):
     return {}
 
 
+def invalidate_ops_cache(user_id=None):
+    try:
+        cache.delete('ops_admin_dashboard_data')
+        cache.delete('ops_admin_employees_list')
+        cache.delete('ops_admin_roles_list')
+        cache.delete('ops_admin_managers_list')
+        if user_id:
+            cache.delete(f'ops_emp_dashboard_{user_id}')
+    except Exception:
+        pass
+
+
 def get_current_user(request):
     """
     Extract user from Authorization / X-User-Auth header e.g. Bearer ops:employee:1 or ops:admin:2 or session
     """
+    if hasattr(request, '_cached_ops_user') and request._cached_ops_user is not None:
+        return request._cached_ops_user
+
+    user = None
     auth_header = request.headers.get('Authorization') or request.headers.get('X-User-Auth')
     if auth_header:
         token = auth_header.replace('Bearer ', '').strip()
@@ -58,24 +77,40 @@ def get_current_user(request):
             if len(parts) >= 3:
                 try:
                     uid = int(parts[2])
-                    u = OperationUser.objects.filter(id=uid).first()
-                    if u:
-                        return u
+                    user = OperationUser.objects.select_related('assigned_role').prefetch_related(
+                        'assigned_roles',
+                        'department_accesses__department',
+                        'department_managements__department'
+                    ).filter(id=uid).first()
                 except Exception:
                     pass
-        # Session token lookup
-        sess = OPSession.objects.filter(session_token=token, is_active=True).first()
-        if sess and sess.user:
-            return sess.user
+        if not user:
+            # Session token lookup
+            sess = OPSession.objects.filter(session_token=token, is_active=True).select_related(
+                'user__assigned_role'
+            ).prefetch_related(
+                'user__assigned_roles',
+                'user__department_accesses__department',
+                'user__department_managements__department'
+            ).first()
+            if sess and sess.user:
+                user = sess.user
 
     # Fallback to X-Employee-Id or X-User-Id header
-    uid = request.headers.get('X-User-Id') or request.headers.get('X-Employee-Id')
-    if uid:
-        try:
-            return OperationUser.objects.filter(id=int(uid)).first()
-        except Exception:
-            pass
-    return None
+    if not user:
+        uid = request.headers.get('X-User-Id') or request.headers.get('X-Employee-Id')
+        if uid:
+            try:
+                user = OperationUser.objects.select_related('assigned_role').prefetch_related(
+                    'assigned_roles',
+                    'department_accesses__department',
+                    'department_managements__department'
+                ).filter(id=int(uid)).first()
+            except Exception:
+                pass
+
+    request._cached_ops_user = user
+    return user
 
 
 # Google Sheets Operational Departments & Modules Catalog Matrix
@@ -111,10 +146,12 @@ DEPARTMENTS_MODULES_CATALOG = {
 
 
 def serialize_user(user):
-    primary_role = user.assigned_role or user.assigned_roles.first()
+    primary_role = user.assigned_role
     assigned_roles_list = list(user.assigned_roles.all())
     if not assigned_roles_list and primary_role:
         assigned_roles_list = [primary_role]
+    elif not primary_role and assigned_roles_list:
+        primary_role = assigned_roles_list[0]
 
     all_perms = set()
     for r in assigned_roles_list:
@@ -124,13 +161,14 @@ def serialize_user(user):
 
     # Department Accesses from OPUserDepartmentAccess
     dept_accesses = []
-    for da in user.department_accesses.select_related('department').all():
-        dept_accesses.append({
-            'id': da.department.id,
-            'name': da.department.name,
-            'page_key': da.department.page_key,
-            'is_active': da.is_active and da.department.is_active
-        })
+    for da in user.department_accesses.all():
+        if hasattr(da, 'department') and da.department:
+            dept_accesses.append({
+                'id': da.department.id,
+                'name': da.department.name,
+                'page_key': da.department.page_key,
+                'is_active': da.is_active and da.department.is_active
+            })
 
     dept_names = []
     # 1. From active OPUserDepartmentAccess
@@ -164,8 +202,8 @@ def serialize_user(user):
 
     # Also check active DepartmentManagerAssignment
     try:
-        for dma in user.department_managements.filter(is_active=True).select_related('department'):
-            if dma.department.name not in managed_depts:
+        for dma in user.department_managements.all():
+            if dma.is_active and hasattr(dma, 'department') and dma.department and dma.department.name not in managed_depts:
                 managed_depts.append(dma.department.name)
     except Exception:
         pass
@@ -669,6 +707,7 @@ def api_admin_departments(request):
             page_key=page_key,
             is_active=is_active
         )
+        invalidate_ops_cache()
         ActivityLog.objects.create(user=user, action=f"Created department '{dept.name}'")
         return JsonResponse({
             'success': True,
@@ -694,7 +733,16 @@ def api_admin_department_detail(request, pk):
     dept = get_object_or_404(Department, id=pk)
 
     if request.method == 'GET':
-        users = [serialize_user(access.user) for access in dept.user_accesses.filter(is_active=True).select_related('user')]
+        users = [
+            serialize_user(access.user)
+            for access in dept.user_accesses.filter(is_active=True).select_related(
+                'user__assigned_role'
+            ).prefetch_related(
+                'user__assigned_roles',
+                'user__department_accesses__department',
+                'user__department_managements__department'
+            )
+        ]
         return JsonResponse({
             'department': {
                 'id': dept.id,
@@ -717,6 +765,7 @@ def api_admin_department_detail(request, pk):
             dept.is_active = bool(data['is_active'])
         dept.save()
 
+        invalidate_ops_cache()
         ActivityLog.objects.create(user=user, action=f"Updated department '{dept.name}'")
         return JsonResponse({
             'success': True,
@@ -733,6 +782,7 @@ def api_admin_department_detail(request, pk):
     if request.method == 'DELETE':
         dname = dept.name
         dept.delete()
+        invalidate_ops_cache()
         ActivityLog.objects.create(user=user, action=f"Deleted department '{dname}'")
         return JsonResponse({'success': True, 'message': f'Department {dname} deleted successfully'})
 
@@ -760,19 +810,36 @@ def api_admin_dashboard(request):
     if not user or not (user.role == 'admin' or user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
-    total_employees = OperationUser.objects.count()
-    active_employees = OperationUser.objects.filter(is_active=True).count()
-    total_tasks = WorkTask.objects.count()
-    completed_tasks = WorkTask.objects.filter(status='Completed').count()
-    in_progress_tasks = WorkTask.objects.filter(status='In Progress').count()
-    pending_review = WorkTask.objects.filter(status='Under Review').count()
-    urgent_tasks = WorkTask.objects.filter(priority='Urgent', status__in=['Todo', 'In Progress']).count()
+    cache_key = 'ops_admin_dashboard_data'
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return JsonResponse(cached_data)
+
+    emp_stats = OperationUser.objects.aggregate(
+        total=Count('id'),
+        active=Count('id', filter=Q(is_active=True))
+    )
+    task_stats = WorkTask.objects.aggregate(
+        total=Count('id'),
+        completed=Count('id', filter=Q(status='Completed')),
+        in_progress=Count('id', filter=Q(status='In Progress')),
+        pending_review=Count('id', filter=Q(status='Under Review')),
+        urgent=Count('id', filter=Q(priority='Urgent', status__in=['Todo', 'In Progress']))
+    )
+
+    total_employees = emp_stats['total'] or 0
+    active_employees = emp_stats['active'] or 0
+    total_tasks = task_stats['total'] or 0
+    completed_tasks = task_stats['completed'] or 0
+    in_progress_tasks = task_stats['in_progress'] or 0
+    pending_review = task_stats['pending_review'] or 0
+    urgent_tasks = task_stats['urgent'] or 0
 
     recent_tasks = WorkTask.objects.all().select_related('assigned_to', 'created_by').order_by('-created_at')[:8]
     recent_activities = ActivityLog.objects.all().select_related('user').order_by('-created_at')[:10]
     all_departments = Department.objects.filter(is_active=True).values('id', 'name', 'page_key')
 
-    return JsonResponse({
+    response_data = {
         'stats': {
             'total_employees': total_employees,
             'active_employees': active_employees,
@@ -794,7 +861,9 @@ def api_admin_dashboard(request):
         } for a in recent_activities],
         'departments': list(all_departments),
         'department_catalog': DEPARTMENTS_MODULES_CATALOG,
-    })
+    }
+    cache.set(cache_key, response_data, timeout=30)
+    return JsonResponse(response_data)
 
 
 @csrf_exempt
@@ -807,15 +876,28 @@ def api_admin_employees(request):
     is_admin = bool(user.is_superadmin or user.role == 'admin')
 
     if request.method == 'GET':
+        cache_key = 'ops_admin_employees_list'
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return JsonResponse(cached_data)
+
         # Department managers, admins, and staff can retrieve active employees & interns
-        employees = OperationUser.objects.filter(is_active=True).prefetch_related('assigned_roles', 'department_accesses__department', 'department_managements__department').order_by('name')
+        employees = OperationUser.objects.filter(is_active=True).select_related(
+            'assigned_role'
+        ).prefetch_related(
+            'assigned_roles',
+            'department_accesses__department',
+            'department_managements__department'
+        ).order_by('name')
         all_departments = Department.objects.all().order_by('name').values('id', 'name', 'page_key', 'is_active')
-        return JsonResponse({
+        res_data = {
             'success': True,
             'employees': [serialize_user(emp) for emp in employees],
             'departments': list(all_departments),
             'department_catalog': DEPARTMENTS_MODULES_CATALOG
-        })
+        }
+        cache.set(cache_key, res_data, timeout=30)
+        return JsonResponse(res_data)
 
     if request.method == 'POST':
         if not is_admin:
@@ -823,7 +905,7 @@ def api_admin_employees(request):
         data = parse_request_json(request)
         email = data.get('email', '').strip().lower()
         full_name = data.get('full_name', '').strip() or data.get('name', '').strip()
-        raw_pwd = data.get('password', 'employee123')
+        raw_pwd = data.get('password') or 'Wisbees@2026'
         is_active = bool(data.get('is_active', True))
 
         if not email or not full_name:
@@ -885,6 +967,7 @@ def api_admin_employees(request):
             OPUserDepartmentAccess.objects.get_or_create(user=new_emp, department=d, defaults={'is_active': True})
 
         ActivityLog.objects.create(user=user, action=f"Created new employee account for {new_emp.name}")
+        invalidate_ops_cache(new_emp.id)
         return JsonResponse({'success': True, 'message': 'Employee created successfully', 'employee': serialize_user(new_emp)})
 
 
@@ -895,10 +978,17 @@ def api_admin_employee_detail(request, pk):
     if not admin_user or not (admin_user.role == 'admin' or admin_user.is_superadmin):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
-    target_emp = get_object_or_404(OperationUser, id=pk)
+    target_emp = get_object_or_404(
+        OperationUser.objects.select_related('assigned_role').prefetch_related(
+            'assigned_roles',
+            'department_accesses__department',
+            'department_managements__department'
+        ),
+        id=pk
+    )
 
     if request.method == 'GET':
-        tasks = WorkTask.objects.filter(assigned_to=target_emp).order_by('-created_at')
+        tasks = WorkTask.objects.filter(assigned_to=target_emp).select_related('assigned_to', 'created_by').order_by('-created_at')
         all_departments = Department.objects.all().order_by('name').values('id', 'name', 'page_key', 'is_active')
         return JsonResponse({
             'employee': serialize_user(target_emp),
@@ -967,15 +1057,18 @@ def api_admin_employee_detail(request, pk):
             target_emp.set_password(data.get('new_password') or data.get('password'))
 
         target_emp.save()
+        invalidate_ops_cache(target_emp.id)
         ActivityLog.objects.create(user=admin_user, action=f"Updated details and role scopes for {target_emp.name}")
         return JsonResponse({'success': True, 'message': 'Employee updated successfully', 'employee': serialize_user(target_emp)})
 
     if request.method == 'DELETE':
         name = target_emp.name
+        emp_id = target_emp.id
         # Reassign or clean up assigned tasks before deletion
         WorkTask.objects.filter(assigned_to=target_emp).delete()
         OPUserDepartmentAccess.objects.filter(user=target_emp).delete()
         target_emp.delete()
+        invalidate_ops_cache(emp_id)
         ActivityLog.objects.create(user=admin_user, action=f"Deleted employee account: {name}")
         return JsonResponse({'success': True, 'message': f'Employee {name} deleted successfully'})
 
@@ -988,11 +1081,16 @@ def api_admin_roles(request):
         return JsonResponse({'error': 'Admin privileges required'}, status=403)
 
     if request.method == 'GET':
+        cache_key = 'ops_admin_roles_list'
+        cached_data = cache.get(cache_key)
+        if cached_data:
+            return JsonResponse(cached_data)
+
         roles = OperationalRole.objects.annotate(
             multi_cnt=Count('members_multi', distinct=True),
             single_cnt=Count('members', distinct=True)
         ).order_by('title')
-        return JsonResponse({
+        res_data = {
             'roles': [{
                 'id': r.id,
                 'title': r.title,
@@ -1004,7 +1102,9 @@ def api_admin_roles(request):
                 'member_count': r.multi_cnt or r.single_cnt,
             } for r in roles],
             'department_catalog': DEPARTMENTS_MODULES_CATALOG,
-        })
+        }
+        cache.set(cache_key, res_data, timeout=30)
+        return JsonResponse(res_data)
 
     if request.method == 'POST':
         data = parse_request_json(request)
@@ -1020,6 +1120,7 @@ def api_admin_roles(request):
             permissions=data.get('permissions', ['view_assigned_work', 'submit_work_logs']),
             responsibilities=data.get('responsibilities', ''),
         )
+        invalidate_ops_cache()
         ActivityLog.objects.create(user=user, action=f"Created operational role: {new_role.title}")
         return JsonResponse({'success': True, 'message': 'Role created successfully', 'role_id': new_role.id})
 
@@ -1132,6 +1233,7 @@ def api_admin_tasks(request):
             except Exception:
                 pass
 
+        invalidate_ops_cache()
         if len(target_assignees) == 1:
             ActivityLog.objects.create(user=user, action=f"Assigned task '{title}' to {target_assignees[0].name}")
             return JsonResponse({'success': True, 'message': f"Task assigned to {target_assignees[0].name} successfully", 'task': serialize_task(created_tasks[0])})
@@ -1185,12 +1287,15 @@ def api_admin_task_detail(request, pk):
             task.completed_at = timezone.now()
 
         task.save()
+        invalidate_ops_cache(task.assigned_to_id)
         ActivityLog.objects.create(user=admin_user, action=f"Updated task '{task.title}'")
         return JsonResponse({'success': True, 'message': 'Task updated successfully', 'task': serialize_task(task)})
 
     if request.method == 'DELETE':
         title = task.title
+        assignee_id = task.assigned_to_id
         task.delete()
+        invalidate_ops_cache(assignee_id)
         ActivityLog.objects.create(user=admin_user, action=f"Deleted task '{title}'")
         return JsonResponse({'success': True, 'message': 'Task deleted successfully'})
 
@@ -1206,34 +1311,54 @@ def api_employee_dashboard(request):
     if not emp:
         return JsonResponse({'error': 'Unauthorized'}, status=401)
 
+    cache_key = f'ops_emp_dashboard_{emp.id}'
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return JsonResponse(cached_data)
+
     my_tasks = WorkTask.objects.filter(assigned_to=emp)
-    total_tasks = my_tasks.count()
-    todo_count = my_tasks.filter(status='Todo').count()
-    in_progress_count = my_tasks.filter(status='In Progress').count()
-    under_review_count = my_tasks.filter(status='Under Review').count()
-    completed_count = my_tasks.filter(status='Completed').count()
-    urgent_count = my_tasks.filter(priority='Urgent', status__in=['Todo', 'In Progress']).count()
+    task_stats = my_tasks.aggregate(
+        total_tasks=Count('id'),
+        todo_count=Count('id', filter=Q(status='Todo')),
+        in_progress_count=Count('id', filter=Q(status='In Progress')),
+        under_review_count=Count('id', filter=Q(status='Under Review')),
+        completed_count=Count('id', filter=Q(status='Completed')),
+        urgent_count=Count('id', filter=Q(priority='Urgent', status__in=['Todo', 'In Progress']))
+    )
+    total_tasks = task_stats['total_tasks'] or 0
+    todo_count = task_stats['todo_count'] or 0
+    in_progress_count = task_stats['in_progress_count'] or 0
+    under_review_count = task_stats['under_review_count'] or 0
+    completed_count = task_stats['completed_count'] or 0
+    urgent_count = task_stats['urgent_count'] or 0
 
     today_dt = timezone.now().date()
-    today_tracker = DailyTrackerDay.objects.filter(user=emp, date=today_dt).first()
+    today_tracker = DailyTrackerDay.objects.filter(user=emp, date=today_dt).prefetch_related('tasks').first()
 
     assigned_dept_tasks = DailyAssignedTask.objects.filter(
         Q(assigned_to=emp) |
         (Q(department__in=emp.assigned_departments or [emp.department or 'Operations']) & Q(assigned_to__isnull=True))
     )
-    assigned_dept_active_count = assigned_dept_tasks.filter(status__in=['Pending', 'In Progress']).count()
+    dept_stats = assigned_dept_tasks.aggregate(
+        total=Count('id'),
+        active=Count('id', filter=Q(status__in=['Pending', 'In Progress'])),
+        completed=Count('id', filter=Q(status='Completed'))
+    )
+    assigned_dept_total = dept_stats['total'] or 0
+    assigned_dept_active_count = dept_stats['active'] or 0
+    assigned_dept_completed = dept_stats['completed'] or 0
 
-    active_tasks = my_tasks.filter(status__in=['Todo', 'In Progress', 'Under Review']).order_by('-created_at')[:10]
-    recent_completed = my_tasks.filter(status='Completed').order_by('-updated_at')[:5]
+    active_tasks = my_tasks.filter(status__in=['Todo', 'In Progress', 'Under Review']).select_related('assigned_to', 'created_by').order_by('-created_at')[:10]
+    recent_completed = my_tasks.filter(status='Completed').select_related('assigned_to', 'created_by').order_by('-updated_at')[:5]
 
-    return JsonResponse({
+    response_data = {
         'employee': serialize_user(emp),
         'stats': {
-            'total_tasks': total_tasks + assigned_dept_tasks.count(),
+            'total_tasks': total_tasks + assigned_dept_total,
             'todo_count': todo_count + assigned_dept_active_count,
             'in_progress_count': in_progress_count,
             'under_review_count': under_review_count,
-            'completed_count': completed_count + assigned_dept_tasks.filter(status='Completed').count(),
+            'completed_count': completed_count + assigned_dept_completed,
             'urgent_count': urgent_count,
             'completion_rate': round((completed_count / total_tasks * 100), 1) if total_tasks else 0,
             'today_logged_hours': round(today_tracker.total_hours, 1) if today_tracker else 0.0,
@@ -1241,7 +1366,9 @@ def api_employee_dashboard(request):
         },
         'active_tasks': [serialize_task(t) for t in active_tasks],
         'recent_completed': [serialize_task(t) for t in recent_completed],
-    })
+    }
+    cache.set(cache_key, response_data, timeout=30)
+    return JsonResponse(response_data)
 
 
 @csrf_exempt
@@ -1251,7 +1378,7 @@ def api_employee_tasks(request):
     if not emp:
         return JsonResponse({'error': 'Unauthorized'}, status=401)
 
-    tasks = WorkTask.objects.filter(assigned_to=emp).order_by('-created_at')
+    tasks = WorkTask.objects.filter(assigned_to=emp).select_related('assigned_to', 'created_by').order_by('-created_at')
     status_filter = request.GET.get('status')
     if status_filter:
         tasks = tasks.filter(status=status_filter)
@@ -1297,6 +1424,7 @@ def api_employee_update_task_status(request, pk):
                 submission_link=submission_link,
             )
 
+        invalidate_ops_cache(emp.id)
         ActivityLog.objects.create(
             user=emp,
             action=f"Updated status of '{task.title}' to {new_status}"
@@ -1595,17 +1723,28 @@ WEALTHHELP_API_URL = f'{GHOST_URL}/ghost/api/content/posts/'
 WEALTHHELP_API_KEY = GHOST_API_KEY
 
 
+_ghost_posts_cache = {}
+
 def _fetch_ghost_posts(base_url: str, api_key: str, tag: str = None, limit: int = 10) -> list:
-    """Fetch posts from a Ghost Content API endpoint."""
+    """Fetch posts from a Ghost Content API endpoint with 5-minute in-memory caching."""
+    cache_key = f"{base_url}:{tag}:{limit}"
+    now_ts = timezone.now().timestamp()
+    if cache_key in _ghost_posts_cache:
+        cached_ts, cached_data = _ghost_posts_cache[cache_key]
+        if now_ts - cached_ts < 300:  # 5 minutes TTL
+            return cached_data
+
     params = f'?key={api_key}&limit={limit}&include=tags&fields=id,title,url,feature_image,excerpt,published_at,custom_excerpt'
     if tag:
         params += f'&filter=tag:{tag}'
     url = base_url + params
     try:
         req = urllib.request.Request(url, headers={'Accept': 'application/json', 'User-Agent': 'WisBees-OpsPortal/1.0'})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
-            return data.get('posts', [])
+            posts = data.get('posts', [])
+            _ghost_posts_cache[cache_key] = (now_ts, posts)
+            return posts
     except urllib.error.HTTPError as exc:
         import logging
         logging.getLogger(__name__).warning('Ghost API HTTP error %s for %s', exc.code, url)
@@ -2064,6 +2203,11 @@ def api_admin_managers(request):
     if not user:
         return JsonResponse({'success': False, 'error': 'Unauthorized'}, status=401)
 
+    cache_key = 'ops_admin_managers_list'
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return JsonResponse(cached_data)
+
     departments = Department.objects.filter(is_active=True).order_by('name')
     assignments = DepartmentManagerAssignment.objects.filter(is_active=True).select_related('department', 'manager', 'assigned_by')
     assignment_map = {}
@@ -2090,7 +2234,7 @@ def api_admin_managers(request):
         })
 
     # All active employees and interns who can be appointed as manager
-    candidates = OperationUser.objects.filter(is_active=True).order_by('name')
+    candidates = OperationUser.objects.filter(is_active=True).only('id', 'name', 'email', 'emp_code', 'designation', 'department', 'emp_type', 'is_manager', 'managed_department', 'managed_departments').order_by('name')
     candidate_list = [
         {
             'id': u.id,
@@ -2107,11 +2251,13 @@ def api_admin_managers(request):
         for u in candidates
     ]
 
-    return JsonResponse({
+    res_data = {
         'success': True,
         'departments': dept_list,
         'candidates': candidate_list,
-    })
+    }
+    cache.set(cache_key, res_data, timeout=30)
+    return JsonResponse(res_data)
 
 
 @csrf_exempt
@@ -2172,6 +2318,7 @@ def api_admin_assign_manager(request):
         user=admin_user,
         action=f"Appointed {target_user.name} as Manager of {dept_obj.name} Department"
     )
+    invalidate_ops_cache(target_user.id)
 
     return JsonResponse({
         'success': True,
@@ -2221,6 +2368,7 @@ def api_admin_remove_manager(request):
     target_user.is_manager = len(active_managed_depts) > 0
     target_user.save()
 
+    invalidate_ops_cache(target_user.id)
     ActivityLog.objects.create(
         user=admin_user,
         action=f"Removed manager appointment of {target_user.name} for {dept_name}"
@@ -2315,7 +2463,13 @@ def api_assigned_tasks(request):
     if not all_active_depts:
         all_active_depts = managed_depts or [user.department or 'Operations']
 
-    active_employees = OperationUser.objects.filter(is_active=True).order_by('name')
+    active_employees = OperationUser.objects.filter(is_active=True).select_related(
+        'assigned_role'
+    ).prefetch_related(
+        'assigned_roles',
+        'department_accesses__department',
+        'department_managements__department'
+    ).order_by('name')
 
     return JsonResponse({
         'success': True,
@@ -3001,6 +3155,7 @@ def api_tracker_save(request):
         performed_by_role=performed_role,
         details=f"Tracker {audit_action.lower()} with {len(created_tasks)} tasks, Day Status: {day_status}, Total Hours: {tracker_day.total_hours}h."
     )
+    invalidate_ops_cache(target_user.id)
 
     return JsonResponse({
         'success': True,
@@ -3090,7 +3245,7 @@ def api_admin_tracker_list(request):
     if not is_superadmin and not is_manager:
         return JsonResponse({'error': 'Access restricted to Managers and Admins.'}, status=403)
 
-    qs = DailyTrackerDay.objects.all().select_related('user').prefetch_related('tasks')
+    qs = DailyTrackerDay.objects.all().select_related('user')
 
     if not is_superadmin:
         qs = qs.filter(user__department__in=managed_depts)
@@ -3563,20 +3718,7 @@ def api_stock_recommendations_list(request):
     if search_query:
         qs = qs.filter(Q(symbol__icontains=search_query) | Q(company_name__icontains=search_query) | Q(client_name__icontains=search_query))
 
-    recommendations = list(qs)
-
-    now = timezone.now()
-    if not as_of_date:
-        for rec in recommendations:
-            if rec.status == 'Active':
-                needs_update = not rec.last_price_update or (now - rec.last_price_update).total_seconds() > 900
-                if needs_update:
-                    live_p = _fetch_stock_live_price(rec.symbol)
-                    if live_p > 0:
-                        rec.current_price = live_p
-                        rec.last_price_update = now
-                        rec.save(update_fields=['current_price', 'last_price_update'])
-
+    recommendations = list(qs.select_related('created_by'))
     items = [_compute_rec_metrics(r, as_of_date) for r in recommendations]
 
     total_count = len(items)

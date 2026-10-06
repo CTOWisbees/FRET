@@ -52,9 +52,25 @@ interface CandidateUser {
 }
 
 export default function AdminManagersPage() {
-  const [departments, setDepartments] = useState<DepartmentItem[]>([]);
-  const [candidates, setCandidates] = useState<CandidateUser[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [departments, setDepartments] = useState<DepartmentItem[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('ops_admin_managers_depts');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [candidates, setCandidates] = useState<CandidateUser[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('ops_admin_managers_cands');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return [];
+  });
+  const [loading, setLoading] = useState(departments.length === 0);
   const [search, setSearch] = useState('');
   const [filterTab, setFilterTab] = useState<'ALL' | 'ASSIGNED' | 'UNASSIGNED'>('ALL');
   const [alertMsg, setAlertMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -77,15 +93,19 @@ export default function AdminManagersPage() {
 
   const fetchManagersData = async () => {
     try {
-      setLoading(true);
       const res = await api.get('/admin/managers');
       if (res.data?.success) {
         setDepartments(res.data.departments || []);
         setCandidates(res.data.candidates || []);
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('ops_admin_managers_depts', JSON.stringify(res.data.departments || []));
+            sessionStorage.setItem('ops_admin_managers_cands', JSON.stringify(res.data.candidates || []));
+          } catch (e) {}
+        }
       }
     } catch (err: any) {
-      console.error('Failed to load managers data:', err);
-      showAlert(err.response?.data?.error || 'Failed to fetch department managers.', 'error');
+      console.warn('Failed to load managers data:', err?.message);
     } finally {
       setLoading(false);
     }

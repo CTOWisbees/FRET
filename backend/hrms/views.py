@@ -190,7 +190,7 @@ def login_view(request):
                     account = EmployeeAccount.objects.create(
                         employee=emp_candidate,
                         email=emp_candidate.email,
-                        must_change_password=False
+                        must_change_password=True
                     )
                     account.set_password('Wisbees@2026')
                     account.save()
@@ -249,7 +249,7 @@ def employee_login_view(request):
                 account = EmployeeAccount.objects.create(
                     employee=emp_candidate,
                     email=emp_candidate.email,
-                    must_change_password=False
+                    must_change_password=True
                 )
                 account.set_password('Wisbees@2026')
                 account.save()

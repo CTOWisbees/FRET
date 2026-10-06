@@ -18,15 +18,27 @@ import { api } from '@/lib/api';
 import { StatusBadge, PriorityBadge } from '@/components/Badges';
 
 export default function AdminDashboardPage() {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('ops_admin_dashboard');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!data);
 
   const fetchDashboard = async () => {
     try {
-      setLoading(true);
       const res = await api.get('/admin/dashboard');
       if (res.data) {
         setData(res.data);
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('ops_admin_dashboard', JSON.stringify(res.data));
+          } catch (e) {}
+        }
       }
     } catch (err) {
       console.error('Failed to load admin dashboard:', err);

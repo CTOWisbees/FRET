@@ -144,10 +144,6 @@ export default function EmployeesPage() {
 
   const openOfferModal = async (emp: any) => {
     setSelectedEmp(emp);
-    setSelectedRole('');
-    setOfferRoleTitle('');
-    setOfferFullText('');
-    setOfferEmailBody('');
     setCcJd(false);
     setCcGouri(false);
     setCcCto(false);
@@ -165,23 +161,31 @@ export default function EmployeesPage() {
         const match = roleList.find((r) => r.toLowerCase() === emp.designation.toLowerCase()) ||
                       roleList.find((r) => emp.designation.toLowerCase().includes(r.toLowerCase())) ||
                       '';
-        if (match) initialRole = match;
+        if (match) {
+          initialRole = match;
+        } else {
+          initialRole = '__other__';
+        }
       }
+      if (!initialRole) {
+        initialRole = roleList[0] || '__other__';
+      }
+
+      setSelectedRole(initialRole);
+      setOfferRoleTitle(emp.designation || (initialRole !== '__other__' ? initialRole : 'Intern'));
 
       // Fetch draft data for this employee
       const draftRes = await api.get(`/offer-letter/draft?emp_id=${emp.id}&role=${encodeURIComponent(initialRole || '')}`);
       if (draftRes.data) {
-        const activeRole = draftRes.data.role_key || initialRole || roleList[0] || '';
-        setSelectedRole(activeRole);
-        setOfferRoleTitle(draftRes.data.role_title || activeRole);
+        const resolvedRole = (roleList.includes(draftRes.data.role_key) || draftRes.data.role_key === '__other__')
+          ? draftRes.data.role_key
+          : initialRole;
+        setSelectedRole(resolvedRole);
+        setOfferRoleTitle(draftRes.data.role_title || emp.designation || resolvedRole);
         setOfferFullText(draftRes.data.full_text || draftRes.data.full_letter_text || '');
         setOfferEmailBody(draftRes.data.email_body || draftRes.data.email_body_text || '');
-      } else if (initialRole) {
-        setSelectedRole(initialRole);
-        handleRoleSelect(initialRole, emp);
-      } else if (roleList.length > 0) {
-        setSelectedRole(roleList[0]);
-        handleRoleSelect(roleList[0], emp);
+      } else {
+        await handleRoleSelect(initialRole, emp);
       }
     } catch (e) {
       console.error('Failed to fetch offer roles/draft:', e);
@@ -195,7 +199,7 @@ export default function EmployeesPage() {
     try {
       const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(role)}&emp_id=${targetEmp?.id || ''}`);
       if (res.data) {
-        setOfferRoleTitle(res.data.role_title || role);
+        setOfferRoleTitle(res.data.role_title || (role !== '__other__' ? role : (targetEmp?.designation || 'Intern')));
         setOfferFullText(res.data.full_text || res.data.full_letter_text || '');
         setOfferEmailBody(res.data.email_body || res.data.email_body_text || '');
       }
@@ -872,6 +876,9 @@ export default function EmployeesPage() {
                   {allRoles.map((rk) => (
                     <option key={rk} value={rk}>{rk}</option>
                   ))}
+                  {selectedRole && !allRoles.includes(selectedRole) && selectedRole !== '__other__' && (
+                    <option value={selectedRole}>{selectedRole}</option>
+                  )}
                   <option value="__other__">Other / Custom Role</option>
                 </select>
               </div>

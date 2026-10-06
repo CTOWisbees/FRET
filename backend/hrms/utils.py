@@ -67,6 +67,11 @@ DEFAULT_AZURE_CLIENT_SECRET = os.environ.get('AZURE_CLIENT_SECRET', '')
 DEFAULT_AZURE_SENDER_EMAIL = os.environ.get('AZURE_SENDER_EMAIL', 'info@wisbees.com')
 
 def get_active_email_config(current_user=None):
+    env_tenant = os.environ.get('AZURE_TENANT_ID', '').strip()
+    env_client_id = os.environ.get('AZURE_CLIENT_ID', '').strip()
+    env_client_secret = os.environ.get('AZURE_CLIENT_SECRET', '').strip()
+    env_sender = os.environ.get('AZURE_SENDER_EMAIL', 'info@wisbees.com').strip()
+
     config = None
     if current_user and getattr(current_user, 'id', None):
         config = EmailConfig.objects.filter(hr_id=current_user.id).exclude(sender_email__isnull=True).exclude(sender_email='').first()
@@ -78,34 +83,38 @@ def get_active_email_config(current_user=None):
     # If still no config or incomplete in DB, create an in-memory fallback config from environment variables
     if not config or not config.sender_email:
         fallback = EmailConfig(
-            sender_email=DEFAULT_AZURE_SENDER_EMAIL,
-            tenant_id=DEFAULT_AZURE_TENANT_ID,
-            client_id=DEFAULT_AZURE_CLIENT_ID,
-            client_secret=DEFAULT_AZURE_CLIENT_SECRET,
+            sender_email=env_sender or DEFAULT_AZURE_SENDER_EMAIL,
+            tenant_id=env_tenant or DEFAULT_AZURE_TENANT_ID,
+            client_id=env_client_id or DEFAULT_AZURE_CLIENT_ID,
+            client_secret=env_client_secret or DEFAULT_AZURE_CLIENT_SECRET,
         )
         return fallback
 
     # Ensure missing individual fields on an existing config fall back to environment defaults
     if not config.tenant_id:
-        config.tenant_id = DEFAULT_AZURE_TENANT_ID
+        config.tenant_id = env_tenant or DEFAULT_AZURE_TENANT_ID
     if not config.client_id:
-        config.client_id = DEFAULT_AZURE_CLIENT_ID
+        config.client_id = env_client_id or DEFAULT_AZURE_CLIENT_ID
     if not config.client_secret:
-        config.client_secret = DEFAULT_AZURE_CLIENT_SECRET
+        config.client_secret = env_client_secret or DEFAULT_AZURE_CLIENT_SECRET
     if not config.sender_email:
-        config.sender_email = DEFAULT_AZURE_SENDER_EMAIL
+        config.sender_email = env_sender or DEFAULT_AZURE_SENDER_EMAIL
 
     return config
 
 def get_graph_token(current_user=None):
     config = get_active_email_config(current_user)
 
-    tenant_id = (config.tenant_id if config else None) or DEFAULT_AZURE_TENANT_ID
-    client_id = (config.client_id if config else None) or DEFAULT_AZURE_CLIENT_ID
-    client_secret = (config.client_secret if config else None) or DEFAULT_AZURE_CLIENT_SECRET
+    env_tenant = os.environ.get('AZURE_TENANT_ID', '').strip()
+    env_client_id = os.environ.get('AZURE_CLIENT_ID', '').strip()
+    env_client_secret = os.environ.get('AZURE_CLIENT_SECRET', '').strip()
+
+    tenant_id = (config.tenant_id if config and config.tenant_id else None) or env_tenant or DEFAULT_AZURE_TENANT_ID
+    client_id = (config.client_id if config and config.client_id else None) or env_client_id or DEFAULT_AZURE_CLIENT_ID
+    client_secret = (config.client_secret if config and config.client_secret else None) or env_client_secret or DEFAULT_AZURE_CLIENT_SECRET
 
     if not tenant_id or not client_id or not client_secret:
-        raise Exception("Microsoft Graph API authentication parameters are missing from EmailConfig database.")
+        raise Exception("Microsoft Graph API authentication parameters are missing from EmailConfig / environment variables.")
 
     url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -115,7 +124,7 @@ def get_graph_token(current_user=None):
         "client_secret": client_secret,
         "grant_type": "client_credentials"
     }
-    response = requests.post(url, headers=headers, data=payload, timeout=10)
+    response = requests.post(url, headers=headers, data=payload, timeout=15)
     if response.status_code != 200:
         raise Exception(f"Failed to retrieve Azure token: {response.text}")
     return response.json().get("access_token")

@@ -16,8 +16,16 @@ import {
 import { api } from '@/lib/api';
 
 export function AttendanceTimerWidget({ compact = false }: { compact?: boolean }) {
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('ops_attendance_today');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(!data);
   const [actionLoading, setActionLoading] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [workMode, setWorkMode] = useState('Office');
@@ -26,12 +34,16 @@ export function AttendanceTimerWidget({ compact = false }: { compact?: boolean }
 
   const fetchToday = async () => {
     try {
-      setLoading(true);
       const res = await api.get('/attendance/today');
       if (res.data) {
         setData(res.data);
         setElapsedSeconds(res.data.elapsed_seconds || 0);
         if (res.data.work_mode) setWorkMode(res.data.work_mode);
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('ops_attendance_today', JSON.stringify(res.data));
+          } catch (e) {}
+        }
       }
     } catch (err) {
       // Ignore or log quietly
@@ -42,6 +54,17 @@ export function AttendanceTimerWidget({ compact = false }: { compact?: boolean }
 
   useEffect(() => {
     fetchToday();
+
+    const handleSync = (e: any) => {
+      if (e?.detail) {
+        setData(e.detail);
+        setElapsedSeconds(e.detail.elapsed_seconds || 0);
+      } else {
+        fetchToday();
+      }
+    };
+    window.addEventListener('ops_attendance_updated', handleSync);
+    return () => window.removeEventListener('ops_attendance_updated', handleSync);
   }, []);
 
   // Live timer tick every 1 second when checked in
@@ -70,6 +93,7 @@ export function AttendanceTimerWidget({ compact = false }: { compact?: boolean }
       });
       if (res.data?.success) {
         fetchToday();
+        window.dispatchEvent(new CustomEvent('ops_attendance_updated'));
       }
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Failed to check in.';
@@ -90,6 +114,7 @@ export function AttendanceTimerWidget({ compact = false }: { compact?: boolean }
       });
       if (res.data?.success) {
         fetchToday();
+        window.dispatchEvent(new CustomEvent('ops_attendance_updated'));
       }
     } catch (err: any) {
       const msg = err.response?.data?.error || 'Failed to check out.';
@@ -100,7 +125,7 @@ export function AttendanceTimerWidget({ compact = false }: { compact?: boolean }
     }
   };
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-[var(--hover-bg)] text-[10px] text-[var(--text-muted)] animate-pulse">
         <Clock className="w-3 h-3" />

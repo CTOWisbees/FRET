@@ -1,5 +1,6 @@
 from pathlib import Path
 import os
+import urllib.parse as urlparse
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -62,10 +63,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'ops_project.wsgi.application'
 
-import urllib.parse as urlparse
-
+# ─────────────────────────────────────────────────────────────
+# DATABASE CONFIGURATION (Neon PostgreSQL / Local SQLite)
+# ─────────────────────────────────────────────────────────────
+use_local_db = os.environ.get('USE_LOCAL_DB', 'False').lower() in ('true', '1', 't')
 db_url = os.environ.get('DATABASE_URL')
-if db_url:
+
+if not use_local_db and db_url:
     if db_url.startswith('postgres://'):
         db_url = db_url.replace('postgres://', 'postgresql://', 1)
     try:
@@ -81,20 +85,20 @@ if db_url:
                 'PASSWORD': url.password,
                 'HOST': url.hostname,
                 'PORT': url.port or 5432,
-                'CONN_MAX_AGE': 600,
+                'CONN_MAX_AGE': None,
                 'CONN_HEALTH_CHECKS': True,
                 'OPTIONS': {
                     'sslmode': sslmode,
-                    'connect_timeout': 10,
+                    'connect_timeout': 15,
                     'keepalives': 1,
-                    'keepalives_idle': 30,
-                    'keepalives_interval': 10,
+                    'keepalives_idle': 15,
+                    'keepalives_interval': 5,
                     'keepalives_count': 5,
                 },
             }
         }
     except Exception as e:
-        print('Database config error:', e)
+        print('Database config error, falling back to local SQLite:', e)
         DATABASES = {
             'default': {
                 'ENGINE': 'django.db.backends.sqlite3',
@@ -106,6 +110,41 @@ else:
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': BASE_DIR / 'ops.db',
+        }
+    }
+
+# ─────────────────────────────────────────────────────────────
+# REDIS / IN-MEMORY CACHE CONFIGURATION
+# ─────────────────────────────────────────────────────────────
+redis_url = os.environ.get('REDIS_URL', os.environ.get('REDIS_TLS_URL'))
+if redis_url:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': redis_url,
+            'TIMEOUT': 120,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'CONNECTION_POOL_KWARGS': {
+                    'max_connections': 50,
+                    'retry_on_timeout': True,
+                    'socket_connect_timeout': 5,
+                    'socket_timeout': 5,
+                },
+                'IGNORE_EXCEPTIONS': True,
+            },
+            'KEY_PREFIX': 'ops_portal',
+        }
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'ops-locmem-cache',
+            'TIMEOUT': 60,
+            'OPTIONS': {
+                'MAX_ENTRIES': 2000
+            }
         }
     }
 

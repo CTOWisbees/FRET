@@ -51,23 +51,25 @@ export default function EmployeeDailyTrackerPage() {
     setLoading(true);
     setMessage(null);
     try {
-      // Get current user profile
-      const userRes = await api.get('/auth/me');
-      if (userRes.data?.user) {
-        setEmployee(userRes.data.user);
+      if (!employee && typeof window !== 'undefined') {
+        const saved = localStorage.getItem('ops_user');
+        if (saved) {
+          try { setEmployee(JSON.parse(saved)); } catch (_) {}
+        }
       }
 
       const res = await api.get(`/tracker/daily?date=${dateStr}`);
       if (res.data) {
         setTrackerDay(res.data);
-        if (!employee && res.data.employee_name) {
-          setEmployee({
+        if (res.data.employee_name) {
+          setEmployee((prev: any) => ({
+            ...prev,
             name: res.data.employee_name,
-            emp_type: res.data.emp_type || 'Normal',
-            id: res.data.employee_id || res.data.user_id,
-            department: res.data.department || '',
-            designation: res.data.designation || ''
-          });
+            emp_type: res.data.emp_type || prev?.emp_type || 'Normal',
+            id: res.data.employee_id || res.data.user_id || prev?.id,
+            department: res.data.department || prev?.department || '',
+            designation: res.data.designation || prev?.designation || ''
+          }));
         }
         setDayStatus(res.data.day_status || 'Working Day');
         setDayNumber(res.data.day_number || 1);

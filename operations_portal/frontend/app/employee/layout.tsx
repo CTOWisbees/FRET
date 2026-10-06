@@ -11,13 +11,14 @@ export default function EmployeeLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    // Initial theme check
+    setMounted(true);
+
     const savedTheme = localStorage.getItem('ops_theme');
     if (savedTheme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -49,9 +50,7 @@ export default function EmployeeLayout({
           router.push('/login');
         }
       } catch (err) {
-        if (!savedUser) router.push('/login');
-      } finally {
-        setLoading(false);
+        if (!savedUser && !token) router.push('/login');
       }
     };
 
@@ -80,12 +79,11 @@ export default function EmployeeLayout({
     };
   }, [router]);
 
-  if (loading && !user) {
+  if (!mounted) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-main)]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
-          <p className="text-xs font-bold text-[var(--text-muted)] uppercase tracking-wider">Loading Workspace...</p>
+      <div className="flex min-h-screen bg-[var(--bg-main)] text-[var(--text-primary)]">
+        <div className="flex-1 flex items-center justify-center">
+          <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
         </div>
       </div>
     );

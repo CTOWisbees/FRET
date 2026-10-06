@@ -24,28 +24,40 @@ import { StatusBadge, PriorityBadge } from '@/components/Badges';
 import { AttendanceTimerWidget } from '@/components/AttendanceTimerWidget';
 
 export default function EmployeeDashboardPage() {
-  const [data, setData] = useState<any>(null);
-  const [storedUser, setStoredUser] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
+  const [data, setData] = useState<any>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = sessionStorage.getItem('ops_emp_dashboard');
+        if (cached) return JSON.parse(cached);
+      } catch (e) {}
+    }
+    return null;
+  });
+  const [storedUser, setStoredUser] = useState<any>(() => {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('ops_user');
-        if (cached) {
-          setStoredUser(JSON.parse(cached));
-        }
+        if (cached) return JSON.parse(cached);
       } catch (e) {}
     }
+    return null;
+  });
+  const [loading, setLoading] = useState(!data);
+
+  useEffect(() => {
     fetchDashboard();
   }, []);
 
   const fetchDashboard = async () => {
     try {
-      setLoading(true);
       const res = await api.get('/employee/dashboard');
       if (res.data) {
         setData(res.data);
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('ops_emp_dashboard', JSON.stringify(res.data));
+          } catch (e) {}
+        }
         if (res.data.employee && typeof window !== 'undefined') {
           try {
             localStorage.setItem('ops_user', JSON.stringify(res.data.employee));
