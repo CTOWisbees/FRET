@@ -348,10 +348,19 @@
 
             <div class="form-group" style="margin-top: 14px; text-align: left;">
               <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">
+                <i class="fas fa-file-alt text-accent"></i> Experience Letter Content
+                <small style="color:var(--text3);font-weight:400;">(certificate body — edit freely; lines starting with "-" become bullets)</small>
+              </label>
+              <textarea id="expLetterContent" class="form-control" rows="8"
+                        style="width: 100%; font-size: 0.83rem; line-height: 1.5; resize: vertical; padding: 8px; border-radius: 6px; box-sizing: border-box;"></textarea>
+            </div>
+
+            <div class="form-group" style="margin-top: 14px; text-align: left;">
+              <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">
                 <i class="fas fa-envelope-open-text text-accent"></i> Email Body
                 <small style="color:var(--text3);font-weight:400;">(edit freely before sending)</small>
               </label>
-              <textarea id="expEmailBody" class="form-control" rows="5"
+              <textarea id="expEmailBody" class="form-control" rows="4"
                         style="width: 100%; font-size: 0.83rem; line-height: 1.5; resize: vertical; padding: 8px; border-radius: 6px; box-sizing: border-box;"></textarea>
             </div>
 
@@ -364,12 +373,12 @@
                 Close
             </button>
 
-            <a id="experienceDownloadBtn"
-               class="btn btn-primary">
-
-                Download PDF
-
-            </a>
+            <button type="button"
+                    id="experienceDownloadBtn"
+                    class="btn btn-primary"
+                    onclick="downloadExperiencePDF()">
+                <i class="fas fa-download"></i> Download PDF
+            </button>
 
             <button class="btn btn-success" id="sendExperienceBtn"
                     onclick="sendExperienceEmail()">
@@ -560,11 +569,19 @@ function openExperienceModal(button){
     document.getElementById("expEnd").textContent =
         button.dataset.end;
 
-    document.getElementById("experienceDownloadBtn").href =
-        "/experience-letter/" + id;
+    const name = button.dataset.name || 'Employee';
+    const designation = button.dataset.designation || 'Intern';
+    const isMale = (button.dataset.gender || '').toLowerCase() === 'male';
+    const prefix = isMale ? 'Mr.' : 'Ms.';
+    const pPoss = isMale ? 'his' : 'her';
+    const pSub = isMale ? 'he' : 'she';
+    const pObj = isMale ? 'him' : 'her';
+    const pSubCap = isMale ? 'He' : 'She';
+    const pPossCap = isMale ? 'His' : 'Her';
+    const isIntern = (button.dataset.type || 'Intern') === 'Intern';
 
-    document.getElementById("exp_email_cc_input").value = "";
-    document.querySelectorAll('.exp-cc-checkbox').forEach(cb => cb.checked = false);
+    const defaultExpLetter = `This is to certify that ${prefix} ${name} has successfully completed ${pPoss} ${isIntern ? 'internship' : 'tenure'} with TimeArrow Pvt. Ltd. (WisBees) as an ${designation} from ${button.dataset.joining || '___________'} to ${button.dataset.end || 'Present'}.\n\nDuring ${pPoss} ${isIntern ? 'internship' : 'tenure'}, ${pSub} was actively involved in:\n- Developing and integrating features, dashboards, and automated tools\n- Analyzing performance metrics and operational workflows\n- Preparing research summaries, technical documentation, and quality reports\n- Collaborating with cross-functional mentors and delivering high-quality deliverables\n\n${pSubCap} demonstrated strong analytical ability, research discipline, and attention to detail. ${pPossCap} work reflected professionalism, initiative, and commitment.\n\nWe appreciate ${pPoss} contributions and wish ${pObj} success in ${pPoss} future endeavours.`;
+    document.getElementById("expLetterContent").value = defaultExpLetter;
 
     const defaultExpBody = `Please find attached your Experience Letter from TimeArrow Pvt. Ltd. (WisBees).\n\nShould you have any questions or require any clarification, please feel free to reach out.\n\nWe wish you the very best in your future endeavours.`;
     document.getElementById("expEmailBody").value = defaultExpBody;
@@ -582,6 +599,23 @@ function closeExperienceModal(){
 
 }
 
+function downloadExperiencePDF() {
+  if (!currentExpEmpId) return;
+  const fullText = document.getElementById("expLetterContent").value;
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = `/experience-letter/${currentExpEmpId}`;
+  form.target = '_blank';
+  const input = document.createElement('input');
+  input.type = 'hidden';
+  input.name = 'full_text';
+  input.value = fullText;
+  form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+  document.body.removeChild(form);
+}
+
 function sendExperienceEmail() {
   if (!currentExpEmpId) { showToast('No employee selected', 'error'); return; }
 
@@ -597,6 +631,7 @@ function sendExperienceEmail() {
 function doSendExperienceEmail() {
   const ccEmails = collectCcEmails('exp-cc-checkbox', 'exp_email_cc_input');
   const emailBody = document.getElementById('expEmailBody').value;
+  const letterContent = document.getElementById('expLetterContent').value;
 
   const sendBtn = document.getElementById('sendExperienceBtn');
   const originalHtml = sendBtn.innerHTML;
@@ -609,7 +644,8 @@ function doSendExperienceEmail() {
     body: JSON.stringify({
       employee_id: currentExpEmpId,
       cc_emails: ccEmails,
-      email_body: emailBody
+      email_body: emailBody,
+      full_text: letterContent
     })
   })
   .then(r => r.json())

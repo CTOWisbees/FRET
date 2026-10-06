@@ -137,6 +137,8 @@ WSGI_APPLICATION = 'fret_project.wsgi.application'
 
 # Database configuration: DATABASE_URL (Neon Postgres) in production, ultra-fast local SQLite for localhost
 db_url = os.environ.get('DATABASE_URL')
+if DEBUG and os.environ.get('FORCE_REMOTE_DB') != '1':
+    db_url = None
 use_remote = bool(db_url)
 
 if db_url:

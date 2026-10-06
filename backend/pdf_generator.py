@@ -389,13 +389,13 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     buf.seek(0)
     return buf
 
-def generate_experience_letter_pdf(emp, settings, prefix="Ms."):
+def generate_experience_letter_pdf(emp, settings, prefix="Ms.", custom_body_text=None):
     """
     Generate Experience Certificate / Internship Experience Certificate.
     Matches the clean layout, font sizes, colors, and bullet points of the provided image.
     
     Dynamically maps pronouns and loads specific bullet responsibilities using emp.designation 
-    from the global ROLE_DATA configuration.
+    from the global ROLE_DATA configuration, or uses custom_body_text if supplied.
     """
     import io
     import os
@@ -488,7 +488,6 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms."):
         fontSize=11,
         leading=15,
         textColor=COLOR_DARK,
-
     )
 
     sty_signb = PS(
@@ -502,79 +501,83 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms."):
 
     story = []
 
-    # # 1. Date (Left aligned matching the reference image layout)
-    # today_str = date.today().strftime("%d %B %Y")
-    # story.append(Paragraph(f"Date: {today_str}", sty_date))
-    # story.append(Spacer(1, 0.2 * cm))
-
-    # 2. Document Title
+    # 1. Document Title
     is_intern = (getattr(emp, 'emp_type', 'Intern') == "Intern")
     title_text = "INTERNSHIP EXPERIENCE CERTIFICATE" if is_intern else "EXPERIENCE CERTIFICATE"
     story.append(Paragraph(title_text, sty_title))
     story.append(Spacer(1, 0.4 * cm))
 
-    # 3. Salutation & Opening Frame
-    story.append(Paragraph("To Whom It May Concern,", sty_body))
-    
-    join = emp.joining_date.strftime("%d %B %Y") if emp.joining_date else "___________"
-    end = emp.end_date.strftime("%d %B %Y") if emp.end_date else "Present"
-
-    # Opening Certification Line
-    opening_text = (
-        f"This is to certify that <b>{prefix} {emp.name}</b> has successfully "
-        f"completed {p_poss} internship with <b>{company_name}</b> as "
-        f"an <b>{emp.designation}</b> from {join} to {end}."
-    )
-    story.append(Paragraph(opening_text, sty_body))
-
-    # 4. Dynamic Responsibilities and Bullet Points Processing
-    story.append(Paragraph(f"During {p_poss} internship, {p_sub} was actively involved in:", sty_body))
-    
-    # ── EXTRACT DATA FROM ROLE_DATA MAP ───────────────────────────────────────
-    # Sanitizes input strings to safely track keys despite subtle spacing discrepancies
-    emp_role_key = str(emp.designation).strip()
-    role_info = ROLE_DATA.get(emp_role_key)
-    
-    # Fuzzy match fallback logic in case strings don't exactly line up line-for-line
-    if not role_info:
-        for key, value in ROLE_DATA.items():
-            if key.lower().replace(" ", "") == emp_role_key.lower().replace(" ", ""):
-                role_info = value
-                break
-
-    # Fallback to Equity Research defaults if no matching dictionary profile key can be verified
-    if role_info and "responsibilities" in role_info:
-        responsibilities = role_info["responsibilities"]
+    # 2. Body generation (custom or default)
+    if custom_body_text and custom_body_text.strip():
+        paragraphs = [p.strip() for p in custom_body_text.strip().split('\n\n') if p.strip()]
+        for p_idx, para in enumerate(paragraphs):
+            lines = para.split('\n')
+            if any(l.strip().startswith(('-', '•', '*')) for l in lines):
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith(('-', '•', '*')):
+                        clean_line = line.lstrip('-•* ').strip()
+                        story.append(Paragraph(f"•&nbsp;&nbsp; {clean_line}", sty_bullet))
+                    elif line:
+                        story.append(Paragraph(line, sty_body))
+            else:
+                story.append(Paragraph(para.replace('\n', '<br/>'), sty_body))
+            story.append(Spacer(1, 0.2 * cm))
     else:
-        responsibilities = [
-            "Fundamental and financial statement analysis of listed companies",
-            "Preparation of buy side research presentations and investment summaries",
-            "Industry and sector research to assess market dynamics and competitive positioning",
-            "Application of valuation techniques."
-        ]
-    
-    for resp in responsibilities:
-        story.append(Paragraph(f"•&nbsp;&nbsp; {resp}", sty_bullet))
-    
-    story.append(Spacer(1, 0.2 * cm))
+        join = emp.joining_date.strftime("%d %B %Y") if emp.joining_date else "___________"
+        end = emp.end_date.strftime("%d %B %Y") if emp.end_date else "Present"
 
-    # 5. Review Assessment Paragraph
-    if is_intern:
-        assessment_text = (
-            f"{p_sub_cap} demonstrated strong analytical ability, research discipline, and attention to detail. "
-            f"{p_poss_cap} work reflected professionalism, initiative, and a keen interest in related financial or operational domains."
+        # Opening Certification Line
+        opening_text = (
+            f"This is to certify that <b>{prefix} {emp.name}</b> has successfully "
+            f"completed {p_poss} internship with <b>{company_name}</b> as "
+            f"an <b>{emp.designation}</b> from {join} to {end}."
         )
-    else:
-        assessment_text = (
-            f"During the tenure, <b>{emp.name}</b> carried out {p_poss} assigned duties with dedication, "
-            f"sincerity and professionalism. {p_sub_cap} consistently demonstrated excellent work ethics, "
-            f"teamwork, and commitment towards organizational goals."
-        )
-    story.append(Paragraph(assessment_text, sty_body))
+        story.append(Paragraph(opening_text, sty_body))
 
-    # Appreciation Closing
-    closing_text = f"We appreciate {p_poss} contributions and wish {p_obj} success in {p_poss} future endeavours."
-    story.append(Paragraph(closing_text, sty_body))
+        # Dynamic Responsibilities and Bullet Points Processing
+        story.append(Paragraph(f"During {p_poss} internship, {p_sub} was actively involved in:", sty_body))
+        
+        emp_role_key = str(emp.designation).strip()
+        role_info = ROLE_DATA.get(emp_role_key)
+        
+        if not role_info:
+            for key, value in ROLE_DATA.items():
+                if key.lower().replace(" ", "") == emp_role_key.lower().replace(" ", ""):
+                    role_info = value
+                    break
+
+        if role_info and "responsibilities" in role_info:
+            responsibilities = role_info["responsibilities"]
+        else:
+            responsibilities = [
+                "Fundamental and financial statement analysis of listed companies",
+                "Preparation of buy side research presentations and investment summaries",
+                "Industry and sector research to assess market dynamics and competitive positioning",
+                "Application of valuation techniques."
+            ]
+        
+        for resp in responsibilities:
+            story.append(Paragraph(f"•&nbsp;&nbsp; {resp}", sty_bullet))
+        
+        story.append(Spacer(1, 0.2 * cm))
+
+        # Review Assessment Paragraph
+        if is_intern:
+            assessment_text = (
+                f"{p_sub_cap} demonstrated strong analytical ability, research discipline, and attention to detail. "
+                f"{p_poss_cap} work reflected professionalism, initiative, and a keen interest in related financial or operational domains."
+            )
+        else:
+            assessment_text = (
+                f"During the tenure, <b>{emp.name}</b> carried out {p_poss} assigned duties with dedication, "
+                f"sincerity and professionalism. {p_sub_cap} consistently demonstrated excellent work ethics, "
+                f"teamwork, and commitment towards organizational goals."
+            )
+        story.append(Paragraph(assessment_text, sty_body))
+
+        closing_text = f"We appreciate {p_poss} contributions and wish {p_obj} success in {p_poss} future endeavours."
+        story.append(Paragraph(closing_text, sty_body))
 
     story.append(Spacer(1, 0.6 * cm))
 

@@ -33,6 +33,7 @@ export default function EmployeesPage() {
   // Experience Letter Modal State
   const [showExpModal, setShowExpModal] = useState(false);
   const [expEmailBody, setExpEmailBody] = useState('');
+  const [expLetterContent, setExpLetterContent] = useState('');
 
   // Shared CC Email States
   const [ccJd, setCcJd] = useState(false);
@@ -270,18 +271,54 @@ export default function EmployeesPage() {
     setCcGouri(false);
     setCcCto(false);
     setExtraCcInput('');
+    const isMale = (emp.gender || '').toLowerCase() === 'male';
+    const prefix = isMale ? 'Mr.' : 'Ms.';
+    const pPoss = isMale ? 'his' : 'her';
+    const pSub = isMale ? 'he' : 'she';
+    const pObj = isMale ? 'him' : 'her';
+    const pSubCap = isMale ? 'He' : 'She';
+    const pPossCap = isMale ? 'His' : 'Her';
+    const isIntern = (emp.emp_type || 'Intern') === 'Intern';
+    const joinDate = formatDate(emp.joining_date) || '___________';
+    const endDate = emp.end_date ? formatDate(emp.end_date) : 'Present';
+
+    const defaultExpLetter = `This is to certify that ${prefix} ${emp.name} has successfully completed ${pPoss} ${isIntern ? 'internship' : 'tenure'} with TimeArrow Pvt. Ltd. (WisBees) as an ${emp.designation || 'Intern'} from ${joinDate} to ${endDate}.\n\nDuring ${pPoss} ${isIntern ? 'internship' : 'tenure'}, ${pSub} was actively involved in:\n- Developing and integrating features, dashboards, and automated tools\n- Analyzing performance metrics and operational workflows\n- Preparing research summaries, technical documentation, and quality reports\n- Collaborating with cross-functional mentors and delivering high-quality deliverables\n\n${pSubCap} demonstrated strong analytical ability, research discipline, and attention to detail. ${pPossCap} work reflected professionalism, initiative, and commitment.\n\nWe appreciate ${pPoss} contributions and wish ${pObj} success in ${pPoss} future endeavours.`;
+    setExpLetterContent(defaultExpLetter);
+
     setExpEmailBody(`Please find attached your Experience Letter from TimeArrow Pvt. Ltd. (WisBees).\n\nShould you have any questions or require any clarification, please feel free to reach out.\n\nWe wish you the very best in your future endeavours.`);
     setShowExpModal(true);
   };
 
   const previewExperience = () => {
     if (!selectedEmp) return;
-    window.open(getApiUrl(`/generate-experience-letter?emp_id=${selectedEmp.id}&preview=1`), '_blank');
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = getApiUrl(`/generate-experience-letter?emp_id=${selectedEmp.id}&preview=1`);
+    form.target = '_blank';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'full_text';
+    input.value = expLetterContent;
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
   };
 
   const downloadExperience = () => {
     if (!selectedEmp) return;
-    window.open(getApiUrl(`/generate-experience-letter?emp_id=${selectedEmp.id}`), '_blank');
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = getApiUrl(`/generate-experience-letter?emp_id=${selectedEmp.id}`);
+    form.target = '_blank';
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'full_text';
+    input.value = expLetterContent;
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+    document.body.removeChild(form);
   };
 
   // CC Email List builder
@@ -340,6 +377,7 @@ export default function EmployeesPage() {
           id: selectedEmp.id,
           cc_emails: cc_emails,
           email_body: expEmailBody,
+          full_text: expLetterContent,
         });
         if (res.data?.success) {
           alert(res.data.message || `Experience letter email sent successfully to ${selectedEmp.email}!`);
@@ -1079,6 +1117,21 @@ export default function EmployeesPage() {
                   <small style={{ color: 'var(--text3)', display: 'block', marginTop: '4px', fontSize: '0.78rem' }}>
                     Tick the addresses above, and/or type any extra ones here
                   </small>
+                </div>
+
+                <div className="form-group" style={{ marginTop: '14px', textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block' }}>
+                    <i className="fas fa-file-alt text-accent"></i> Experience Letter Content
+                    <small style={{ color: 'var(--text3)', fontWeight: 400 }}> (certificate body — edit freely; lines starting with "-" become bullets)</small>
+                  </label>
+                  <textarea
+                    id="expLetterContent"
+                    className="form-control"
+                    rows={8}
+                    style={{ width: '100%', fontSize: '0.83rem', lineHeight: 1.5, resize: 'vertical', padding: '8px', borderRadius: '6px', boxSizing: 'border-box' }}
+                    value={expLetterContent}
+                    onChange={(e) => setExpLetterContent(e.target.value)}
+                  />
                 </div>
 
                 <div className="form-group" style={{ marginTop: '14px', textAlign: 'left' }}>

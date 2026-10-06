@@ -1912,7 +1912,8 @@ def experience_letter(request, emp_id=None):
         if hr_user:
             hydrate_hr_signature(hr_user)
         hydrate_company_files(settings)
-        buf = generate_experience_letter_pdf(employee, settings, prefix=salutation_prefix)
+        custom_body_text = request.POST.get('full_text') or request.GET.get('full_text')
+        buf = generate_experience_letter_pdf(employee, settings, prefix=salutation_prefix, custom_body_text=custom_body_text)
     except Exception as e:
         return HttpResponse(f'PDF generation failed: {e}', status=500)
 
@@ -2100,7 +2101,8 @@ def send_experience_letter_email(request):
         salutation_prefix = "Mr." if str(gender).strip().lower() in ['male', 'm'] else "Ms."
 
         hydrate_company_files(settings)
-        pdf_buf = generate_experience_letter_pdf(emp, settings, prefix=salutation_prefix)
+        custom_body_text = data.get('full_text') or data.get('letter_content')
+        pdf_buf = generate_experience_letter_pdf(emp, settings, prefix=salutation_prefix, custom_body_text=custom_body_text)
         pdf_bytes = pdf_buf.getvalue()
 
         safe_name = emp.name.replace(' ', '_')
