@@ -160,24 +160,28 @@ Rules for "email_body":
                 cleaned = cleaned[:-3]
             data = json.loads(cleaned.strip())
             if data.get('full_letter_text') and data.get('email_body'):
+                letter_text = data['full_letter_text'].strip()
                 return {
                     'success': True,
                     'ai_generated': True,
                     'offer_type': resolved_type,
                     'role_title': role_title,
-                    'full_letter_text': data['full_letter_text'].strip(),
+                    'full_letter_text': letter_text,
+                    'full_text': letter_text,
                     'email_body': data['email_body'].strip(),
                 }
         except Exception as err:
             logger.warning(f"Failed to parse Groq JSON response: {err}. Raw was:\n{raw_response[:300]}")
 
     # Fallback to local deterministic generator
+    fallback_letter = _local_fallback_full_letter(candidate_name, role_title, resolved_type, joining_str, end_str, salary_clause_hint)
     return {
         'success': True,
         'ai_generated': False,
         'offer_type': resolved_type,
         'role_title': role_title,
-        'full_letter_text': _local_fallback_full_letter(candidate_name, role_title, resolved_type, joining_str, end_str, salary_clause_hint),
+        'full_letter_text': fallback_letter,
+        'full_text': fallback_letter,
         'email_body': _local_fallback_email_body(candidate_name, role_title, resolved_type, joining_str),
     }
 
@@ -232,11 +236,13 @@ Certificate body requirements:
                 cleaned = cleaned[:-3]
             data = json.loads(cleaned.strip())
             if data.get('full_text') and data.get('email_body'):
+                exp_text = data['full_text'].strip()
                 return {
                     'success': True,
                     'ai_generated': True,
                     'exp_type': resolved_type,
-                    'full_text': data['full_text'].strip(),
+                    'full_text': exp_text,
+                    'full_letter_text': exp_text,
                     'email_body': data['email_body'].strip(),
                 }
         except Exception as e:
