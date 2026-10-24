@@ -66,6 +66,14 @@ export default function EmployeesPage() {
   const [isSuperadminChecked, setIsSuperadminChecked] = useState(false);
   const [savingManagerRole, setSavingManagerRole] = useState(false);
 
+  // Clone Modal State
+  const [showCloneModal, setShowCloneModal] = useState(false);
+  const [cloneSourceEmp, setCloneSourceEmp] = useState<any>(null);
+  const [cloneTargetType, setCloneTargetType] = useState<'Trainee' | 'Full-time' | 'Intern'>('Trainee');
+  const [cloneDesignation, setCloneDesignation] = useState('');
+  const [cloneSalary, setCloneSalary] = useState('');
+  const [cloning, setCloning] = useState(false);
+
   // 1. Instantly hydrate cached employees for 0ms initial render
   useEffect(() => {
     try {
@@ -391,6 +399,79 @@ export default function EmployeesPage() {
       alert(err.response?.data?.message || 'NDA dispatch failed.');
     } finally {
       setSendingNdaId(null);
+    }
+  };
+
+  const openCloneModal = (emp: any) => {
+    setCloneSourceEmp(emp);
+    const currNorm = (emp.emp_type || 'Intern').toLowerCase();
+    const nextType: 'Trainee' | 'Full-time' | 'Intern' = currNorm.includes('intern')
+      ? 'Trainee'
+      : (currNorm.includes('trainee') ? 'Full-time' : 'Full-time');
+    setCloneTargetType(nextType);
+
+    const cleanRole = (emp.designation || '')
+      .replace(/ Intern/gi, '')
+      .replace(/Intern – /gi, '')
+      .replace(/ Trainee/gi, '')
+      .replace(/Trainee – /gi, '')
+      .trim();
+
+    if (nextType === 'Trainee') {
+      setCloneDesignation(cleanRole ? `${cleanRole} Trainee` : 'Trainee');
+    } else if (nextType === 'Full-time') {
+      setCloneDesignation(cleanRole ? `${cleanRole}` : 'Full-time Employee');
+    } else {
+      setCloneDesignation(cleanRole ? `${cleanRole} Intern` : 'Intern');
+    }
+
+    setCloneSalary(emp.salary ? String(emp.salary) : '');
+    setShowCloneModal(true);
+  };
+
+  const handleCloneTypeChange = (newType: 'Trainee' | 'Full-time' | 'Intern') => {
+    setCloneTargetType(newType);
+    if (!cloneSourceEmp) return;
+    const cleanRole = (cloneSourceEmp.designation || '')
+      .replace(/ Intern/gi, '')
+      .replace(/Intern – /gi, '')
+      .replace(/ Trainee/gi, '')
+      .replace(/Trainee – /gi, '')
+      .trim();
+    if (newType === 'Trainee') {
+      setCloneDesignation(cleanRole ? `${cleanRole} Trainee` : 'Trainee');
+    } else if (newType === 'Full-time') {
+      setCloneDesignation(cleanRole ? `${cleanRole}` : 'Full-time Employee');
+    } else {
+      setCloneDesignation(cleanRole ? `${cleanRole} Intern` : 'Intern');
+    }
+  };
+
+  const executeClone = async () => {
+    if (!cloneSourceEmp) return;
+    setCloning(true);
+    try {
+      const res = await api.post(`/employees/${cloneSourceEmp.id}/clone`, {
+        target_type: cloneTargetType,
+        target_designation: cloneDesignation,
+        target_salary: cloneSalary ? parseFloat(cloneSalary) : 0,
+      });
+
+      if (res.data?.success && res.data.employee) {
+        const newEmp = res.data.employee;
+        alert(res.data.message || `Cloned ${cloneSourceEmp.name} as ${cloneTargetType}!`);
+        setShowCloneModal(false);
+        setEmployees((prev) => [newEmp, ...prev]);
+        fetchEmployees();
+        // Automatically open the Offer Letter modal for the newly cloned employee!
+        openOfferModal(newEmp);
+      } else {
+        alert(res.data?.message || 'Failed to clone employee.');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to clone employee.');
+    } finally {
+      setCloning(false);
     }
   };
 
@@ -1001,6 +1082,21 @@ export default function EmployeesPage() {
                               >
                                 <i className="fas fa-file-contract"></i> Offer
                               </button>
+                              <button 
+                                className="btn btn-sm"
+                                style={{
+                                  padding: '4px 7px',
+                                  fontSize: '0.72rem',
+                                  background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+                                  color: '#fff',
+                                  border: 'none',
+                                  fontWeight: 600
+                                }}
+                                onClick={() => openCloneModal(emp)}
+                                title="Clone / Transition to Trainee or Full-time"
+                              >
+                                <i className="fas fa-clone"></i> Clone
+                              </button>
                               <Link 
                                 href={`/employees/${emp.id}/edit`} 
                                 className="btn btn-secondary btn-sm" 
@@ -1045,6 +1141,107 @@ export default function EmployeesPage() {
                 </Link>
               </div>
             )}
+          </div>
+
+          {/* Clone & Transition Modal */}
+          <div className={`modal-backdrop ${showCloneModal ? 'open' : ''}`} id="cloneModal">
+            <div className="modal" style={{ maxWidth: '520px', width: '95%' }}>
+              <div className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fas fa-clone text-accent"></i> 
+                Clone & Transition Employee
+              </div>
+              <p style={{ color: 'var(--text2)', fontSize: '0.85rem', marginBottom: '14px' }}>
+                Create a duplicate employee profile for <strong>{cloneSourceEmp?.name}</strong> to transition or promote them to a new role (e.g. Intern &rarr; Trainee &rarr; Full-time).
+              </p>
+
+              <div style={{
+                background: 'var(--bg2)',
+                border: '1px solid var(--border)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                marginBottom: '14px',
+                fontSize: '0.82rem'
+              }}>
+                <div><strong>Current Role:</strong> {cloneSourceEmp?.designation || '—'}</div>
+                <div><strong>Current Type:</strong> {cloneSourceEmp?.emp_type || 'Intern'} <span style={{ color: 'var(--text3)' }}>({cloneSourceEmp?.emp_id})</span></div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label className="form-label" style={{ fontWeight: 600 }}>Target Appointment Type</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {(['Trainee', 'Full-time', 'Intern'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => handleCloneTypeChange(t)}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: '8px',
+                        border: cloneTargetType === t ? '2px solid var(--accent)' : '1px solid var(--border)',
+                        background: cloneTargetType === t ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg2)',
+                        color: cloneTargetType === t ? 'var(--accent)' : 'var(--text)',
+                        fontWeight: cloneTargetType === t ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        fontSize: '0.82rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <i className={`fas ${t === 'Intern' ? 'fa-graduation-cap' : t === 'Trainee' ? 'fa-user-clock' : 'fa-user-check'}`}></i>
+                      <span>{t === 'Full-time' ? 'Full-Time' : t}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label className="form-label" style={{ fontWeight: 600 }}>New Role Designation</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  placeholder="e.g. Management Trainee or Management Full Time"
+                  value={cloneDesignation}
+                  onChange={(e) => setCloneDesignation(e.target.value)}
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '16px' }}>
+                <label className="form-label" style={{ fontWeight: 600 }}>
+                  {cloneTargetType === 'Full-time' ? 'Annual CTC / Salary (₹)' : 'Monthly Stipend / Salary (₹)'}
+                </label>
+                <input
+                  type="number"
+                  className="form-control"
+                  placeholder="e.g. 25000 or 600000"
+                  value={cloneSalary}
+                  onChange={(e) => setCloneSalary(e.target.value)}
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button 
+                  className="btn btn-secondary" 
+                  type="button"
+                  onClick={() => setShowCloneModal(false)}
+                  disabled={cloning}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  type="button"
+                  onClick={executeClone}
+                  disabled={cloning}
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+                >
+                  {cloning ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-clone"></i>}
+                  {cloning ? 'Cloning...' : '✨ Clone & Prepare Offer'}
+                </button>
+              </div>
+            </div>
           </div>
 
           {/* Delete Modal with CONFIRM input */}

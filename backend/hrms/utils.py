@@ -286,14 +286,14 @@ def _default_full_letter_text(emp, role_key, role_title, offer_type='Intern'):
         duration_clause = (
             f"Your training period will be {duration_str}, commencing from {start_str} to {end_str} "
             f"and the mode of work will be remote. This program is designed for intensive practical training, "
-            f"hands-on exposure, and structured professional skill development."
+            f"hands-on exposure, structured mentorship, and professional skill development."
         )
         if stipend_val and stipend_val > 0:
             duration_clause += f" You will receive a monthly stipend/compensation of ₹{stipend_val:,.0f}."
         roles_header = f"Key Roles & Responsibilities\nDuring your training tenure, you will be expected to:\n{responsibilities}"
         completion_clause = (
-            "Upon successful completion of the training period and performance evaluation, you may "
-            "be considered for transition to a full-time role. You will also receive:\n"
+            "Upon successful completion of the training period and performance evaluation, you will "
+            "be considered for transition to a permanent full-time employment role. You will also receive:\n"
             "- Trainee Experience Certificate\n- Letter of Recommendation (based on performance)"
         )
     elif 'full' in type_norm or type_norm in ('normal', 'employee'):
@@ -305,6 +305,8 @@ def _default_full_letter_text(emp, role_key, role_title, offer_type='Intern'):
         )
         duration_clause = (
             f"Your employment will be on a full-time regular basis, commencing on {start_str}. "
+            f"You will be on a probationary period of 6 months from your date of joining, "
+            f"during which your performance will be evaluated for formal confirmation. "
             f"The mode of work will be remote / hybrid as directed by your reporting manager."
         )
         if stipend_val and stipend_val > 0:
@@ -312,7 +314,8 @@ def _default_full_letter_text(emp, role_key, role_title, offer_type='Intern'):
         roles_header = f"Key Roles & Responsibilities\nIn this position, you will be expected to:\n{responsibilities}"
         completion_clause = (
             "This offer of employment is contingent upon successful background verification, "
-            "reference checks, and submission of the signed Non-Disclosure Agreement and onboarding documents."
+            "reference checks, formal completion of the 6-month probationary review, "
+            "and submission of the signed Non-Disclosure Agreement (NDA) and onboarding documents."
         )
     else: # Intern
         intro_text = role_info.get('intro', '')

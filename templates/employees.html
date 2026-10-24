@@ -148,6 +148,11 @@
                 data-end="{{ emp.end_date.strftime('%d %b %Y') if emp.end_date else 'Present' }}">
                 <i class="fas fa-file-contract"></i> Offer
               </button>
+              <button class="btn btn-sm" style="background:linear-gradient(135deg, #8b5cf6, #7c3aed);color:#fff;border:none;font-weight:600;padding:4px 7px;font-size:0.72rem;"
+                onclick="openCloneModal({{ emp.id }}, '{{ emp.name|escape }}', '{{ emp.designation|escape }}', '{{ emp.emp_type or 'Intern' }}', '{{ emp.salary or 0 }}')"
+                title="Clone / Transition to Trainee or Full-time">
+                <i class="fas fa-clone"></i> Clone
+              </button>
               <a href="{{ url_for('edit_employee', emp_id=emp.id) }}" class="btn btn-secondary btn-sm" title="Edit">
                 <i class="fas fa-pen"></i>
               </a>
@@ -186,6 +191,52 @@
     </a>
   </div>
   {% endif %}
+</div>
+
+<!-- Clone & Transition Modal -->
+<div class="modal-backdrop" id="cloneModal" style="z-index:215;">
+  <div class="modal" style="max-width:520px;width:95%;">
+    <div class="modal-title" style="display:flex;align-items:center;gap:8px;">
+      <i class="fas fa-clone text-accent"></i> 
+      Clone & Transition Employee
+    </div>
+    <p style="color:var(--text2);font-size:0.85rem;margin-bottom:14px;">
+      Create a duplicate employee profile for <strong id="cloneSourceName"></strong> to promote/transition them to a new role (e.g. Intern &rarr; Trainee &rarr; Full-time).
+    </p>
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:0.82rem;">
+      <div><strong>Current Role:</strong> <span id="cloneCurrentRole">—</span></div>
+      <div><strong>Current Type:</strong> <span id="cloneCurrentType">—</span></div>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px;">
+      <label class="form-label" style="font-weight:600;">Target Appointment Type</label>
+      <select class="form-control" id="cloneTargetTypeSelect" onchange="onCloneTypeChanged()">
+        <option value="Trainee">Trainee</option>
+        <option value="Full-time">Full-time Employee</option>
+        <option value="Intern">Intern</option>
+      </select>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px;">
+      <label class="form-label" style="font-weight:600;">New Role Designation</label>
+      <input type="text" id="cloneTargetDesignation" class="form-control" placeholder="e.g. Management Trainee or Management Full Time" />
+    </div>
+
+    <div class="form-group" style="margin-bottom:16px;">
+      <label class="form-label" style="font-weight:600;">Salary / Compensation (₹)</label>
+      <input type="number" id="cloneTargetSalary" class="form-control" placeholder="e.g. 25000 or 600000" />
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-secondary" type="button" onclick="document.getElementById('cloneModal').classList.remove('open')">
+        Cancel
+      </button>
+      <button class="btn btn-primary" type="button" id="executeCloneBtn" onclick="executeCloneSubmit()" style="background:linear-gradient(135deg, #6366f1, #8b5cf6);">
+        <i class="fas fa-clone"></i> Clone & Prepare Offer
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- Delete Modal with CONFIRM input -->
@@ -728,6 +779,88 @@ function sendNdaDirect(empId, empName, empEmail) {
       btn.disabled = false;
       btn.innerHTML = '<i class="fas fa-shield-alt"></i> NDA';
     }
+  });
+}
+
+let currentCloneEmpId = null;
+let currentCloneCleanRole = '';
+
+function openCloneModal(empId, empName, designation, empType, salary) {
+  currentCloneEmpId = empId;
+  document.getElementById('cloneSourceName').textContent = empName;
+  document.getElementById('cloneCurrentRole').textContent = designation || '—';
+  document.getElementById('cloneCurrentType').textContent = empType || 'Intern';
+
+  const cleanRole = (designation || '')
+    .replace(/ Intern/gi, '')
+    .replace(/Intern – /gi, '')
+    .replace(/ Trainee/gi, '')
+    .replace(/Trainee – /gi, '')
+    .trim();
+  currentCloneCleanRole = cleanRole;
+
+  const typeLower = (empType || '').toLowerCase();
+  const nextType = typeLower.includes('intern') ? 'Trainee' : 'Full-time';
+  document.getElementById('cloneTargetTypeSelect').value = nextType;
+
+  if (nextType === 'Trainee') {
+    document.getElementById('cloneTargetDesignation').value = cleanRole ? `${cleanRole} Trainee` : 'Trainee';
+  } else if (nextType === 'Full-time') {
+    document.getElementById('cloneTargetDesignation').value = cleanRole || 'Full-time Employee';
+  } else {
+    document.getElementById('cloneTargetDesignation').value = cleanRole ? `${cleanRole} Intern` : 'Intern';
+  }
+
+  document.getElementById('cloneTargetSalary').value = salary || '';
+  document.getElementById('cloneModal').classList.add('open');
+}
+
+function onCloneTypeChanged() {
+  const targetType = document.getElementById('cloneTargetTypeSelect').value;
+  const cleanRole = currentCloneCleanRole;
+  if (targetType === 'Trainee') {
+    document.getElementById('cloneTargetDesignation').value = cleanRole ? `${cleanRole} Trainee` : 'Trainee';
+  } else if (targetType === 'Full-time') {
+    document.getElementById('cloneTargetDesignation').value = cleanRole || 'Full-time Employee';
+  } else {
+    document.getElementById('cloneTargetDesignation').value = cleanRole ? `${cleanRole} Intern` : 'Intern';
+  }
+}
+
+function executeCloneSubmit() {
+  if (!currentCloneEmpId) return;
+  const btn = document.getElementById('executeCloneBtn');
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Cloning...';
+
+  const targetType = document.getElementById('cloneTargetTypeSelect').value;
+  const targetDesignation = document.getElementById('cloneTargetDesignation').value;
+  const targetSalary = document.getElementById('cloneTargetSalary').value;
+
+  fetch(`/employees/${currentCloneEmpId}/clone`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      target_type: targetType,
+      target_designation: targetDesignation,
+      target_salary: targetSalary
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      showToast(data.message || 'Employee cloned successfully!', 'success');
+      document.getElementById('cloneModal').classList.remove('open');
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(data.message || 'Clone failed', 'error');
+    }
+  })
+  .catch(() => showToast('Network connection failed', 'error'))
+  .finally(() => {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   });
 }
 

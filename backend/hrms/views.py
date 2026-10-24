@@ -1690,6 +1690,113 @@ def delete_employee_view(request, emp_id):
 
 
 @csrf_exempt
+@require_POST
+def clone_employee_view(request, emp_id):
+    """
+    Clones an existing employee record to transition them into a new role/appointment (e.g., Intern -> Trainee -> Full-time).
+    Creates a new employee record with a newly generated sequential emp_id, resetting offer_sent and nda_sent.
+    """
+    source_emp = get_object_or_404(Employee, id=emp_id)
+
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    target_type = data.get('target_type') or data.get('emp_type')
+    if not target_type:
+        curr_norm = str(source_emp.emp_type or 'Intern').strip().lower()
+        if 'intern' in curr_norm:
+            target_type = 'Trainee'
+        elif 'trainee' in curr_norm:
+            target_type = 'Full-time'
+        else:
+            target_type = 'Full-time'
+
+    clean_role = (source_emp.designation or '').replace(' Intern', '').replace('Intern – ', '').replace(' Trainee', '').replace('Trainee – ', '').strip()
+
+    target_designation = data.get('target_designation') or data.get('designation')
+    if not target_designation:
+        if target_type == 'Trainee':
+            target_designation = f"{clean_role} Trainee" if clean_role else "Trainee"
+        elif target_type == 'Full-time':
+            target_designation = clean_role or "Full-time Employee"
+        else:
+            target_designation = f"{clean_role} Intern" if clean_role else "Intern"
+
+    # Generate new unique sequential ID
+    if target_type == 'Intern':
+        last = Employee.objects.filter(emp_id__startswith='INT').order_by('-id').first()
+        num = int(last.emp_id[3:]) + 1 if last and last.emp_id and len(last.emp_id) > 3 else 1
+        new_emp_id = f"INT{num:04d}"
+    else:
+        last = Employee.objects.filter(emp_id__startswith='EMP').order_by('-id').first()
+        num = int(last.emp_id[3:]) + 1 if last and last.emp_id and len(last.emp_id) > 3 else 1
+        new_emp_id = f"EMP{num:04d}"
+
+    # Ensure uniqueness if there's any gap
+    while Employee.objects.filter(emp_id=new_emp_id).exists():
+        num += 1
+        prefix = "INT" if target_type == 'Intern' else "EMP"
+        new_emp_id = f"{prefix}{num:04d}"
+
+    salary_val = data.get('target_salary') or data.get('salary') or source_emp.salary or 0
+    try:
+        salary_num = float(salary_val)
+    except (ValueError, TypeError):
+        salary_num = 0.0
+
+    current_hr_id = request.current_user.id if hasattr(request, 'current_user') and isinstance(request.current_user, HR) else None
+
+    cloned_emp = Employee(
+        emp_id=new_emp_id,
+        name=source_emp.name,
+        email=source_emp.email,
+        phone=source_emp.phone,
+        department=data.get('target_department') or source_emp.department,
+        designation=target_designation,
+        is_manager=source_emp.is_manager,
+        managed_department=source_emp.managed_department,
+        reporting_manager=source_emp.reporting_manager,
+        salary=salary_num,
+        joining_date=date.today(),
+        end_date=None,
+        status='Active',
+        emp_type=target_type,
+        created_by_id=current_hr_id,
+        gender=source_emp.gender or 'female',
+        offer_sent=False,
+        nda_sent=False,
+        remarks=f"Cloned / Transitioned from {source_emp.emp_id} ({source_emp.emp_type})"
+    )
+    cloned_emp.save()
+    invalidate_employees_cache()
+
+    return JsonResponse({
+        'success': True,
+        'message': f"Employee cloned successfully as {target_type} with ID {cloned_emp.emp_id}!",
+        'employee': {
+            'id': cloned_emp.id,
+            'emp_id': cloned_emp.emp_id,
+            'name': cloned_emp.name,
+            'email': cloned_emp.email,
+            'department': cloned_emp.department,
+            'designation': cloned_emp.designation,
+            'emp_type': cloned_emp.emp_type,
+            'salary': cloned_emp.salary,
+            'status': cloned_emp.status,
+            'offer_sent': False,
+            'nda_sent': False,
+            'joining_date': cloned_emp.joining_date.strftime('%Y-%m-%d') if cloned_emp.joining_date else None,
+            'end_date': None,
+            'gender': cloned_emp.gender,
+            'remarks': cloned_emp.remarks,
+        }
+    })
+
+
+
+@csrf_exempt
 def employee_profile_view(request):
     emp_id = resolve_employee_id(request)
     if not emp_id:

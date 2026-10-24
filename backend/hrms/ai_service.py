@@ -131,19 +131,25 @@ Extra Admin Notes: {custom_notes or 'Standard professional terms'}
 Rules for "full_letter_text":
 1. First line must be: "We are pleased to offer you the position of {role_title} at TimeArrow Pvt. Ltd. (WisBees)."
 2. Second paragraph: Executive introduction describing the role function, scope, and teamwork at TimeArrow Pvt. Ltd. (WisBees).
-3. Third paragraph: Duration / appointment terms, remote/hybrid mode, joining date ({joining_str}), and compensation ({salary_clause_hint}).
+3. Third paragraph: Duration & Terms:
+   - For Full-time: Must explicitly state a regular full-time appointment commencing on {joining_str}, with a mandatory 6-month probationary period from joining date during which performance will be evaluated for formal confirmation. State compensation: {salary_clause_hint}.
+   - For Trainee: Must explicitly state a training period from {joining_str} to {end_str or '6 months'}, structured intensive practical training, and monthly training stipend/compensation: {salary_clause_hint}.
+   - For Intern: Must state practical learning internship from {joining_str} to {end_str or '3 months'}, remote mode, and stipend: {salary_clause_hint}.
 4. Section titled "Key Roles & Responsibilities": Include 4 to 6 specific, high-caliber, practical bullet points for this exact role ({role_title}), each starting strictly with "- ".
-5. NDA Paragraph: Explicitly mandate signing the attached Non-Disclosure Agreement (NDA) and maintaining strict confidentiality regarding company research, reports, algorithms, and client information.
-6. Completion & Growth Paragraph:
-   - For Full-time: Subject to background check, 6 months probation, onboarding submission.
-   - For Trainee: Training evaluation, performance review for transition to full-time employment, and Trainee Certificate.
-   - For Intern: Internship completion letter and Letter of Recommendation upon performance.
+5. NDA Paragraph: Explicitly mandate signing the attached Non-Disclosure Agreement (NDA) and maintaining strict confidentiality regarding company research, proprietary financial models, algorithms, and client information.
+6. Completion, Confirmation & Career Growth Paragraph:
+   - For Full-time: Formal full-time confirmation after 6 months probation, background check verification, statutory benefits, notice period, and onboarding submission.
+   - For Trainee: Structured evaluation at the end of training for transition to a regular full-time employment position, plus issuance of Trainee Experience Certificate.
+   - For Intern: Internship completion certificate and Letter of Recommendation upon successful delivery of assigned projects.
 7. Acceptance clause: Instructions to sign and return the letter along with the NDA to confirm acceptance.
 
 Rules for "email_body":
-- Professional email to {candidate_name or 'the candidate'}.
-- Explicitly state attachments: (1) {resolved_type} Offer Letter (2) Non-Disclosure Agreement (NDA).
-- Include WisBees Operations Portal URL: https://ops.wisbees.com and mention credentials will be issued upon onboarding.
+- Professional corporate email addressed to {candidate_name or 'the candidate'}.
+- Tailored specifically to {resolved_type}:
+  - For Full-time: Warm welcome to the regular full-time team, attaching Full-time Employment Offer Letter & Non-Disclosure Agreement (NDA).
+  - For Trainee: Welcome to the WisBees Trainee Program, attaching Trainee Appointment Offer Letter & NDA.
+  - For Intern: Welcome to the internship, attaching Internship Offer Letter & NDA.
+- Include WisBees Operations Portal URL: https://ops.wisbees.com and mention credentials (Default Password: Wisbees@2026, change password upon first login).
 - Polite corporate sign-off from HR-DEPARTMENT, TimeArrow Pvt. Ltd. (WisBees).
 """
 
