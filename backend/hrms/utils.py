@@ -131,17 +131,29 @@ def get_graph_token(current_user=None):
 
 
 
-def _default_email_body_text(emp, role_key, role_title):
-    role_display = (role_title or role_key or 'Intern').replace(' Intern', '').replace('Intern – ', '').strip()
+def _default_email_body_text(emp, role_key, role_title, offer_type='Intern'):
+    clean_role = (role_title or role_key or '').replace(' Intern', '').replace('Intern – ', '').replace(' Trainee', '').replace('Trainee – ', '').strip()
     joining_str = (
         emp.joining_date.strftime('%d %B %Y').lstrip('0')
         if emp.joining_date else 'the agreed date'
     )
     email_val = getattr(emp, 'email', '') or 'your registered email'
+
+    type_norm = str(offer_type or 'Intern').strip().lower()
+    if 'trainee' in type_norm:
+        position_text = f"Trainee – {clean_role}" if clean_role else "Trainee"
+        doc_name = "Trainee Offer Letter"
+    elif 'full' in type_norm or type_norm in ('normal', 'employee'):
+        position_text = clean_role or "Full-time Employee"
+        doc_name = "Employment Offer Letter"
+    else:
+        position_text = f"Intern – {clean_role}" if clean_role else "Intern"
+        doc_name = "Internship Offer Letter"
+
     return (
-        f"We are pleased to offer you the position of Intern – {role_display} with "
+        f"We are pleased to offer you the position of {position_text} with "
         f"TimeArrow Pvt. Ltd. (WisBees), effective {joining_str}.\n\n"
-        "Please find attached:\n(1) Internship Offer Letter\n(2) Non-Disclosure Agreement (NDA)\n\n"
+        f"Please find attached:\n(1) {doc_name}\n(2) Non-Disclosure Agreement (NDA)\n\n"
         "Please return the signed copies at your earliest convenience to confirm your acceptance of the offer.\n\n"
         f"Your login email is {email_val}.\n"
         "Your Default Password for the WisBees portal is: Wisbees@2026. Please log in and change your password immediately after your first login.\n\n"
@@ -231,10 +243,19 @@ def get_master_durations():
             pass
     return DEFAULT_MASTER_DURATIONS
 
-def _default_full_letter_text(emp, role_key, role_title):
+def _default_full_letter_text(emp, role_key, role_title, offer_type='Intern'):
     role_info = ROLE_DATA.get(role_key, GENERIC_ROLE_TEMPLATE)
-    display_title = role_title or role_key
     company_name = 'TimeArrow Pvt. Ltd. (WisBees)'
+    type_norm = str(offer_type or 'Intern').strip().lower()
+
+    clean_title = (role_title or role_key or '').replace(' Intern', '').replace('Intern – ', '').replace(' Trainee', '').replace('Trainee – ', '').strip()
+
+    if 'trainee' in type_norm:
+        display_title = role_title if (role_title and 'trainee' in role_title.lower()) else (f"{clean_title} Trainee" if clean_title else "Trainee")
+    elif 'full' in type_norm or type_norm in ('normal', 'employee'):
+        display_title = clean_title if clean_title else "Full-time Employee"
+    else:
+        display_title = role_title if (role_title and 'intern' in role_title.lower()) else (f"{clean_title} Intern" if clean_title else "Intern")
 
     start_str = emp.joining_date.strftime('%d-%b-%Y') if emp.joining_date else '___________'
     end_date_val = getattr(emp, 'end_date', None)
@@ -248,65 +269,144 @@ def _default_full_letter_text(emp, role_key, role_title):
             months = max(1, round(diff_days / 30))
             duration_str = f"{months} month{'s' if months != 1 else ''}"
     else:
-        duration_str = "3 months"
+        duration_str = "3 months" if ('trainee' in type_norm or 'intern' in type_norm) else "indefinite"
 
-    responsibilities = '\n'.join(f"- {r}" for r in role_info['responsibilities'])
-    role_display = display_title.lower().replace(' intern', '') if display_title else ''
+    responsibilities = '\n'.join(f"- {r}" for r in role_info.get('responsibilities', []))
+    role_display = display_title.lower().replace(' intern', '').replace(' trainee', '').strip()
+
+    stipend_val = getattr(emp, 'salary', 0)
+
+    if 'trainee' in type_norm:
+        intro_text = (
+            role_info.get('intro', '')
+            .replace('This internship is designed', 'This training program is designed')
+            .replace('This internship', 'This training program')
+            .replace('internship is designed', 'training program is designed')
+        )
+        duration_clause = (
+            f"Your training period will be {duration_str}, commencing from {start_str} to {end_str} "
+            f"and the mode of work will be remote. This program is designed for intensive practical training, "
+            f"hands-on exposure, and structured professional skill development."
+        )
+        if stipend_val and stipend_val > 0:
+            duration_clause += f" You will receive a monthly stipend/compensation of ₹{stipend_val:,.0f}."
+        roles_header = f"Key Roles & Responsibilities\nDuring your training tenure, you will be expected to:\n{responsibilities}"
+        completion_clause = (
+            "Upon successful completion of the training period and performance evaluation, you may "
+            "be considered for transition to a full-time role. You will also receive:\n"
+            "- Trainee Experience Certificate\n- Letter of Recommendation (based on performance)"
+        )
+    elif 'full' in type_norm or type_norm in ('normal', 'employee'):
+        intro_text = (
+            role_info.get('intro', '')
+            .replace('This internship is designed', 'This role is focused on')
+            .replace('This internship', 'This role')
+            .replace('internship is designed', 'role is focused on')
+        )
+        duration_clause = (
+            f"Your employment will be on a full-time regular basis, commencing on {start_str}. "
+            f"The mode of work will be remote / hybrid as directed by your reporting manager."
+        )
+        if stipend_val and stipend_val > 0:
+            duration_clause += f" Your annual Cost to Company (CTC) will be ₹{stipend_val:,.0f} per annum."
+        roles_header = f"Key Roles & Responsibilities\nIn this position, you will be expected to:\n{responsibilities}"
+        completion_clause = (
+            "This offer of employment is contingent upon successful background verification, "
+            "reference checks, and submission of the signed Non-Disclosure Agreement and onboarding documents."
+        )
+    else: # Intern
+        intro_text = role_info.get('intro', '')
+        duration_clause = (
+            f"Your internship duration will be {duration_str}, commencing from {start_str} to {end_str} "
+            f"and the mode of work will be remote. This is an unpaid internship, intended for practical "
+            f"learning, research exposure, and professional skill development."
+        )
+        if stipend_val and stipend_val > 0:
+            duration_clause = duration_clause.replace("This is an unpaid internship", f"You will receive a stipend of ₹{stipend_val:,.0f}")
+        roles_header = f"Key Roles & Responsibilities\nDuring your internship, you will be expected to:\n{responsibilities}"
+        completion_clause = (
+            "Upon successful completion of the internship and fulfilment of assigned responsibilities, you "
+            "will receive:\n- Internship Experience Letter\n- Letter of Recommendation (if applicable)"
+        )
 
     return '\n\n'.join([
         f"We are pleased to offer you the position of {display_title} at {company_name}.",
-        role_info['intro'],
-        f"Your internship duration will be {duration_str}, commencing from {start_str} to {end_str} "
-        f"and the mode of work will be remote. This is an unpaid internship, intended for practical "
-        f"learning, research exposure, and professional skill development.",
-        f"Key Roles & Responsibilities\nDuring your internship, you will be expected to:\n{responsibilities}",
+        intro_text,
+        duration_clause,
+        roles_header,
         "You are required to sign the attached Non-Disclosure Agreement (NDA) and strictly maintain "
         "confidentiality regarding all company research data, reports, internal tools, strategies, and "
         "proprietary information.",
-        "Upon successful completion of the internship and fulfilment of assigned responsibilities, you "
-        "will receive:\n- Internship Experience Letter\n- Letter of Recommendation (if applicable)",
+        completion_clause,
         "To formally accept this offer, please sign and return a copy of this letter along with the NDA.",
         f"We look forward to having you onboard and contributing to your professional growth in "
         f"{role_display} and related domains.",
     ])
 
-def _seed_offer_draft_fields(emp, role_key):
-    role_title = role_key if role_key in ROLE_KEYS else (emp.designation or role_key or '')
+def _seed_offer_draft_fields(emp, role_key, offer_type=None):
+    if not offer_type:
+        emp_t = str(getattr(emp, 'emp_type', 'Intern') or 'Intern').strip().lower()
+        offer_type = 'Trainee' if 'trainee' in emp_t else ('Full-time' if ('full' in emp_t or emp_t in ('normal', 'employee')) else 'Intern')
+
+    clean_role = (role_key or emp.designation or '').replace(' Intern', '').replace('Intern – ', '').replace(' Trainee', '').replace('Trainee – ', '').strip()
+    if offer_type == 'Trainee':
+        role_title = f"{clean_role} Trainee" if clean_role else "Trainee"
+    elif offer_type == 'Full-time':
+        role_title = clean_role or "Full-time Employee"
+    else:
+        role_title = role_key if role_key in ROLE_KEYS else (emp.designation or (f"{clean_role} Intern" if clean_role else 'Intern'))
+
     return {
         'role_key': role_key,
         'role_title': role_title,
-        'full_letter_text': _default_full_letter_text(emp, role_key, role_title),
-        'email_body_text': _default_email_body_text(emp, role_key, role_title),
+        'offer_type': offer_type,
+        'full_letter_text': _default_full_letter_text(emp, role_key, role_title, offer_type=offer_type),
+        'email_body_text': _default_email_body_text(emp, role_key, role_title, offer_type=offer_type),
     }
 
-def _get_offer_draft_data(emp, role_key=None):
+def _get_offer_draft_data(emp, role_key=None, offer_type=None):
     draft = OfferLetterDraft.objects.filter(employee_id=emp.id).first()
+    resolved_type = offer_type or (getattr(draft, 'offer_type', None) if draft else None)
+    if not resolved_type:
+        emp_t = str(getattr(emp, 'emp_type', 'Intern') or 'Intern').strip().lower()
+        resolved_type = 'Trainee' if 'trainee' in emp_t else ('Full-time' if ('full' in emp_t or emp_t in ('normal', 'employee')) else 'Intern')
+
     if draft:
-        if not role_key or draft.role_key == role_key or (not draft.role_key):
+        type_changed = offer_type and draft.offer_type and offer_type.lower() != draft.offer_type.lower()
+        if not type_changed and (not role_key or draft.role_key == role_key or (not draft.role_key)):
             matched_key = draft.role_key or role_key or (emp.designation if emp.designation in ROLE_KEYS else ROLE_KEYS[0])
             return {
                 'role_key': matched_key,
                 'role_title': draft.role_title or matched_key or '',
-                'full_letter_text': draft.full_letter_text or _default_full_letter_text(emp, matched_key, draft.role_title or matched_key),
-                'email_body_text': draft.email_body_text or _default_email_body_text(emp, matched_key, draft.role_title or matched_key),
+                'offer_type': draft.offer_type or resolved_type,
+                'full_letter_text': draft.full_letter_text or _default_full_letter_text(emp, matched_key, draft.role_title or matched_key, offer_type=draft.offer_type or resolved_type),
+                'email_body_text': draft.email_body_text or _default_email_body_text(emp, matched_key, draft.role_title or matched_key, offer_type=draft.offer_type or resolved_type),
             }
     if not role_key:
         if getattr(emp, 'designation', None) and emp.designation in ROLE_KEYS:
             role_key = emp.designation
         else:
             role_key = ROLE_KEYS[0] if ROLE_KEYS else ''
-    return _seed_offer_draft_fields(emp, role_key)
+    return _seed_offer_draft_fields(emp, role_key, offer_type=resolved_type)
 
-def _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text):
+def _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text, offer_type=None):
     draft, _ = OfferLetterDraft.objects.get_or_create(employee_id=emp.id)
     draft.role_key = role_key
     draft.role_title = role_title
+    if offer_type:
+        draft.offer_type = offer_type
     draft.full_letter_text = full_letter_text
     draft.email_body_text = email_body_text
     draft.save()
+    fields_to_update = []
     if role_title:
         emp.designation = role_title
-        emp.save(update_fields=['designation'])
+        fields_to_update.append('designation')
+    if offer_type:
+        emp.emp_type = offer_type
+        fields_to_update.append('emp_type')
+    if fields_to_update:
+        emp.save(update_fields=fields_to_update)
     return draft
 
 RESEARCH_REPORT_RETENTION_DAYS = 3

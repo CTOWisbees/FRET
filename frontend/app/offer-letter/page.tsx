@@ -54,6 +54,7 @@ export default function OfferLetterPage() {
   const [roles, setRoles] = useState<string[]>(DEFAULT_ROLES);
   const [selectedEmpId, setSelectedEmpId] = useState('');
   const [selectedRole, setSelectedRole] = useState('');
+  const [offerType, setOfferType] = useState<'Intern' | 'Trainee' | 'Full-time'>('Intern');
   
   // HR & Company status
   const [hrUser, setHrUser] = useState<any>({ name: 'Hr test', designation: 'HR Manager', has_signature: true });
@@ -108,6 +109,10 @@ export default function OfferLetterPage() {
     if (!empId) return;
     const emp = employees.find((e) => String(e.id) === String(empId));
     if (emp) {
+      const rawType = emp.emp_type || 'Intern';
+      const resolvedType: 'Intern' | 'Trainee' | 'Full-time' = rawType === 'Trainee' ? 'Trainee' : (rawType === 'Full-time' || rawType === 'Normal' ? 'Full-time' : 'Intern');
+      setOfferType(resolvedType);
+
       let targetRole = emp.offer_role || '';
       if (!targetRole && emp.designation) {
         targetRole = roles.find((r) => r.toLowerCase() === emp.designation.toLowerCase()) ||
@@ -115,15 +120,36 @@ export default function OfferLetterPage() {
                      '';
       }
       try {
-        const draftRes = await api.get(`/offer-letter/draft?emp_id=${empId}&role=${encodeURIComponent(targetRole || '')}`);
+        const draftRes = await api.get(`/offer-letter/draft?emp_id=${empId}&role=${encodeURIComponent(targetRole || '')}&offer_type=${encodeURIComponent(resolvedType)}`);
         if (draftRes.data?.role_key) {
           setSelectedRole(draftRes.data.role_key);
         } else if (targetRole) {
           setSelectedRole(targetRole);
         }
+        if (draftRes.data?.offer_type) {
+          const dt = draftRes.data.offer_type;
+          setOfferType(dt === 'Trainee' ? 'Trainee' : (dt === 'Full-time' || dt === 'Normal' ? 'Full-time' : 'Intern'));
+        }
       } catch (e) {
         if (targetRole) setSelectedRole(targetRole);
       }
+    }
+  };
+
+  const handleOfferTypeChange = async (newType: 'Intern' | 'Trainee' | 'Full-time') => {
+    setOfferType(newType);
+    const targetRole = modalRole || selectedRole;
+    const targetEmpId = modalEmpId || selectedEmpId;
+    if (!targetRole) return;
+    try {
+      const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(targetRole)}&emp_id=${targetEmpId || ''}&offer_type=${encodeURIComponent(newType)}`);
+      if (res.data) {
+        setOfferRoleTitle(res.data.role_title || targetRole);
+        setOfferFullText(res.data.full_text || '');
+        setOfferEmailBody(res.data.email_body || '');
+      }
+    } catch (e) {
+      console.error('Failed to reload draft for offer type:', e);
     }
   };
 
@@ -138,7 +164,7 @@ export default function OfferLetterPage() {
       return;
     }
 
-    const url = getApiUrl(`/generate-offer-letter?emp_id=${selectedEmpId}&role_key=${encodeURIComponent(selectedRole)}&preview=1`);
+    const url = getApiUrl(`/generate-offer-letter?emp_id=${selectedEmpId}&role_key=${encodeURIComponent(selectedRole)}&offer_type=${encodeURIComponent(offerType)}&preview=1`);
     window.open(url, '_blank');
   };
 
@@ -153,25 +179,32 @@ export default function OfferLetterPage() {
       return;
     }
 
-    const url = getApiUrl(`/generate-offer-letter?emp_id=${selectedEmpId}&role_key=${encodeURIComponent(selectedRole)}`);
+    const url = getApiUrl(`/generate-offer-letter?emp_id=${selectedEmpId}&role_key=${encodeURIComponent(selectedRole)}&offer_type=${encodeURIComponent(offerType)}`);
     window.open(url, '_blank');
   };
 
   const openEmailSender = async () => {
-    setModalEmpId(selectedEmpId || (employees[0]?.id ? String(employees[0].id) : ''));
+    const targetEmpId = selectedEmpId || (employees[0]?.id ? String(employees[0].id) : '');
+    setModalEmpId(targetEmpId);
     const initialRole = selectedRole || roles[0] || '';
     setModalRole(initialRole);
     setShowEmailModal(true);
 
+    const targetEmp = employees.find((e) => String(e.id) === String(targetEmpId));
+    if (targetEmp) {
+      const rawType = targetEmp.emp_type || 'Intern';
+      setOfferType(rawType === 'Trainee' ? 'Trainee' : (rawType === 'Full-time' || rawType === 'Normal' ? 'Full-time' : 'Intern'));
+    }
+
     if (initialRole) {
-      await loadDraftForModal(selectedEmpId || employees[0]?.id, initialRole);
+      await loadDraftForModal(targetEmpId, initialRole);
     }
   };
 
   const loadDraftForModal = async (empId: any, role: string) => {
     if (!role) return;
     try {
-      const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(role)}&emp_id=${empId || ''}`);
+      const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(role)}&emp_id=${empId || ''}&offer_type=${encodeURIComponent(offerType)}`);
       if (res.data) {
         setOfferRoleTitle(res.data.role_title || role);
         setOfferFullText(res.data.full_text || '');
@@ -207,7 +240,9 @@ export default function OfferLetterPage() {
 
       const payload = {
         emp_id: modalEmpId,
-        type: 'offer',
+        type: 'both',
+        offer_type: offerType,
+        include_nda: true,
         role_key: modalRole,
         role_title: offerRoleTitle,
         full_text: offerFullText,
@@ -302,6 +337,29 @@ export default function OfferLetterPage() {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-[var(--text)] mb-1.5">
+                    Appointment / Offer Type *
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['Intern', 'Trainee', 'Full-time'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => handleOfferTypeChange(t)}
+                        className={`py-2 px-2.5 rounded-lg text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                          offerType === t
+                            ? 'border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]'
+                            : 'border-[var(--border)] bg-[var(--surface2)] text-[var(--text2)]'
+                        }`}
+                      >
+                        <i className={`fas ${t === 'Intern' ? 'fa-graduation-cap' : t === 'Trainee' ? 'fa-user-clock' : 'fa-user-check'} text-[0.75rem]`}></i>
+                        <span>{t === 'Full-time' ? 'Full-Time' : t}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
@@ -487,6 +545,27 @@ export default function OfferLetterPage() {
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-[var(--text)] mb-1">Appointment / Offer Type *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['Intern', 'Trainee', 'Full-time'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => handleOfferTypeChange(t)}
+                      className={`py-1.5 px-2 rounded-lg text-xs font-bold border transition flex items-center justify-center gap-1.5 ${
+                        offerType === t
+                          ? 'border-[var(--accent)] bg-[var(--accent)]/15 text-[var(--accent)]'
+                          : 'border-[var(--border)] bg-[var(--surface2)] text-[var(--text2)]'
+                      }`}
+                    >
+                      <i className={`fas ${t === 'Intern' ? 'fa-graduation-cap' : t === 'Trainee' ? 'fa-user-clock' : 'fa-user-check'} text-[0.7rem]`}></i>
+                      <span>{t === 'Full-time' ? 'Full-Time' : t}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
 

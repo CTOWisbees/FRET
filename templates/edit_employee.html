@@ -43,7 +43,8 @@
       <div class="form-group">
         <label class="form-label">Type</label>
         <select name="emp_type" class="form-control">
-          <option value="Normal" {% if emp.emp_type != 'Intern' %}selected{% endif %}>Normal Employee</option>
+          <option value="Normal" {% if emp.emp_type not in ['Intern', 'Trainee'] %}selected{% endif %}>Normal / Full-time Employee</option>
+          <option value="Trainee" {% if emp.emp_type == 'Trainee' %}selected{% endif %}>Trainee</option>
           <option value="Intern" {% if emp.emp_type == 'Intern' %}selected{% endif %}>Intern</option>
         </select>
       </div>

@@ -38,7 +38,7 @@ from hrms.utils import (
     get_master_roles, get_master_departments, get_master_durations
 )
 from pdf_generator import (
-    generate_experience_letter_pdf, generate_offer_letter_pdf, generate_leave_approval_pdf, ROLE_KEYS, ROLE_DATA
+    generate_experience_letter_pdf, generate_offer_letter_pdf, generate_nda_pdf, generate_leave_approval_pdf, ROLE_KEYS, ROLE_DATA
 )
 from werkzeug.utils import secure_filename
 
@@ -1790,6 +1790,7 @@ def api_master_data_save(request):
 def api_offer_draft_get(request):
     emp_id = request.GET.get('emp_id') or request.GET.get('id')
     role_key = request.GET.get('role') or request.GET.get('role_key', '')
+    offer_type = request.GET.get('offer_type') or request.GET.get('emp_type')
     if not emp_id:
         return JsonResponse({'error': 'emp_id is required'}, status=400)
     emp = get_object_or_404(Employee, id=emp_id)
@@ -1798,11 +1799,12 @@ def api_offer_draft_get(request):
             role_key = emp.offer_draft.role_key
         elif getattr(emp, 'designation', None) and emp.designation in ROLE_KEYS:
             role_key = emp.designation
-    draft_data = _get_offer_draft_data(emp, role_key)
+    draft_data = _get_offer_draft_data(emp, role_key, offer_type=offer_type)
     resolved_role_key = draft_data.get('role_key') or role_key or (ROLE_KEYS[0] if ROLE_KEYS else '')
     return JsonResponse({
         'role_key': resolved_role_key,
         'role_title': draft_data.get('role_title') or resolved_role_key,
+        'offer_type': draft_data.get('offer_type') or 'Intern',
         'full_text': draft_data.get('full_letter_text') or draft_data.get('full_text', ''),
         'email_body': draft_data.get('email_body_text') or draft_data.get('email_body', ''),
         'full_letter_text': draft_data.get('full_letter_text', ''),
@@ -1826,15 +1828,17 @@ def api_offer_draft_save(request):
         return JsonResponse({'success': False, 'message': 'Please select a role first'}, status=400)
 
     role_title = data.get('role_title') or role_key
+    offer_type = data.get('offer_type') or data.get('emp_type') or getattr(emp, 'emp_type', 'Intern')
     full_letter_text = data.get('full_text') or data.get('full_letter_text', '')
     email_body_text = data.get('email_body') or data.get('email_body_text', '')
 
-    draft = _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text)
+    draft = _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text, offer_type=offer_type)
     invalidate_employees_cache()
     return JsonResponse({
         'success': True,
         'role_key': draft.role_key,
         'role_title': draft.role_title,
+        'offer_type': getattr(draft, 'offer_type', None) or offer_type,
         'full_text': draft.full_letter_text,
         'email_body': draft.email_body_text,
         'full_letter_text': draft.full_letter_text,
@@ -1857,14 +1861,16 @@ def generate_offer_letter(request):
         else:
             role_key = ROLE_KEYS[0]
 
-    existing = _get_offer_draft_data(emp, role_key)
+    offer_type = request.POST.get('offer_type') or request.GET.get('offer_type') or request.POST.get('emp_type') or request.GET.get('emp_type')
+    existing = _get_offer_draft_data(emp, role_key, offer_type=offer_type)
+    resolved_offer_type = offer_type or existing.get('offer_type') or getattr(emp, 'emp_type', 'Intern')
 
     role_title = request.POST.get('role_title') or request.GET.get('role_title') or existing.get('role_title') or role_key or 'Intern'
-    full_letter_text = request.POST.get('full_letter_text') or request.GET.get('full_text') or existing.get('full_letter_text') or _default_full_letter_text(emp, role_key, role_title)
-    email_body_text = request.POST.get('email_body_text') or request.GET.get('email_body') or existing.get('email_body_text') or _default_email_body_text(emp, role_key, role_title)
+    full_letter_text = request.POST.get('full_letter_text') or request.GET.get('full_text') or existing.get('full_letter_text') or _default_full_letter_text(emp, role_key, role_title, offer_type=resolved_offer_type)
+    email_body_text = request.POST.get('email_body_text') or request.GET.get('email_body') or existing.get('email_body_text') or _default_email_body_text(emp, role_key, role_title, offer_type=resolved_offer_type)
 
     if role_key:
-        _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text)
+        _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text, offer_type=resolved_offer_type)
 
     try:
         hr_user = getattr(request, 'current_user', None)
@@ -1875,7 +1881,8 @@ def generate_offer_letter(request):
         hydrate_company_files(settings)
         buf = generate_offer_letter_pdf(
             emp, hr_user, settings, role_key,
-            role_title=role_title, full_body_text=full_letter_text
+            role_title=role_title, full_body_text=full_letter_text,
+            offer_type=resolved_offer_type
         )
     except Exception as e:
         return HttpResponse(f'PDF generation failed: {e}', status=500)
@@ -1883,6 +1890,8 @@ def generate_offer_letter(request):
     emp.offer_sent = True
     if role_title:
         emp.designation = role_title
+    if resolved_offer_type:
+        emp.emp_type = resolved_offer_type
     emp.save()
     safe_name = emp.name.replace(' ', '_')
     safe_role = (role_title or role_key).replace(' ', '_').replace('–', '-')[:30]
@@ -1904,6 +1913,7 @@ def experience_letter(request, emp_id=None):
 
     gender = getattr(employee, 'gender', 'female') or 'female'
     salutation_prefix = "Mr." if str(gender).strip().lower() in ['male', 'm'] else "Ms."
+    exp_type = request.POST.get('exp_type') or request.GET.get('exp_type') or request.POST.get('emp_type') or request.GET.get('emp_type') or getattr(employee, 'emp_type', 'Intern')
 
     try:
         hr_user = getattr(request, 'current_user', None)
@@ -1913,7 +1923,7 @@ def experience_letter(request, emp_id=None):
             hydrate_hr_signature(hr_user)
         hydrate_company_files(settings)
         custom_body_text = request.POST.get('full_text') or request.GET.get('full_text')
-        buf = generate_experience_letter_pdf(employee, settings, prefix=salutation_prefix, custom_body_text=custom_body_text)
+        buf = generate_experience_letter_pdf(employee, settings, prefix=salutation_prefix, custom_body_text=custom_body_text, exp_type=exp_type)
     except Exception as e:
         return HttpResponse(f'PDF generation failed: {e}', status=500)
 
@@ -1953,18 +1963,29 @@ def send_email_route(request):
     try:
         attachments = []
         role_key = data.get('role') or data.get('role_key', '')
-        draft_data = _get_offer_draft_data(emp, role_key) if role_key else {}
+        offer_type = data.get('offer_type') or data.get('emp_type') or getattr(emp, 'emp_type', 'Intern') or 'Intern'
+        draft_data = _get_offer_draft_data(emp, role_key, offer_type=offer_type) if role_key else {}
         role_title = data.get('role_title') or draft_data.get('role_title') or role_key or 'Intern'
         full_letter_text = data.get('full_text') or data.get('full_letter_text') or draft_data.get('full_letter_text') or ''
         email_body_text = data.get('email_body') or data.get('email_body_text') or draft_data.get('email_body_text') or ''
         role_display = role_title.replace(' Intern', '').replace('Intern – ', '').strip()
 
         if role_key:
-            _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text)
+            _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text, offer_type=offer_type)
 
-        subject = f"{emp.name} | Internship Offer Letter – {role_display} | TimeArrow Pvt. Ltd (WisBees)"
+        type_norm = str(offer_type).strip().lower()
+        if 'trainee' in type_norm:
+            subject_prefix = "Trainee Offer Letter"
+        elif 'full' in type_norm or type_norm in ('normal', 'employee'):
+            subject_prefix = "Employment Offer Letter"
+        else:
+            subject_prefix = "Internship Offer Letter"
+
+        clean_role_display = (role_title or '').replace(' Intern', '').replace('Intern – ', '').replace(' Trainee', '').replace('Trainee – ', '').strip()
+        subject = f"{emp.name} | {subject_prefix} – {clean_role_display or role_display or 'Role'} | TimeArrow Pvt. Ltd (WisBees)"
+
         if not email_body_text:
-            email_body_text = _default_email_body_text(emp, role_key, role_title)
+            email_body_text = _default_email_body_text(emp, role_key, role_title, offer_type=offer_type)
 
         body_paragraphs = ''.join(
             f"<p>{p.strip()}</p>\n" for p in email_body_text.split('\n\n') if p.strip()
@@ -2003,6 +2024,7 @@ def send_email_route(request):
                         role_key,
                         role_title=role_title,
                         full_body_text=full_letter_text,
+                        offer_type=offer_type,
                     )
                     safe_name = emp.name.replace(' ', '_')
                     pdf_bytes = pdf_buf.getvalue()
@@ -2015,22 +2037,35 @@ def send_email_route(request):
                 except Exception as e:
                     print(f"DEBUG: Offer letter error = {e}")
 
-        if email_type in ['nda', 'both']:
+        # Non-Disclosure Agreement (NDA) Attachment — always included with offer letter
+        attach_nda = (email_type in ['nda', 'both']) or (email_type == 'offer' and str(data.get('include_nda', 'true')).lower() in ('true', '1', 'yes', 'on'))
+        if attach_nda:
             nda_bytes = None
             if settings and getattr(settings, 'nda_data', None):
                 nda_bytes = bytes(settings.nda_data)
             elif settings and settings.nda_path and os.path.exists(settings.nda_path):
                 with open(settings.nda_path, 'rb') as f:
                     nda_bytes = f.read()
+
+            if not nda_bytes:
+                try:
+                    hydrate_company_files(settings)
+                    nda_buf = generate_nda_pdf(emp, settings)
+                    nda_bytes = nda_buf.getvalue()
+                except Exception as e:
+                    print(f"DEBUG: Dynamic NDA generation error = {e}")
+
             if nda_bytes:
                 try:
+                    safe_emp_name = emp.name.replace(' ', '_')
                     attachments.append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
-                        "name": f"NDA_{emp.name.replace(' ', '_')}.pdf",
+                        "name": f"NDA_{safe_emp_name}.pdf",
                         "contentBytes": base64.b64encode(nda_bytes).decode('utf-8')
                     })
+                    emp.nda_sent = True
                 except Exception as e:
-                    print(f"DEBUG: NDA error = {e}")
+                    print(f"DEBUG: NDA attachment error = {e}")
 
         cc_recipients = []
         raw_cc_input = data.get('cc_emails', '')
@@ -2064,12 +2099,14 @@ def send_email_route(request):
             emp.offer_sent = True
             if role_title:
                 emp.designation = role_title
-        if email_type in ['nda', 'both']:
+        if attach_nda:
             emp.nda_sent = True
+        if offer_type:
+            emp.emp_type = offer_type
         emp.save()
         invalidate_employees_cache()
 
-        return JsonResponse({'success': True, 'message': f'Email sent to {emp.email}'})
+        return JsonResponse({'success': True, 'message': f'Offer letter & NDA emailed successfully to {emp.email}'})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
 
@@ -2100,9 +2137,10 @@ def send_experience_letter_email(request):
         gender = getattr(emp, 'gender', 'female') or 'female'
         salutation_prefix = "Mr." if str(gender).strip().lower() in ['male', 'm'] else "Ms."
 
+        exp_type = data.get('exp_type') or data.get('emp_type') or getattr(emp, 'emp_type', 'Intern')
         hydrate_company_files(settings)
         custom_body_text = data.get('full_text') or data.get('letter_content')
-        pdf_buf = generate_experience_letter_pdf(emp, settings, prefix=salutation_prefix, custom_body_text=custom_body_text)
+        pdf_buf = generate_experience_letter_pdf(emp, settings, prefix=salutation_prefix, custom_body_text=custom_body_text, exp_type=exp_type)
         pdf_bytes = pdf_buf.getvalue()
 
         safe_name = emp.name.replace(' ', '_')
@@ -2112,7 +2150,15 @@ def send_experience_letter_email(request):
             "contentBytes": base64.b64encode(pdf_bytes).decode('utf-8')
         }]
 
-        subject = f"{emp.name} | Experience Letter | TimeArrow Pvt. Ltd (WisBees)"
+        type_norm = str(exp_type).strip().lower()
+        if 'trainee' in type_norm:
+            subject_type = "Trainee Experience Certificate"
+        elif 'intern' in type_norm:
+            subject_type = "Internship Experience Certificate"
+        else:
+            subject_type = "Experience Certificate"
+
+        subject = f"{emp.name} | {subject_type} | TimeArrow Pvt. Ltd (WisBees)"
         sender_name = getattr(request.current_user, 'name', 'HR Manager')
 
         custom_email_body = (data.get('email_body') or data.get('email_body_text') or '').strip()

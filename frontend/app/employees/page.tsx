@@ -26,12 +26,14 @@ export default function EmployeesPage() {
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [allRoles, setAllRoles] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState('');
+  const [offerType, setOfferType] = useState<'Intern' | 'Trainee' | 'Full-time'>('Intern');
   const [offerRoleTitle, setOfferRoleTitle] = useState('');
   const [offerFullText, setOfferFullText] = useState('');
   const [offerEmailBody, setOfferEmailBody] = useState('');
 
   // Experience Letter Modal State
   const [showExpModal, setShowExpModal] = useState(false);
+  const [expType, setExpType] = useState<'Intern' | 'Trainee' | 'Full-time'>('Intern');
   const [expEmailBody, setExpEmailBody] = useState('');
   const [expLetterContent, setExpLetterContent] = useState('');
 
@@ -169,6 +171,9 @@ export default function EmployeesPage() {
     setExtraCcInput('');
     setShowOfferModal(true);
 
+    const initialEmpType = (emp.emp_type === 'Trainee' ? 'Trainee' : (emp.emp_type === 'Full-time' || emp.emp_type === 'Normal' ? 'Full-time' : 'Intern')) as 'Intern' | 'Trainee' | 'Full-time';
+    setOfferType(initialEmpType);
+
     try {
       const res = await api.get('/offer-letter/roles');
       const roleList: string[] = res.data?.roles || [];
@@ -194,29 +199,34 @@ export default function EmployeesPage() {
       setOfferRoleTitle(emp.designation || (initialRole !== '__other__' ? initialRole : 'Intern'));
 
       // Fetch draft data for this employee
-      const draftRes = await api.get(`/offer-letter/draft?emp_id=${emp.id}&role=${encodeURIComponent(initialRole || '')}`);
+      const draftRes = await api.get(`/offer-letter/draft?emp_id=${emp.id}&role=${encodeURIComponent(initialRole || '')}&offer_type=${encodeURIComponent(initialEmpType)}`);
       if (draftRes.data) {
         const resolvedRole = (roleList.includes(draftRes.data.role_key) || draftRes.data.role_key === '__other__')
           ? draftRes.data.role_key
           : initialRole;
         setSelectedRole(resolvedRole);
+        if (draftRes.data.offer_type) {
+          const dt = draftRes.data.offer_type;
+          setOfferType(dt === 'Trainee' ? 'Trainee' : (dt === 'Full-time' || dt === 'Normal' ? 'Full-time' : 'Intern'));
+        }
         setOfferRoleTitle(draftRes.data.role_title || emp.designation || resolvedRole);
         setOfferFullText(draftRes.data.full_text || draftRes.data.full_letter_text || '');
         setOfferEmailBody(draftRes.data.email_body || draftRes.data.email_body_text || '');
       } else {
-        await handleRoleSelect(initialRole, emp);
+        await handleRoleSelect(initialRole, emp, initialEmpType);
       }
     } catch (e) {
       console.error('Failed to fetch offer roles/draft:', e);
     }
   };
 
-  const handleRoleSelect = async (role: string, overrideEmp?: any) => {
+  const handleRoleSelect = async (role: string, overrideEmp?: any, overrideType?: string) => {
     setSelectedRole(role);
     if (!role) return;
     const targetEmp = overrideEmp || selectedEmp;
+    const currentType = overrideType || offerType;
     try {
-      const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(role)}&emp_id=${targetEmp?.id || ''}`);
+      const res = await api.get(`/offer-letter/draft?role=${encodeURIComponent(role)}&emp_id=${targetEmp?.id || ''}&offer_type=${encodeURIComponent(currentType)}`);
       if (res.data) {
         setOfferRoleTitle(res.data.role_title || (role !== '__other__' ? role : (targetEmp?.designation || 'Intern')));
         setOfferFullText(res.data.full_text || res.data.full_letter_text || '');
@@ -227,6 +237,40 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleOfferTypeChange = async (newType: 'Intern' | 'Trainee' | 'Full-time') => {
+    setOfferType(newType);
+    if (!selectedEmp) return;
+
+    let updatedTitle = offerRoleTitle;
+    const cleanRole = (offerRoleTitle || selectedRole || '')
+      .replace(/ Intern/gi, '')
+      .replace(/Intern – /gi, '')
+      .replace(/ Trainee/gi, '')
+      .replace(/Trainee – /gi, '')
+      .trim();
+
+    if (newType === 'Trainee') {
+      updatedTitle = cleanRole ? `${cleanRole} Trainee` : 'Trainee';
+    } else if (newType === 'Full-time') {
+      updatedTitle = cleanRole || 'Full-time Employee';
+    } else {
+      updatedTitle = cleanRole ? `${cleanRole} Intern` : 'Intern';
+    }
+    setOfferRoleTitle(updatedTitle);
+
+    try {
+      const res = await api.get(
+        `/offer-letter/draft?role=${encodeURIComponent(selectedRole)}&emp_id=${selectedEmp.id}&offer_type=${encodeURIComponent(newType)}&role_title=${encodeURIComponent(updatedTitle)}`
+      );
+      if (res.data) {
+        setOfferFullText(res.data.full_text || res.data.full_letter_text || '');
+        setOfferEmailBody(res.data.email_body || res.data.email_body_text || '');
+      }
+    } catch (e) {
+      console.error('Failed to reload draft for offer type:', e);
+    }
+  };
+
   const saveOfferDraft = async () => {
     if (!selectedEmp || !selectedRole) return;
     try {
@@ -234,6 +278,7 @@ export default function EmployeesPage() {
         emp_id: selectedEmp.id,
         role: selectedRole,
         role_title: offerRoleTitle,
+        offer_type: offerType,
         full_text: offerFullText,
         email_body: offerEmailBody,
       });
@@ -242,6 +287,7 @@ export default function EmployeesPage() {
         if (e.id === selectedEmp.id) {
           return {
             ...e,
+            emp_type: offerType,
             designation: offerRoleTitle || selectedRole || e.designation,
             offer_role: selectedRole,
             offer_role_title: offerRoleTitle || selectedRole,
@@ -259,20 +305,23 @@ export default function EmployeesPage() {
     if (!selectedEmp) return;
     const roleParam = selectedRole ? `&role_key=${encodeURIComponent(selectedRole)}` : '';
     const titleParam = offerRoleTitle ? `&role_title=${encodeURIComponent(offerRoleTitle)}` : '';
-    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}&preview=1${roleParam}${titleParam}`), '_blank');
+    const typeParam = `&offer_type=${encodeURIComponent(offerType)}`;
+    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}&preview=1${roleParam}${titleParam}${typeParam}`), '_blank');
   };
 
   const downloadOffer = () => {
     if (!selectedEmp) return;
     const roleParam = selectedRole ? `&role_key=${encodeURIComponent(selectedRole)}` : '';
     const titleParam = offerRoleTitle ? `&role_title=${encodeURIComponent(offerRoleTitle)}` : '';
-    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}${roleParam}${titleParam}`), '_blank');
+    const typeParam = `&offer_type=${encodeURIComponent(offerType)}`;
+    window.open(getApiUrl(`/generate-offer-letter?emp_id=${selectedEmp.id}${roleParam}${titleParam}${typeParam}`), '_blank');
 
     setEmployees((prev) => prev.map((e) => {
       if (e.id === selectedEmp.id) {
         return {
           ...e,
           offer_sent: true,
+          emp_type: offerType,
           designation: offerRoleTitle || selectedRole || e.designation,
           offer_role: selectedRole,
           offer_role_title: offerRoleTitle || selectedRole,
@@ -282,12 +331,8 @@ export default function EmployeesPage() {
     }));
   };
 
-  const openExpModal = (emp: any) => {
-    setSelectedEmp(emp);
-    setCcJd(false);
-    setCcGouri(false);
-    setCcCto(false);
-    setExtraCcInput('');
+  const buildExpContent = (emp: any, type: string) => {
+    if (!emp) return '';
     const isMale = (emp.gender || '').toLowerCase() === 'male';
     const prefix = isMale ? 'Mr.' : 'Ms.';
     const pPoss = isMale ? 'his' : 'her';
@@ -295,14 +340,43 @@ export default function EmployeesPage() {
     const pObj = isMale ? 'him' : 'her';
     const pSubCap = isMale ? 'He' : 'She';
     const pPossCap = isMale ? 'His' : 'Her';
-    const isIntern = (emp.emp_type || 'Intern') === 'Intern';
     const joinDate = formatDate(emp.joining_date) || '___________';
     const endDate = emp.end_date ? formatDate(emp.end_date) : 'Present';
 
-    const defaultExpLetter = `This is to certify that ${prefix} ${emp.name} has successfully completed ${pPoss} ${isIntern ? 'internship' : 'tenure'} with TimeArrow Pvt. Ltd. (WisBees) as an ${emp.designation || 'Intern'} from ${joinDate} to ${endDate}.\n\nDuring ${pPoss} ${isIntern ? 'internship' : 'tenure'}, ${pSub} was actively involved in:\n- Developing and integrating features, dashboards, and automated tools\n- Analyzing performance metrics and operational workflows\n- Preparing research summaries, technical documentation, and quality reports\n- Collaborating with cross-functional mentors and delivering high-quality deliverables\n\n${pSubCap} demonstrated strong analytical ability, research discipline, and attention to detail. ${pPossCap} work reflected professionalism, initiative, and commitment.\n\nWe appreciate ${pPoss} contributions and wish ${pObj} success in ${pPoss} future endeavours.`;
-    setExpLetterContent(defaultExpLetter);
+    let tenurePhrase = `${pPoss} internship`;
+    let rolePhrase = `an ${emp.designation || 'Intern'}`;
+    if (type === 'Trainee') {
+      tenurePhrase = `${pPoss} training period`;
+      rolePhrase = `a Trainee (${emp.designation || 'Trainee'})`;
+    } else if (type === 'Full-time') {
+      tenurePhrase = `${pPoss} employment tenure`;
+      rolePhrase = `a ${emp.designation || 'Full-time Employee'}`;
+    }
 
-    setExpEmailBody(`Please find attached your Experience Letter from TimeArrow Pvt. Ltd. (WisBees).\n\nShould you have any questions or require any clarification, please feel free to reach out.\n\nWe wish you the very best in your future endeavours.`);
+    return `This is to certify that ${prefix} ${emp.name} has successfully completed ${tenurePhrase} with TimeArrow Pvt. Ltd. (WisBees) as ${rolePhrase} from ${joinDate} to ${endDate}.\n\nDuring ${tenurePhrase}, ${pSub} was actively involved in:\n- Developing and integrating features, dashboards, and automated tools\n- Analyzing performance metrics and operational workflows\n- Preparing research summaries, technical documentation, and quality reports\n- Collaborating with cross-functional mentors and delivering high-quality deliverables\n\n${pSubCap} demonstrated strong analytical ability, research discipline, and attention to detail. ${pPossCap} work reflected professionalism, initiative, and commitment.\n\nWe appreciate ${pPoss} contributions and wish ${pObj} success in ${pPoss} future endeavours.`;
+  };
+
+  const handleExpTypeChange = (newType: 'Intern' | 'Trainee' | 'Full-time') => {
+    setExpType(newType);
+    if (selectedEmp) {
+      setExpLetterContent(buildExpContent(selectedEmp, newType));
+      const label = newType === 'Trainee' ? 'Trainee Experience Certificate' : (newType === 'Full-time' ? 'Service / Experience Certificate' : 'Internship Experience Letter');
+      setExpEmailBody(`Please find attached your ${label} from TimeArrow Pvt. Ltd. (WisBees).\n\nShould you have any questions or require any clarification, please feel free to reach out.\n\nWe wish you the very best in your future endeavours.`);
+    }
+  };
+
+  const openExpModal = (emp: any) => {
+    setSelectedEmp(emp);
+    setCcJd(false);
+    setCcGouri(false);
+    setCcCto(false);
+    setExtraCcInput('');
+    const rawType = emp.emp_type || 'Intern';
+    const initialType: 'Intern' | 'Trainee' | 'Full-time' = rawType === 'Trainee' ? 'Trainee' : (rawType === 'Full-time' || rawType === 'Normal' ? 'Full-time' : 'Intern');
+    setExpType(initialType);
+    setExpLetterContent(buildExpContent(emp, initialType));
+    const label = initialType === 'Trainee' ? 'Trainee Experience Certificate' : (initialType === 'Full-time' ? 'Service / Experience Certificate' : 'Internship Experience Letter');
+    setExpEmailBody(`Please find attached your ${label} from TimeArrow Pvt. Ltd. (WisBees).\n\nShould you have any questions or require any clarification, please feel free to reach out.\n\nWe wish you the very best in your future endeavours.`);
     setShowExpModal(true);
   };
 
@@ -317,6 +391,11 @@ export default function EmployeesPage() {
     input.name = 'full_text';
     input.value = expLetterContent;
     form.appendChild(input);
+    const expTypeInput = document.createElement('input');
+    expTypeInput.type = 'hidden';
+    expTypeInput.name = 'exp_type';
+    expTypeInput.value = expType;
+    form.appendChild(expTypeInput);
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);
@@ -333,6 +412,11 @@ export default function EmployeesPage() {
     input.name = 'full_text';
     input.value = expLetterContent;
     form.appendChild(input);
+    const expTypeInput = document.createElement('input');
+    expTypeInput.type = 'hidden';
+    expTypeInput.name = 'exp_type';
+    expTypeInput.value = expType;
+    form.appendChild(expTypeInput);
     document.body.appendChild(form);
     form.submit();
     document.body.removeChild(form);
@@ -366,18 +450,23 @@ export default function EmployeesPage() {
           emp_id: selectedEmp.id,
           role: selectedRole,
           role_title: offerRoleTitle,
+          offer_type: offerType,
           full_text: offerFullText,
           email_body: offerEmailBody,
           cc_emails: cc_emails,
+          type: 'both',
+          include_nda: true,
         });
         if (res.data?.success) {
-          alert(res.data.message || `Offer letter email sent successfully to ${selectedEmp.email}!`);
+          alert(res.data.message || `Offer letter and NDA email sent successfully to ${selectedEmp.email}!`);
           setShowOfferModal(false);
           setEmployees((prev) => prev.map((e) => {
             if (e.id === selectedEmp.id) {
               return {
                 ...e,
                 offer_sent: true,
+                nda_sent: true,
+                emp_type: offerType,
                 designation: offerRoleTitle || selectedRole || e.designation,
                 offer_role: selectedRole,
                 offer_role_title: offerRoleTitle || selectedRole,
@@ -395,6 +484,7 @@ export default function EmployeesPage() {
           cc_emails: cc_emails,
           email_body: expEmailBody,
           full_text: expLetterContent,
+          exp_type: expType,
         });
         if (res.data?.success) {
           alert(res.data.message || `Experience letter email sent successfully to ${selectedEmp.email}!`);
@@ -922,6 +1012,39 @@ export default function EmployeesPage() {
                 </div>
               )}
 
+              <div className="form-group" style={{ marginBottom: '14px' }}>
+                <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fas fa-briefcase text-accent"></i> Appointment / Offer Type
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {(['Intern', 'Trainee', 'Full-time'] as const).map((t) => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => handleOfferTypeChange(t)}
+                      style={{
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: offerType === t ? '2px solid var(--accent)' : '1px solid var(--border)',
+                        background: offerType === t ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg2)',
+                        color: offerType === t ? 'var(--accent)' : 'var(--text)',
+                        fontWeight: offerType === t ? 700 : 500,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        fontSize: '0.86rem',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <i className={`fas ${t === 'Intern' ? 'fa-graduation-cap' : t === 'Trainee' ? 'fa-user-clock' : 'fa-user-check'}`}></i>
+                      <span>{t === 'Full-time' ? 'Full-Time' : t}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="form-group">
                 <label className="form-label">Select Role</label>
                 <select 
@@ -1047,6 +1170,24 @@ export default function EmployeesPage() {
                 </small>
               </div>
 
+              <div style={{
+                background: 'rgba(16, 185, 129, 0.08)',
+                border: '1px solid rgba(16, 185, 129, 0.25)',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                marginBottom: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                fontSize: '0.82rem',
+                color: 'var(--text)'
+              }}>
+                <i className="fas fa-file-shield" style={{ color: 'var(--green, #10b981)', fontSize: '1.1rem' }}></i>
+                <div>
+                  <strong>Mandatory Dual Attachments:</strong> When sending, both the <strong>{offerType} Offer Letter PDF</strong> and the official <strong>Non-Disclosure Agreement (NDA) PDF</strong> are automatically attached and delivered together.
+                </div>
+              </div>
+
               <div className="modal-actions">
                 <button 
                   className="btn btn-secondary" 
@@ -1094,6 +1235,39 @@ export default function EmployeesPage() {
                 <p><b>Type:</b> <span id="expType">{selectedEmp?.emp_type || 'Normal'}</span></p>
                 <p><b>Joining:</b> <span id="expJoining">{formatDate(selectedEmp?.joining_date)}</span></p>
                 <p><b>End:</b> <span id="expEnd">{selectedEmp?.end_date ? formatDate(selectedEmp.end_date) : 'Present'}</span></p>
+
+                <div className="form-group" style={{ marginTop: '14px', marginBottom: '14px', textAlign: 'left' }}>
+                  <label className="form-label" style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <i className="fas fa-certificate text-accent"></i> Certificate Tenure Type
+                  </label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    {(['Intern', 'Trainee', 'Full-time'] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => handleExpTypeChange(t)}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: '8px',
+                          border: expType === t ? '2px solid var(--accent)' : '1px solid var(--border)',
+                          background: expType === t ? 'rgba(99, 102, 241, 0.15)' : 'var(--bg2)',
+                          color: expType === t ? 'var(--accent)' : 'var(--text)',
+                          fontWeight: expType === t ? 700 : 500,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          fontSize: '0.82rem',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <i className={`fas ${t === 'Intern' ? 'fa-graduation-cap' : t === 'Trainee' ? 'fa-user-clock' : 'fa-user-check'}`}></i>
+                        <span>{t === 'Full-time' ? 'Full-Time' : t}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <div className="form-group" style={{ marginTop: '16px', textAlign: 'left' }}>
                   <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block' }}>

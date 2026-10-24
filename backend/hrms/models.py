@@ -192,6 +192,7 @@ class OfferLetterDraft(models.Model):
     employee = models.OneToOneField(Employee, on_delete=models.CASCADE, db_column='employee_id', related_name='offer_draft')
     role_key = models.CharField(max_length=120, null=True, blank=True)
     role_title = models.CharField(max_length=200, null=True, blank=True)
+    offer_type = models.CharField(max_length=20, default='Intern', null=True, blank=True)
     full_letter_text = models.TextField(null=True, blank=True)
     email_body_text = models.TextField(null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)

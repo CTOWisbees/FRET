@@ -270,9 +270,10 @@ def _draw_letterhead(c, letterhead_path=None):
 
 # ── Main generator ────────────────────────────────────────────────────────────
 def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
-                               full_body_text=None):
+                              full_body_text=None, offer_type=None):
     """
     Returns a BytesIO buffer containing the offer letter PDF.
+    Dynamically renders title and terms according to offer_type ('Intern', 'Trainee', 'Full-time').
     """
     buf = io.BytesIO()
 
@@ -280,6 +281,16 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     company_name    = getattr(settings, 'company_name',    'TimeArrow Pvt. Ltd. (WisBees)') or 'TimeArrow Pvt. Ltd. (WisBees)'
 
     today_str = date.today().strftime('%d-%b-%Y')
+
+    # Resolve offer type
+    if not offer_type:
+        emp_t = str(getattr(emp, 'emp_type', '') or '').strip().lower()
+        if 'trainee' in emp_t or (role_title and 'trainee' in str(role_title).lower()):
+            offer_type = 'Trainee'
+        elif 'full' in emp_t or emp_t in ('normal', 'employee') or (role_title and ('full-time' in str(role_title).lower() or 'regular' in str(role_title).lower())):
+            offer_type = 'Full-time'
+        else:
+            offer_type = 'Intern'
 
     # Ensure valid role key and title
     if not role_key or role_key == '__other__':
@@ -290,7 +301,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     # Fallback to default letter body if empty
     if not full_body_text or not full_body_text.strip():
         from hrms.utils import _default_full_letter_text
-        full_body_text = _default_full_letter_text(emp, role_key, display_title)
+        full_body_text = _default_full_letter_text(emp, role_key, display_title, offer_type=offer_type)
 
     # ── Document setup ────────────────────────────────────────────────────────
     doc = SimpleDocTemplate(
@@ -319,16 +330,22 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     sty_signb   = PS('SignB',   fontSize=10, textColor=BLACK, spaceAfter=1,
                      fontName='Helvetica-Bold', leading=14)
 
-
     story = []
 
-    # ── INTERNSHIP OFFER LETTER heading ───────────────────────────────────────
+    # ── Dynamic Heading according to Offer Type ──────────────────────────────
     # Date
     story.append(Paragraph(f"Date: {today_str}", sty_date))
     story.append(Spacer(1, 0.15*cm))
 
-    # Title
-    story.append(Paragraph("INTERNSHIP OFFER LETTER", sty_title))
+    type_norm = str(offer_type or 'Intern').strip().lower()
+    if 'trainee' in type_norm:
+        title_heading = "TRAINEE OFFER LETTER"
+    elif 'full' in type_norm or type_norm in ('normal', 'employee'):
+        title_heading = "EMPLOYMENT OFFER LETTER"
+    else:
+        title_heading = "INTERNSHIP OFFER LETTER"
+
+    story.append(Paragraph(title_heading, sty_title))
     story.append(Spacer(1, 0.20*cm))
 
     # ── Salutation ────────────────────────────────────────────────────────────
@@ -345,7 +362,7 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
                     f"•&nbsp;&nbsp;&nbsp;&nbsp; {xml_escape(content)}",
                     sty_bullet
                 ))
-            elif line.startswith('Key Roles') or line.startswith('During your internship') or line.startswith('Upon successful'):
+            elif line.startswith(('Key Roles', 'During your', 'Upon successful', 'In this position', 'This offer')):
                 story.append(Paragraph(f"<b>{xml_escape(line)}</b>", sty_body))
             else:
                 story.append(Paragraph(xml_escape(line), sty_body))
@@ -389,9 +406,9 @@ def generate_offer_letter_pdf(emp, hr_user, settings, role_key, role_title=None,
     buf.seek(0)
     return buf
 
-def generate_experience_letter_pdf(emp, settings, prefix="Ms.", custom_body_text=None):
+def generate_experience_letter_pdf(emp, settings, prefix="Ms.", custom_body_text=None, exp_type=None):
     """
-    Generate Experience Certificate / Internship Experience Certificate.
+    Generate Experience Certificate / Internship Experience Certificate / Trainee Experience Certificate.
     Matches the clean layout, font sizes, colors, and bullet points of the provided image.
     
     Dynamically maps pronouns and loads specific bullet responsibilities using emp.designation 
@@ -502,8 +519,16 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms.", custom_body_text
     story = []
 
     # 1. Document Title
-    is_intern = (getattr(emp, 'emp_type', 'Intern') == "Intern")
-    title_text = "INTERNSHIP EXPERIENCE CERTIFICATE" if is_intern else "EXPERIENCE CERTIFICATE"
+    norm_type = str(exp_type or getattr(emp, 'emp_type', 'Intern') or 'Intern').strip().lower()
+    is_trainee = ('trainee' in norm_type)
+    is_intern = ('intern' in norm_type)
+
+    if is_trainee:
+        title_text = "TRAINEE EXPERIENCE CERTIFICATE"
+    elif is_intern:
+        title_text = "INTERNSHIP EXPERIENCE CERTIFICATE"
+    else:
+        title_text = "EXPERIENCE CERTIFICATE"
     story.append(Paragraph(title_text, sty_title))
     story.append(Spacer(1, 0.4 * cm))
 
@@ -528,16 +553,43 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms.", custom_body_text
         end = emp.end_date.strftime("%d %B %Y") if emp.end_date else "Present"
 
         # Opening Certification Line
-        opening_text = (
-            f"This is to certify that <b>{prefix} {emp.name}</b> has successfully "
-            f"completed {p_poss} internship with <b>{company_name}</b> as "
-            f"an <b>{emp.designation}</b> from {join} to {end}."
-        )
-        story.append(Paragraph(opening_text, sty_body))
+        if is_trainee:
+            opening_text = (
+                f"This is to certify that <b>{prefix} {emp.name}</b> has successfully "
+                f"completed {p_poss} training period with <b>{company_name}</b> as "
+                f"an <b>{emp.designation}</b> from {join} to {end}."
+            )
+            duty_intro = f"During {p_poss} training period, {p_sub} was actively involved in:"
+            assessment_text = (
+                f"{p_sub_cap} demonstrated dedication, strong analytical capabilities, and rapid professional growth during {p_poss} training. "
+                f"{p_poss_cap} work reflected professionalism, diligence, and commitment towards organizational goals."
+            )
+        elif is_intern:
+            opening_text = (
+                f"This is to certify that <b>{prefix} {emp.name}</b> has successfully "
+                f"completed {p_poss} internship with <b>{company_name}</b> as "
+                f"an <b>{emp.designation}</b> from {join} to {end}."
+            )
+            duty_intro = f"During {p_poss} internship, {p_sub} was actively involved in:"
+            assessment_text = (
+                f"{p_sub_cap} demonstrated strong analytical ability, research discipline, and attention to detail. "
+                f"{p_poss_cap} work reflected professionalism, initiative, and a keen interest in related financial or operational domains."
+            )
+        else:
+            opening_text = (
+                f"This is to certify that <b>{prefix} {emp.name}</b> was employed with "
+                f"<b>{company_name}</b> as an <b>{emp.designation}</b> from {join} to {end}."
+            )
+            duty_intro = f"During {p_poss} tenure, {p_sub} was actively involved in:"
+            assessment_text = (
+                f"During the tenure, <b>{emp.name}</b> carried out {p_poss} assigned duties with dedication, "
+                f"sincerity and professionalism. {p_sub_cap} consistently demonstrated excellent work ethics, "
+                f"teamwork, and commitment towards organizational goals."
+            )
 
-        # Dynamic Responsibilities and Bullet Points Processing
-        story.append(Paragraph(f"During {p_poss} internship, {p_sub} was actively involved in:", sty_body))
-        
+        story.append(Paragraph(opening_text, sty_body))
+        story.append(Paragraph(duty_intro, sty_body))
+
         emp_role_key = str(emp.designation).strip()
         role_info = ROLE_DATA.get(emp_role_key)
         
@@ -561,19 +613,6 @@ def generate_experience_letter_pdf(emp, settings, prefix="Ms.", custom_body_text
             story.append(Paragraph(f"•&nbsp;&nbsp; {resp}", sty_bullet))
         
         story.append(Spacer(1, 0.2 * cm))
-
-        # Review Assessment Paragraph
-        if is_intern:
-            assessment_text = (
-                f"{p_sub_cap} demonstrated strong analytical ability, research discipline, and attention to detail. "
-                f"{p_poss_cap} work reflected professionalism, initiative, and a keen interest in related financial or operational domains."
-            )
-        else:
-            assessment_text = (
-                f"During the tenure, <b>{emp.name}</b> carried out {p_poss} assigned duties with dedication, "
-                f"sincerity and professionalism. {p_sub_cap} consistently demonstrated excellent work ethics, "
-                f"teamwork, and commitment towards organizational goals."
-            )
         story.append(Paragraph(assessment_text, sty_body))
 
         closing_text = f"We appreciate {p_poss} contributions and wish {p_obj} success in {p_poss} future endeavours."
@@ -752,3 +791,135 @@ def generate_leave_approval_pdf(leave_request, settings=None, hr_user=None):
 
     buf.seek(0)
     return buf
+
+
+def generate_nda_pdf(emp, settings):
+    """
+    Generate professional Non-Disclosure & Confidentiality Agreement PDF
+    on official company letterhead.
+    """
+    import io
+    from datetime import date
+    from xml.sax.saxutils import escape as xml_escape
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY, TA_LEFT, TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.colors import HexColor
+
+    buf = io.BytesIO()
+    letterhead_path = getattr(settings, 'letterhead_path', None)
+    company_name = getattr(settings, 'company_name', 'TimeArrow Pvt. Ltd. (WisBees)') or 'TimeArrow Pvt. Ltd. (WisBees)'
+    company_addr = getattr(settings, 'company_address', 'Mumbai, Maharashtra, India') or 'Mumbai, Maharashtra, India'
+    today_str = date.today().strftime('%d-%b-%Y')
+
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=A4,
+        topMargin=MAR_TOP,
+        bottomMargin=MAR_BOTTOM,
+        leftMargin=MAR_LEFT,
+        rightMargin=MAR_RIGHT,
+    )
+
+    def PS(name, **kw):
+        return ParagraphStyle(name, **kw)
+
+    COLOR_DARK = HexColor('#1A202C')
+    COLOR_PRIMARY = HexColor('#004D40')
+
+    sty_title = PS('NDATitle', fontName='Helvetica-Bold', fontSize=13,
+                   textColor=HexColor('#000000'), alignment=TA_CENTER, spaceAfter=4, leading=16)
+    sty_sub = PS('NDASub', fontName='Helvetica-Oblique', fontSize=9,
+                 textColor=HexColor('#555555'), alignment=TA_CENTER, spaceAfter=12, leading=12)
+    sty_date = PS('NDADate', fontName='Helvetica', fontSize=9,
+                  alignment=TA_RIGHT, textColor=COLOR_DARK, spaceAfter=8, leading=12)
+    sty_body = PS('NDABody', fontName='Helvetica', fontSize=9,
+                  textColor=COLOR_DARK, spaceAfter=5, alignment=TA_JUSTIFY, leading=13)
+    sty_heading = PS('NDAHead', fontName='Helvetica-Bold', fontSize=9.5,
+                     textColor=COLOR_PRIMARY, spaceBefore=6, spaceAfter=3, leading=13)
+    sty_bullet = PS('NDABullet', fontName='Helvetica', fontSize=9,
+                    textColor=COLOR_DARK, spaceAfter=3, leftIndent=14, leading=13)
+
+    story = []
+    story.append(Paragraph(f"Date of Issuance: <b>{today_str}</b>", sty_date))
+    story.append(Paragraph("NON-DISCLOSURE & PROPRIETARY INFORMATION AGREEMENT", sty_title))
+    story.append(Paragraph("(Confidentiality, Intellectual Property, and Non-Circumvention Undertaking)", sty_sub))
+
+    emp_name = xml_escape(getattr(emp, 'name', 'Recipient'))
+    desig = xml_escape(getattr(emp, 'designation', '') or 'Employee / Trainee / Intern')
+
+    preamble = (
+        f"This Non-Disclosure Agreement (the <b>\"Agreement\"</b>) is entered into as of <b>{today_str}</b>, "
+        f"by and between <b>{xml_escape(company_name)}</b>, having its principal address at {xml_escape(company_addr)} "
+        f"(hereinafter referred to as the <b>\"Company\"</b>), and <b>{emp_name}</b>, appointed as <b>{desig}</b> "
+        f"(hereinafter referred to as the <b>\"Recipient\"</b>)."
+    )
+    story.append(Paragraph(preamble, sty_body))
+    story.append(Spacer(1, 0.15 * cm))
+
+    sections = [
+        ("1. PURPOSE & SCOPE",
+         "The Recipient has been engaged by the Company and in the course of such engagement will have access to, receive, or generate confidential, proprietary, technical, financial, and trade secret information. The Recipient acknowledges that the Company's competitive standing and market trust rely upon the strictest preservation of confidentiality regarding all proprietary assets."),
+        ("2. DEFINITIONS OF PROPRIETARY INFORMATION",
+         "\"Proprietary Information\" includes, without limitation: (a) Technical data, software architectures, algorithms, internal APIs, system credentials, and codebases; (b) Financial models, investment research, valuations, trade indicators, and analytical spreadsheets; (c) Business methodologies, customer/client records, pricing, operations, and HR databases; and (d) Any material marked confidential or which by its nature ought reasonably to be understood as confidential."),
+        ("3. OBLIGATIONS & DUTY OF CARE",
+         "The Recipient explicitly covenants and agrees:\n"
+         "- To hold all Proprietary Information in strict confidence and exercise at least a reasonable standard of care to safeguard against unauthorized access or theft.\n"
+         "- Not to copy, duplicate, reverse-engineer, disclose, or distribute any Proprietary Information to any third party without express prior written approval from Management.\n"
+         "- Not to transfer, download, or backup company source code, databases, or trade secrets to personal devices, unauthorized cloud drives, or external accounts.\n"
+         "- To promptly notify HR/Management in writing upon learning of any inadvertent or unauthorized exposure."),
+        ("4. INTELLECTUAL PROPERTY & WORK MADE FOR HIRE",
+         "All intellectual property, inventions, improvements, data models, research reports, source code, dashboards, and copyrightable works created or authored by the Recipient during their association with the Company—whether individually or collaboratively—shall constitute \"Work Made for Hire\" and are the sole, exclusive, and unencumbered property of the Company worldwide."),
+        ("5. RETURN OF ASSETS & TERMINATION",
+         "Upon completion or cessation of engagement for any reason, or upon prompt demand by the Company, the Recipient shall immediately surrender and return all company documents, research materials, access tokens, and credentials, and permanently purge any electronic copies retained on local media."),
+        ("6. GOVERNING LAW & LEGAL REMEDIES",
+         "This Agreement shall be governed by and construed in accordance with the laws of India. Any breach or threatened breach hereof may cause irreparable harm for which monetary damages alone would be inadequate; accordingly, the Company shall be entitled to seek injunctive relief, statutory remedies, and damages, in addition to disciplinary action and termination of engagement.")
+    ]
+
+    for head, text in sections:
+        story.append(Paragraph(head, sty_heading))
+        for para in text.split('\n'):
+            para = para.strip()
+            if para.startswith('-'):
+                story.append(Paragraph(f"•&nbsp;&nbsp; {xml_escape(para[1:].strip())}", sty_bullet))
+            elif para:
+                story.append(Paragraph(xml_escape(para), sty_body))
+
+    story.append(Spacer(1, 0.25 * cm))
+    story.append(Paragraph(
+        "<b>IN WITNESS WHEREOF</b>, the parties have executed this Non-Disclosure Agreement as of the date first written above.",
+        sty_body
+    ))
+    story.append(Spacer(1, 0.3 * cm))
+
+    # Signatures Table
+    sig_data = [
+        [
+            Paragraph(f"<b>For {xml_escape(company_name)}</b><br/><br/><br/>___________________________<br/><b>Authorized Signatory</b><br/>HR & Compliance Department", sty_body),
+            Paragraph(f"<b>Acknowledged & Agreed by Recipient:</b><br/><br/><br/>___________________________<br/><b>{emp_name}</b><br/>{desig}<br/>Date: {today_str}", sty_body)
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[BODY_W * 0.5, BODY_W * 0.5])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(sig_table)
+
+    def add_letterhead(canvas, doc):
+        _draw_letterhead(canvas, letterhead_path)
+
+    doc.build(
+        story,
+        onFirstPage=add_letterhead,
+        onLaterPages=add_letterhead
+    )
+
+    buf.seek(0)
+    return buf
+
