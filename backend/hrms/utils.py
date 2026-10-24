@@ -343,29 +343,43 @@ def _default_full_letter_text(emp, role_key, role_title, offer_type='Intern'):
         f"{role_display} and related domains.",
     ])
 
-def _seed_offer_draft_fields(emp, role_key, offer_type=None):
-    if not offer_type:
-        emp_t = str(getattr(emp, 'emp_type', 'Intern') or 'Intern').strip().lower()
-        offer_type = 'Trainee' if 'trainee' in emp_t else ('Full-time' if ('full' in emp_t or emp_t in ('normal', 'employee')) else 'Intern')
+def _seed_offer_draft_fields(emp, role_key, offer_type=None, role_title=None):
+    from hrms.ai_service import detect_offer_type_from_role
 
-    clean_role = (role_key or emp.designation or '').replace(' Intern', '').replace('Intern – ', '').replace(' Trainee', '').replace('Trainee – ', '').strip()
-    if offer_type == 'Trainee':
-        role_title = f"{clean_role} Trainee" if clean_role else "Trainee"
-    elif offer_type == 'Full-time':
-        role_title = clean_role or "Full-time Employee"
-    else:
-        role_title = role_key if role_key in ROLE_KEYS else (emp.designation or (f"{clean_role} Intern" if clean_role else 'Intern'))
+    resolved_title = role_title or (role_key if role_key and role_key != '__other__' else getattr(emp, 'designation', None))
+    if not offer_type or offer_type == 'Intern':
+        detected = detect_offer_type_from_role(resolved_title)
+        offer_type = detected if detected else (offer_type or 'Intern')
+
+    if not resolved_title or resolved_title == '__other__':
+        clean_role = (role_key or getattr(emp, 'designation', '') or '').replace(' Intern', '').replace('Intern – ', '').replace(' Trainee', '').replace('Trainee – ', '').strip()
+        if offer_type == 'Trainee':
+            resolved_title = f"{clean_role} Trainee" if clean_role else "Trainee"
+        elif offer_type == 'Full-time':
+            resolved_title = clean_role or "Full-time Employee"
+        else:
+            resolved_title = role_key if role_key in ROLE_KEYS else (getattr(emp, 'designation', None) or (f"{clean_role} Intern" if clean_role else 'Intern'))
 
     return {
-        'role_key': role_key,
-        'role_title': role_title,
+        'role_key': role_key or '__other__',
+        'role_title': resolved_title,
         'offer_type': offer_type,
-        'full_letter_text': _default_full_letter_text(emp, role_key, role_title, offer_type=offer_type),
-        'email_body_text': _default_email_body_text(emp, role_key, role_title, offer_type=offer_type),
+        'full_letter_text': _default_full_letter_text(emp, role_key, resolved_title, offer_type=offer_type),
+        'email_body_text': _default_email_body_text(emp, role_key, resolved_title, offer_type=offer_type),
     }
 
-def _get_offer_draft_data(emp, role_key=None, offer_type=None):
+def _get_offer_draft_data(emp, role_key=None, offer_type=None, role_title=None):
+    from hrms.ai_service import detect_offer_type_from_role
+
     draft = OfferLetterDraft.objects.filter(employee_id=emp.id).first()
+    
+    # Auto-detect offer_type from role_title if not explicitly set
+    if not offer_type or offer_type == 'Intern':
+        target_check = role_title or (draft.role_title if draft else None) or getattr(emp, 'designation', None)
+        detected = detect_offer_type_from_role(target_check)
+        if detected:
+            offer_type = detected
+
     resolved_type = offer_type or (getattr(draft, 'offer_type', None) if draft else None)
     if not resolved_type:
         emp_t = str(getattr(emp, 'emp_type', 'Intern') or 'Intern').strip().lower()
@@ -373,21 +387,24 @@ def _get_offer_draft_data(emp, role_key=None, offer_type=None):
 
     if draft:
         type_changed = offer_type and draft.offer_type and offer_type.lower() != draft.offer_type.lower()
-        if not type_changed and (not role_key or draft.role_key == role_key or (not draft.role_key)):
-            matched_key = draft.role_key or role_key or (emp.designation if emp.designation in ROLE_KEYS else ROLE_KEYS[0])
+        role_matches = (not role_key or draft.role_key == role_key or (role_key == '__other__' and (draft.role_key == '__other__' or draft.role_title)))
+        if not type_changed and role_matches:
+            matched_key = draft.role_key or role_key or (emp.designation if emp.designation in ROLE_KEYS else '__other__')
+            saved_title = draft.role_title or role_title or matched_key or ''
             return {
                 'role_key': matched_key,
-                'role_title': draft.role_title or matched_key or '',
+                'role_title': saved_title,
                 'offer_type': draft.offer_type or resolved_type,
-                'full_letter_text': draft.full_letter_text or _default_full_letter_text(emp, matched_key, draft.role_title or matched_key, offer_type=draft.offer_type or resolved_type),
-                'email_body_text': draft.email_body_text or _default_email_body_text(emp, matched_key, draft.role_title or matched_key, offer_type=draft.offer_type or resolved_type),
+                'full_letter_text': draft.full_letter_text or _default_full_letter_text(emp, matched_key, saved_title, offer_type=draft.offer_type or resolved_type),
+                'email_body_text': draft.email_body_text or _default_email_body_text(emp, matched_key, saved_title, offer_type=draft.offer_type or resolved_type),
             }
+
     if not role_key:
         if getattr(emp, 'designation', None) and emp.designation in ROLE_KEYS:
             role_key = emp.designation
         else:
-            role_key = ROLE_KEYS[0] if ROLE_KEYS else ''
-    return _seed_offer_draft_fields(emp, role_key, offer_type=resolved_type)
+            role_key = ROLE_KEYS[0] if ROLE_KEYS else '__other__'
+    return _seed_offer_draft_fields(emp, role_key, offer_type=resolved_type, role_title=role_title)
 
 def _upsert_offer_draft(emp, role_key, role_title, full_letter_text, email_body_text, offer_type=None):
     draft, _ = OfferLetterDraft.objects.get_or_create(employee_id=emp.id)

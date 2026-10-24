@@ -1790,6 +1790,7 @@ def api_master_data_save(request):
 def api_offer_draft_get(request):
     emp_id = request.GET.get('emp_id') or request.GET.get('id')
     role_key = request.GET.get('role') or request.GET.get('role_key', '')
+    role_title = request.GET.get('role_title', '').strip()
     offer_type = request.GET.get('offer_type') or request.GET.get('emp_type')
     if not emp_id:
         return JsonResponse({'error': 'emp_id is required'}, status=400)
@@ -1799,8 +1800,8 @@ def api_offer_draft_get(request):
             role_key = emp.offer_draft.role_key
         elif getattr(emp, 'designation', None) and emp.designation in ROLE_KEYS:
             role_key = emp.designation
-    draft_data = _get_offer_draft_data(emp, role_key, offer_type=offer_type)
-    resolved_role_key = draft_data.get('role_key') or role_key or (ROLE_KEYS[0] if ROLE_KEYS else '')
+    draft_data = _get_offer_draft_data(emp, role_key, offer_type=offer_type, role_title=role_title)
+    resolved_role_key = draft_data.get('role_key') or role_key or (ROLE_KEYS[0] if ROLE_KEYS else '__other__')
     return JsonResponse({
         'role_key': resolved_role_key,
         'role_title': draft_data.get('role_title') or resolved_role_key,
@@ -1823,12 +1824,16 @@ def api_offer_draft_save(request):
     if not emp_id:
         return JsonResponse({'success': False, 'message': 'emp_id is required'}, status=400)
     emp = get_object_or_404(Employee, id=emp_id)
-    role_key = data.get('role') or data.get('role_key', '')
-    if not role_key:
-        return JsonResponse({'success': False, 'message': 'Please select a role first'}, status=400)
-
+    role_key = data.get('role') or data.get('role_key', '__other__')
     role_title = data.get('role_title') or role_key
     offer_type = data.get('offer_type') or data.get('emp_type') or getattr(emp, 'emp_type', 'Intern')
+
+    from hrms.ai_service import detect_offer_type_from_role
+    if not offer_type or offer_type == 'Intern':
+        detected = detect_offer_type_from_role(role_title)
+        if detected:
+            offer_type = detected
+
     full_letter_text = data.get('full_text') or data.get('full_letter_text', '')
     email_body_text = data.get('email_body') or data.get('email_body_text', '')
 
@@ -1836,6 +1841,7 @@ def api_offer_draft_save(request):
     invalidate_employees_cache()
     return JsonResponse({
         'success': True,
+        'message': 'Draft saved successfully! Custom role and content have been saved.',
         'role_key': draft.role_key,
         'role_title': draft.role_title,
         'offer_type': getattr(draft, 'offer_type', None) or offer_type,
@@ -1844,6 +1850,173 @@ def api_offer_draft_save(request):
         'full_letter_text': draft.full_letter_text,
         'email_body_text': draft.email_body_text,
     })
+
+
+@csrf_exempt
+def api_ai_generate_offer(request):
+    """Generates offer letter and matching email body using Groq AI for any role."""
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    emp_id = data.get('emp_id') or data.get('employee_id')
+    emp = Employee.objects.filter(id=emp_id).first() if emp_id else None
+
+    role_title = data.get('role_title') or data.get('role') or (emp.designation if emp else 'Management Full Time')
+    offer_type = data.get('offer_type') or data.get('emp_type') or (emp.emp_type if emp else None)
+    candidate_name = (emp.name if emp else None) or data.get('candidate_name', 'Candidate')
+    salary = data.get('salary') or (emp.salary if emp else 0)
+    joining_date = data.get('joining_date') or (emp.joining_date if emp else None)
+    end_date = data.get('end_date') or (emp.end_date if emp else None)
+    custom_notes = data.get('custom_notes')
+
+    from hrms.ai_service import generate_ai_offer_content
+    result = generate_ai_offer_content(
+        candidate_name=candidate_name,
+        role_title=role_title,
+        offer_type=offer_type,
+        joining_date=joining_date,
+        end_date=end_date,
+        salary=salary,
+        custom_notes=custom_notes,
+    )
+
+    if data.get('auto_save') and emp:
+        role_key = data.get('role_key') or data.get('role') or '__other__'
+        _upsert_offer_draft(
+            emp,
+            role_key,
+            role_title,
+            result['full_letter_text'],
+            result['email_body'],
+            offer_type=result['offer_type']
+        )
+        invalidate_employees_cache()
+
+    return JsonResponse(result)
+
+
+@csrf_exempt
+def api_ai_generate_experience(request):
+    """Generates experience certificate content and email body using Groq AI."""
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    emp_id = data.get('emp_id') or data.get('employee_id')
+    emp = Employee.objects.filter(id=emp_id).first() if emp_id else None
+
+    role_title = data.get('role_title') or (emp.designation if emp else 'Employee')
+    exp_type = data.get('exp_type') or data.get('emp_type') or (emp.emp_type if emp else 'Full-time')
+    candidate_name = (emp.name if emp else None) or data.get('candidate_name', 'Employee')
+    joining_date = data.get('joining_date') or (emp.joining_date if emp else None)
+    end_date = data.get('end_date') or (emp.end_date if emp else None)
+    gender = data.get('gender') or (emp.gender if emp else None)
+
+    from hrms.ai_service import generate_ai_experience_content
+    result = generate_ai_experience_content(
+        candidate_name=candidate_name,
+        role_title=role_title,
+        exp_type=exp_type,
+        joining_date=joining_date,
+        end_date=end_date,
+        gender=gender,
+    )
+    return JsonResponse(result)
+
+
+@csrf_exempt
+@require_POST
+def api_resend_nda(request):
+    """Directly sends the Non-Disclosure Agreement (NDA) PDF via Microsoft Graph API to an employee."""
+    try:
+        data = json.loads(request.body)
+    except Exception:
+        data = request.POST
+
+    emp_id = data.get('emp_id') or data.get('employee_id')
+    emp = Employee.objects.filter(id=emp_id).first()
+    if not emp:
+        return JsonResponse({'success': False, 'message': 'Employee not found'}, status=404)
+    if not emp.email:
+        return JsonResponse({'success': False, 'message': 'Employee does not have an email address'}, status=400)
+
+    config = get_active_email_config(getattr(request, 'current_user', None))
+    if not config or not config.sender_email:
+        return JsonResponse({'success': False, 'message': 'Email service not configured.'}, status=400)
+
+    settings = CompanySettings.objects.first() or CompanySettings()
+    hydrate_company_files(settings)
+
+    nda_bytes = None
+    if getattr(settings, 'nda_data', None):
+        nda_bytes = bytes(settings.nda_data)
+    elif settings.nda_path and os.path.exists(settings.nda_path):
+        with open(settings.nda_path, 'rb') as f:
+            nda_bytes = f.read()
+
+    if not nda_bytes:
+        nda_buf = generate_nda_pdf(emp, settings)
+        nda_bytes = nda_buf.getvalue()
+
+    safe_name = emp.name.replace(' ', '_')
+    attachments = [{
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        "name": f"NDA_{safe_name}.pdf",
+        "contentBytes": base64.b64encode(nda_bytes).decode('utf-8')
+    }]
+
+    cc_recipients = []
+    raw_cc_input = data.get('cc_emails', '')
+    if raw_cc_input:
+        parsed_cc_list = [e.strip() for e in raw_cc_input.split(',') if e.strip()]
+        cc_recipients = [{"emailAddress": {"address": e}} for e in parsed_cc_list]
+
+    try:
+        token = get_graph_token(getattr(request, 'current_user', None))
+        subject = f"{emp.name} | Non-Disclosure Agreement (NDA) | TimeArrow Pvt. Ltd. (WisBees)"
+        html_body = f"""
+        <div style="font-family:Arial,sans-serif;font-size:14px;color:#222;max-width:600px;">
+          <p>Dear {emp.name},</p>
+          <p>Please find attached the official <strong>Non-Disclosure Agreement (NDA)</strong> from TimeArrow Pvt. Ltd. (WisBees).</p>
+          <p>Kindly review, sign, and return the executed copy at your earliest convenience to complete your onboarding records.</p>
+          <br>
+          <p style="margin:0;">Yours sincerely,</p>
+          <p style="margin:0;"><strong>HR & Compliance Department</strong></p>
+          <p style="margin:0;">TimeArrow Private Limited (WisBees)</p>
+          <p style="margin:0;"><a href="mailto:info@wisbees.com" style="color:#4f46e5;">info@wisbees.com</a></p>
+        </div>
+        """
+
+        email_payload = {
+            "message": {
+                "subject": subject,
+                "body": {"contentType": "HTML", "content": html_body},
+                "toRecipients": [{"emailAddress": {"address": emp.email}}],
+                "ccRecipients": cc_recipients,
+                "attachments": attachments
+            },
+            "saveToSentItems": True
+        }
+
+        graph_send_url = f"https://graph.microsoft.com/v1.0/users/{config.sender_email}/sendMail"
+        res = requests.post(
+            graph_send_url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=email_payload,
+            timeout=18
+        )
+        if res.status_code != 202:
+            return JsonResponse({'success': False, 'message': f'Failed to send NDA: {res.text}'}, status=500)
+
+        emp.nda_sent = True
+        emp.save(update_fields=['nda_sent'])
+        invalidate_employees_cache()
+        return JsonResponse({'success': True, 'message': f'Non-Disclosure Agreement (NDA) sent successfully to {emp.email}!'})
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
 
 
 @csrf_exempt

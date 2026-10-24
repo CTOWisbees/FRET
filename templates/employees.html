@@ -128,6 +128,14 @@
           </td>
           <td>
             <div style="display:flex;gap:6px;">
+              {% if not emp.nda_sent %}
+              <button class="btn btn-sm" style="background:linear-gradient(135deg, #0284c7, #0369a1);color:#fff;border:none;font-weight:600;padding:4px 7px;font-size:0.72rem;"
+                onclick="sendNdaDirect({{ emp.id }}, '{{ emp.name|escape }}', '{{ emp.email|escape }}')"
+                id="nda-btn-{{ emp.id }}"
+                title="Send official WisBees Non-Disclosure Agreement (NDA)">
+                <i class="fas fa-shield-alt"></i> NDA
+              </button>
+              {% endif %}
               <button class="btn btn-success btn-sm"
                 onclick="openOfferModal(this)"
                 data-id="{{ emp.id }}"
@@ -239,8 +247,21 @@
       </div>
 
       <div class="form-group">
-        <label class="form-label">Role Title (appears in the letter)</label>
-        <input type="text" id="offerRoleTitle" class="form-control" placeholder="e.g. Custom role title" />
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+          <label class="form-label" style="margin-bottom:0;font-weight:600;">Role Title (appears in the letter)</label>
+          <div style="display:flex;gap:6px;">
+            <button type="button" class="btn btn-sm" id="aiOfferBtn" onclick="generateAiOffer()"
+                    style="background:linear-gradient(135deg, #6366f1, #8b5cf6);color:#fff;border:none;font-weight:600;display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:0.78rem;"
+                    title="Generate custom letter content and email body tailored to this role using Groq AI">
+              <i class="fas fa-wand-magic-sparkles"></i> ✨ AI Auto-Generate
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="onOfferTypeChanged()"
+                    style="padding:4px 8px;font-size:0.75rem;" title="Reload standard template">
+              <i class="fas fa-rotate"></i> Template
+            </button>
+          </div>
+        </div>
+        <input type="text" id="offerRoleTitle" class="form-control" placeholder="e.g. Custom role title (e.g. Management Full Time)" oninput="onOfferRoleTitleInput(this.value)" />
       </div>
 
       <div class="form-group">
@@ -374,10 +395,17 @@
             </div>
 
             <div class="form-group" style="margin-top: 14px; text-align: left;">
-              <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">
-                <i class="fas fa-file-alt text-accent"></i> Experience Letter Content
-                <small style="color:var(--text3);font-weight:400;">(certificate body — edit freely; lines starting with "-" become bullets)</small>
-              </label>
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px;">
+                <label class="form-label" style="font-weight: 600; margin-bottom: 0; display: block;">
+                  <i class="fas fa-file-alt text-accent"></i> Experience Letter Content
+                  <small style="color:var(--text3);font-weight:400;">(certificate body — edit freely; lines starting with "-" become bullets)</small>
+                </label>
+                <button type="button" class="btn btn-sm" id="aiExpBtn" onclick="generateAiExp()"
+                        style="background:linear-gradient(135deg, #6366f1, #8b5cf6);color:#fff;border:none;font-weight:600;display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:6px;font-size:0.78rem;"
+                        title="Enhance experience certificate text using Groq AI">
+                  <i class="fas fa-wand-magic-sparkles"></i> ✨ AI Enhance Certificate
+                </button>
+              </div>
               <textarea id="expLetterContent" class="form-control" rows="8"
                         style="width: 100%; font-size: 0.83rem; line-height: 1.5; resize: vertical; padding: 8px; border-radius: 6px; box-sizing: border-box;"></textarea>
             </div>
@@ -564,6 +592,143 @@ function saveOfferDraft() {
   .then(data => showToast(data.success ? 'Draft saved' : (data.message || 'Save failed'), data.success ? 'success' : 'error'))
   .catch(() => showToast('A network connection error occurred.', 'error'))
   .finally(() => { btn.disabled = false; btn.innerHTML = originalHtml; });
+}
+
+function onOfferRoleTitleInput(val) {
+  const lower = (val || '').toLowerCase();
+  const select = document.getElementById('offerTypeSelect');
+  if (!select) return;
+  if (lower.includes('full time') || lower.includes('full-time') || lower.includes('fulltime') || lower.includes('permanent') || lower.includes('executive') || lower.includes('manager') || lower.includes('director') || lower.includes('lead')) {
+    if (!lower.includes('intern') && !lower.includes('trainee')) {
+      select.value = 'Full-time';
+      currentEmpOfferType = 'Full-time';
+    }
+  } else if (lower.includes('trainee')) {
+    select.value = 'Trainee';
+    currentEmpOfferType = 'Trainee';
+  } else if (lower.includes('intern')) {
+    select.value = 'Intern';
+    currentEmpOfferType = 'Intern';
+  }
+}
+
+function generateAiOffer() {
+  if (!currentEmpId) return;
+  const btn = document.getElementById('aiOfferBtn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Groq Generating...';
+  }
+  const roleTitle = document.getElementById('offerRoleTitle') ? document.getElementById('offerRoleTitle').value : '';
+  const offerType = document.getElementById('offerTypeSelect') ? document.getElementById('offerTypeSelect').value : 'Intern';
+
+  fetch('/api/ai/generate-offer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      emp_id: currentEmpId,
+      role_title: roleTitle,
+      offer_type: offerType
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      if (data.full_text) document.getElementById('offerFullText').value = data.full_text;
+      if (data.email_body) document.getElementById('offerEmailBody').value = data.email_body;
+      if (data.offer_type && document.getElementById('offerTypeSelect')) {
+        document.getElementById('offerTypeSelect').value = data.offer_type;
+      }
+      showToast('✨ Offer content enhanced with Groq AI!', 'success');
+    } else {
+      showToast(data.message || 'AI generation failed', 'error');
+    }
+  })
+  .catch(() => showToast('Failed to connect to AI generation service', 'error'))
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  });
+}
+
+function generateAiExp() {
+  if (!currentExpEmpId) return;
+  const btn = document.getElementById('aiExpBtn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Groq Generating...';
+  }
+  const expType = document.getElementById('expTypeSelect') ? document.getElementById('expTypeSelect').value : 'Intern';
+
+  fetch('/api/ai/generate-experience', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      emp_id: currentExpEmpId,
+      exp_type: expType
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      if (data.full_text) document.getElementById('expLetterContent').value = data.full_text;
+      if (data.email_body) document.getElementById('expEmailBody').value = data.email_body;
+      showToast('✨ Experience certificate enhanced with Groq AI!', 'success');
+    } else {
+      showToast(data.message || 'AI generation failed', 'error');
+    }
+  })
+  .catch(() => showToast('Failed to connect to AI generation service', 'error'))
+  .finally(() => {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
+  });
+}
+
+function sendNdaDirect(empId, empName, empEmail) {
+  if (!confirm('Send official WisBees Non-Disclosure Agreement (NDA) to ' + empName + ' (' + empEmail + ')?')) {
+    return;
+  }
+  const btn = document.getElementById('nda-btn-' + empId);
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+  }
+  fetch('/api/nda/resend', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      emp_id: empId,
+      cc_emails: 'jd@wisbees.com,gouri.sankar@wisbees.com,cto@wisbees.com'
+    })
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      showToast(data.message || 'NDA email sent successfully!', 'success');
+      if (btn) btn.style.display = 'none';
+      setTimeout(() => location.reload(), 1200);
+    } else {
+      showToast(data.message || 'Failed to send NDA', 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-shield-alt"></i> NDA';
+      }
+    }
+  })
+  .catch(() => {
+    showToast('Failed to dispatch NDA email', 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-shield-alt"></i> NDA';
+    }
+  });
 }
 
 // Combines ticked CC checkboxes with any extra emails typed in the free-text field

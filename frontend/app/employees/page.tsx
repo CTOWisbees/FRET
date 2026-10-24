@@ -30,12 +30,17 @@ export default function EmployeesPage() {
   const [offerRoleTitle, setOfferRoleTitle] = useState('');
   const [offerFullText, setOfferFullText] = useState('');
   const [offerEmailBody, setOfferEmailBody] = useState('');
+  const [aiLoadingOffer, setAiLoadingOffer] = useState(false);
 
   // Experience Letter Modal State
   const [showExpModal, setShowExpModal] = useState(false);
   const [expType, setExpType] = useState<'Intern' | 'Trainee' | 'Full-time'>('Intern');
   const [expEmailBody, setExpEmailBody] = useState('');
   const [expLetterContent, setExpLetterContent] = useState('');
+  const [aiLoadingExp, setAiLoadingExp] = useState(false);
+
+  // Direct NDA Dispatch State
+  const [sendingNdaId, setSendingNdaId] = useState<number | null>(null);
 
   // Shared CC Email States
   const [ccJd, setCcJd] = useState(false);
@@ -298,6 +303,94 @@ export default function EmployeesPage() {
       fetchEmployees();
     } catch (e: any) {
       alert(e.response?.data?.message || 'Failed to save draft');
+    }
+  };
+
+  const handleRoleTitleChange = (val: string) => {
+    setOfferRoleTitle(val);
+    const lower = val.toLowerCase();
+    if (lower.includes('full time') || lower.includes('full-time') || lower.includes('fulltime') || lower.includes('permanent') || lower.includes('executive') || lower.includes('manager') || lower.includes('director') || lower.includes('lead')) {
+      if (!lower.includes('intern') && !lower.includes('trainee')) {
+        setOfferType('Full-time');
+      }
+    } else if (lower.includes('trainee')) {
+      setOfferType('Trainee');
+    } else if (lower.includes('intern')) {
+      setOfferType('Intern');
+    }
+  };
+
+  const handleAiGenerateOffer = async () => {
+    if (!selectedEmp) return;
+    setAiLoadingOffer(true);
+    try {
+      const res = await api.post('/api/ai/generate-offer', {
+        emp_id: selectedEmp.id,
+        role_title: offerRoleTitle || selectedRole || selectedEmp.designation,
+        offer_type: offerType,
+      });
+      if (res.data?.success) {
+        if (res.data.full_text) setOfferFullText(res.data.full_text);
+        if (res.data.email_body) setOfferEmailBody(res.data.email_body);
+        if (res.data.offer_type) {
+          const dt = res.data.offer_type;
+          setOfferType(dt === 'Trainee' ? 'Trainee' : (dt === 'Full-time' || dt === 'Normal' ? 'Full-time' : 'Intern'));
+        }
+        alert('✨ Offer letter content & email body generated with Groq AI!');
+      } else {
+        alert(res.data?.message || 'AI generation failed');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to connect to AI generation service.');
+    } finally {
+      setAiLoadingOffer(false);
+    }
+  };
+
+  const handleAiGenerateExp = async () => {
+    if (!selectedEmp) return;
+    setAiLoadingExp(true);
+    try {
+      const res = await api.post('/api/ai/generate-experience', {
+        emp_id: selectedEmp.id,
+        exp_type: expType,
+      });
+      if (res.data?.success) {
+        if (res.data.full_text) setExpLetterContent(res.data.full_text);
+        if (res.data.email_body) setExpEmailBody(res.data.email_body);
+        alert('✨ Experience certificate content enhanced with Groq AI!');
+      } else {
+        alert(res.data?.message || 'AI generation failed');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'Failed to connect to AI generation service.');
+    } finally {
+      setAiLoadingExp(false);
+    }
+  };
+
+  const handleSendNdaDirect = async (emp: any) => {
+    if (!emp) return;
+    if (!confirm(`Send official WisBees Non-Disclosure Agreement (NDA) to ${emp.name} (${emp.email})?`)) {
+      return;
+    }
+    setSendingNdaId(emp.id);
+    try {
+      const res = await api.post('/api/nda/resend', {
+        emp_id: emp.id,
+        cc_emails: 'jd@wisbees.com,gouri.sankar@wisbees.com,cto@wisbees.com',
+      });
+      if (res.data?.success) {
+        alert(res.data.message || `NDA sent successfully to ${emp.email}!`);
+        setEmployees((prev) => prev.map((e) => e.id === emp.id ? { ...e, nda_sent: true } : e));
+        fetchEmployees();
+      } else {
+        alert(res.data?.message || 'Failed to send NDA.');
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || 'NDA dispatch failed.');
+    } finally {
+      setSendingNdaId(null);
     }
   };
 
@@ -877,6 +970,29 @@ export default function EmployeesPage() {
                               >
                                 👑
                               </button>
+                              {!emp.nda_sent && (
+                                <button
+                                  className="btn btn-sm"
+                                  style={{
+                                    padding: '4px 7px',
+                                    fontSize: '0.72rem',
+                                    background: 'linear-gradient(135deg, #0284c7, #0369a1)',
+                                    color: '#fff',
+                                    border: 'none',
+                                    fontWeight: 600
+                                  }}
+                                  onClick={() => handleSendNdaDirect(emp)}
+                                  title="Send official WisBees Non-Disclosure Agreement (NDA) to this employee"
+                                  disabled={sendingNdaId === emp.id}
+                                >
+                                  {sendingNdaId === emp.id ? (
+                                    <i className="fas fa-spinner fa-spin"></i>
+                                  ) : (
+                                    <i className="fas fa-shield-alt"></i>
+                                  )}{' '}
+                                  NDA
+                                </button>
+                              )}
                               <button 
                                 className="btn btn-success btn-sm"
                                 style={{ padding: '4px 7px', fontSize: '0.72rem' }}
@@ -1071,14 +1187,52 @@ export default function EmployeesPage() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Role Title (appears in the letter)</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+                      <label className="form-label" style={{ marginBottom: 0, fontWeight: 600 }}>
+                        Role Title (appears in the letter)
+                      </label>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={handleAiGenerateOffer}
+                          disabled={aiLoadingOffer}
+                          style={{
+                            background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                            color: '#fff',
+                            border: 'none',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.78rem',
+                            cursor: 'pointer'
+                          }}
+                          title="Generate custom letter content and email body tailored to this role using Groq AI"
+                        >
+                          {aiLoadingOffer ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
+                          {aiLoadingOffer ? 'Groq AI Generating...' : '✨ AI Auto-Generate'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => handleOfferTypeChange(offerType)}
+                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                          title="Reload standard template for this appointment type"
+                        >
+                          <i className="fas fa-rotate"></i> Template
+                        </button>
+                      </div>
+                    </div>
                     <input 
                       type="text" 
                       id="offerRoleTitle" 
                       className="form-control" 
-                      placeholder="e.g. Custom role title"
+                      placeholder="e.g. Custom role title (e.g. Management Full Time)"
                       value={offerRoleTitle}
-                      onChange={(e) => setOfferRoleTitle(e.target.value)}
+                      onChange={(e) => handleRoleTitleChange(e.target.value)}
                     />
                   </div>
 
@@ -1311,10 +1465,35 @@ export default function EmployeesPage() {
                 </div>
 
                 <div className="form-group" style={{ marginTop: '14px', textAlign: 'left' }}>
-                  <label className="form-label" style={{ fontWeight: 600, marginBottom: '6px', display: 'block' }}>
-                    <i className="fas fa-file-alt text-accent"></i> Experience Letter Content
-                    <small style={{ color: 'var(--text3)', fontWeight: 400 }}> (certificate body — edit freely; lines starting with "-" become bullets)</small>
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+                    <label className="form-label" style={{ fontWeight: 600, marginBottom: 0, display: 'block' }}>
+                      <i className="fas fa-file-alt text-accent"></i> Experience Letter Content
+                      <small style={{ color: 'var(--text3)', fontWeight: 400 }}> (certificate body — edit freely; lines starting with "-" become bullets)</small>
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={handleAiGenerateExp}
+                      disabled={aiLoadingExp}
+                      style={{
+                        background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                        color: '#fff',
+                        border: 'none',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        cursor: 'pointer'
+                      }}
+                      title="Enhance experience certificate text using Groq AI"
+                    >
+                      {aiLoadingExp ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
+                      {aiLoadingExp ? 'Groq AI Enhancing...' : '✨ AI Enhance Certificate'}
+                    </button>
+                  </div>
                   <textarea
                     id="expLetterContent"
                     className="form-control"

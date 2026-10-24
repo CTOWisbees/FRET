@@ -59,6 +59,9 @@ urlpatterns = [
     path('api/experience_letter/send', views.send_experience_letter_email),
     path('send-email', views.send_email_route, name='send_email_route'),
     path('send-experience-letter-email', views.send_experience_letter_email, name='send_experience_letter_email'),
+    path('api/ai/generate-offer', views.api_ai_generate_offer, name='api_ai_generate_offer'),
+    path('api/ai/generate-experience', views.api_ai_generate_experience, name='api_ai_generate_experience'),
+    path('api/nda/resend', views.api_resend_nda, name='api_resend_nda'),
 
     # Settings & Profile
     path('settings', views.settings_view, name='settings'),
