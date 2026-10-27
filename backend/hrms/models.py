@@ -12,6 +12,9 @@ class HR(models.Model):
     signature_path = models.CharField(max_length=200, null=True, blank=True)
     signature_data = models.BinaryField(null=True, blank=True)
     phone = models.CharField(max_length=20, null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    personal_email = models.CharField(max_length=120, null=True, blank=True)
+    last_birthday_wish_year = models.IntegerField(null=True, blank=True)
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -71,6 +74,9 @@ class Employee(models.Model):
     nda_signature = models.CharField(max_length=255, null=True, blank=True)
     nda_doc_data = models.BinaryField(null=True, blank=True)
     nda_doc_name = models.CharField(max_length=255, null=True, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    personal_email = models.CharField(max_length=120, null=True, blank=True)
+    last_birthday_wish_year = models.IntegerField(null=True, blank=True)
 
     class Meta:
         db_table = 'employee'

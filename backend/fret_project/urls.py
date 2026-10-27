@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.urls import path
-from hrms import views, newsletter_views, tracker_views
+from hrms import views, newsletter_views, tracker_views, birthday_views
 
 def api_offer_draft_dispatch(request):
     if request.method == 'POST':
@@ -173,6 +173,12 @@ urlpatterns = [
     path('api/nda/download', views.api_nda_download, name='api_nda_download'),
     path('api/nda/download/<int:emp_id>', views.api_nda_download, name='api_nda_download_emp'),
     path('api/employee/<int:emp_id>/role-access', views.api_update_employee_role_access, name='api_update_employee_role_access'),
+
+    # Birthday Wishes APIs
+    path('api/birthdays/today', birthday_views.api_birthdays_today, name='api_birthdays_today'),
+    path('api/birthdays/send', birthday_views.api_birthdays_send, name='api_birthdays_send'),
+    path('api/birthdays/preview/pdf', birthday_views.api_birthdays_preview_pdf, name='api_birthdays_preview_pdf'),
+    path('api/birthdays/preview/banner', birthday_views.api_birthdays_preview_banner, name='api_birthdays_preview_banner'),
 ]
 
 from django.conf import settings
